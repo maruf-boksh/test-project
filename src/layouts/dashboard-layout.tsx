@@ -42,15 +42,15 @@ type NavItem = {
 }
 
 const navItems: NavItem[] = [
-  { to: "/", label: "Overview", icon: LayoutGridIcon },
-  { to: "/reports", label: "Reports", icon: FileTextIcon },
+  { to: "/", label: "Operations", icon: LayoutGridIcon },
+  { to: "/events", label: "Events", icon: FileTextIcon },
 ]
 
 function usePageTitle() {
   const location = useLocation()
   const match = navItems.find((item) => item.to === location.pathname)
 
-  return match?.label ?? "Overview"
+  return match?.label ?? "Operations"
 }
 
 function SidebarNavItem({ to, label, icon: Icon }: NavItem) {
@@ -79,9 +79,11 @@ function AppSidebar() {
               <LayoutGridIcon className="size-4" />
             </div>
             <div className="flex min-w-0 flex-col">
-              <span className="truncate text-sm font-semibold">Shadcn Lab</span>
+              <span className="truncate text-sm font-semibold">
+                Harvest Catering
+              </span>
               <span className="truncate text-xs text-muted-foreground">
-                Simple dashboard
+                Service operations
               </span>
             </div>
           </div>
@@ -89,7 +91,7 @@ function AppSidebar() {
         <SidebarSeparator />
         <SidebarContent>
           <SidebarGroup>
-            <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+            <SidebarGroupLabel>Modules</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {navItems.map((item) => (
@@ -116,7 +118,7 @@ function AppHeader() {
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link to="/">Dashboard</Link>
+              <Link to="/">Catering</Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
@@ -128,13 +130,13 @@ function AppHeader() {
       <div className="ml-auto flex items-center gap-2">
         <div className="relative hidden md:block">
           <SearchIcon className="pointer-events-none absolute top-2.5 left-2 size-4 text-muted-foreground" />
-          <Input className="h-9 w-56 pl-8" placeholder="Search" />
+          <Input className="h-9 w-56 pl-8" placeholder="Search events" />
         </div>
         <Button variant="ghost" size="icon-sm" aria-label="Notifications">
           <BellIcon />
         </Button>
         <Avatar size="sm">
-          <AvatarFallback>JD</AvatarFallback>
+          <AvatarFallback>HC</AvatarFallback>
         </Avatar>
       </div>
     </header>

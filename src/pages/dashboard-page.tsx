@@ -22,44 +22,40 @@ export function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader>
-            <CardDescription>Monthly revenue</CardDescription>
-            <CardTitle>$42,300</CardTitle>
+            <CardDescription>Upcoming events</CardDescription>
+            <CardTitle>12</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-xs text-muted-foreground">5 this week</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardDescription>Meals in prep</CardDescription>
+            <CardTitle>2,480</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-xs text-muted-foreground">
-              +12.4% from last month
+              740 for tomorrow
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
-            <CardDescription>Active subscriptions</CardDescription>
-            <CardTitle>1,248</CardTitle>
+            <CardDescription>Staff scheduled</CardDescription>
+            <CardTitle>38</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-xs text-muted-foreground">
-              86 renewals today
-            </div>
+            <div className="text-xs text-muted-foreground">6 temps added</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
-            <CardDescription>Open tickets</CardDescription>
-            <CardTitle>27</CardTitle>
+            <CardDescription>On-time delivery</CardDescription>
+            <CardTitle>96%</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-xs text-muted-foreground">8 need review</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Project velocity</CardDescription>
-            <CardTitle>74%</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-xs text-muted-foreground">
-              Stable over 7 days
-            </div>
+            <div className="text-xs text-muted-foreground">Last 30 days</div>
           </CardContent>
         </Card>
       </div>
@@ -67,51 +63,51 @@ export function DashboardPage() {
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Recent activity</CardTitle>
-            <CardDescription>Latest updates from the team</CardDescription>
+            <CardTitle>Next events</CardTitle>
+            <CardDescription>Upcoming catering jobs</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Project</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Owner</TableHead>
-                  <TableHead>Updated</TableHead>
+                  <TableHead>Event</TableHead>
+                  <TableHead>Menu</TableHead>
+                  <TableHead>Guests</TableHead>
+                  <TableHead>Date</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 <TableRow>
-                  <TableCell>Onboarding revamp</TableCell>
+                  <TableCell>Riverwalk gala</TableCell>
                   <TableCell>
-                    <Badge variant="secondary">In review</Badge>
+                    <Badge variant="secondary">Tuscan buffet</Badge>
                   </TableCell>
-                  <TableCell>Avery</TableCell>
-                  <TableCell>2 hours ago</TableCell>
+                  <TableCell>220</TableCell>
+                  <TableCell>May 22</TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell>Mobile analytics</TableCell>
+                  <TableCell>Sunset vineyard</TableCell>
                   <TableCell>
-                    <Badge variant="outline">Draft</Badge>
+                    <Badge variant="outline">Seasonal plates</Badge>
                   </TableCell>
-                  <TableCell>Jordan</TableCell>
-                  <TableCell>Yesterday</TableCell>
+                  <TableCell>140</TableCell>
+                  <TableCell>May 23</TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell>Pricing refresh</TableCell>
+                  <TableCell>North loop offices</TableCell>
                   <TableCell>
-                    <Badge>Scheduled</Badge>
+                    <Badge>Lunch boxes</Badge>
                   </TableCell>
-                  <TableCell>Sam</TableCell>
-                  <TableCell>2 days ago</TableCell>
+                  <TableCell>95</TableCell>
+                  <TableCell>May 24</TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell>Support portal</TableCell>
+                  <TableCell>Harbor wedding</TableCell>
                   <TableCell>
-                    <Badge variant="secondary">In progress</Badge>
+                    <Badge variant="secondary">Coastal dinner</Badge>
                   </TableCell>
-                  <TableCell>Lee</TableCell>
-                  <TableCell>4 days ago</TableCell>
+                  <TableCell>180</TableCell>
+                  <TableCell>May 25</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
@@ -120,30 +116,30 @@ export function DashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Today</CardTitle>
-            <CardDescription>Focus for the next 24 hours</CardDescription>
+            <CardTitle>Today prep</CardTitle>
+            <CardDescription>Kitchen and logistics focus</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-lg border bg-background p-3">
-              <div className="text-sm font-medium">Sprint sync</div>
+              <div className="text-sm font-medium">Roast chicken</div>
               <div className="text-xs text-muted-foreground">
-                10:00 AM - Align priorities
+                320 portions for riverwalk gala
               </div>
             </div>
             <div className="rounded-lg border bg-background p-3">
-              <div className="text-sm font-medium">Customer check-in</div>
+              <div className="text-sm font-medium">Vegan meal boxes</div>
               <div className="text-xs text-muted-foreground">
-                1:30 PM - Enterprise plan
+                Pack 85 with seasonal salads
               </div>
             </div>
             <div className="rounded-lg border bg-background p-3">
-              <div className="text-sm font-medium">Release prep</div>
+              <div className="text-sm font-medium">Dispatch vans</div>
               <div className="text-xs text-muted-foreground">
-                4:00 PM - QA handoff
+                Load by 2:30 PM
               </div>
             </div>
             <Button className="w-full" variant="outline">
-              View schedule
+              View prep list
             </Button>
           </CardContent>
         </Card>
