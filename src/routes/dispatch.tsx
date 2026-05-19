@@ -1,11 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { DataTable, type Column } from "@/components/common/DataTable";
 import { Button } from "@/components/ui/button";
 import {
   Truck, Package, Plus, AlertTriangle, Bell, MoreHorizontal,
-  Eye, Pencil, Croissant, Pill, ChefHat, ShieldCheck, Download,
+  Eye, Croissant, Pill, ChefHat, ShieldCheck, Download,
   CheckCircle2, AlertCircle,
 } from "lucide-react";
 import { flights } from "@/lib/sample-data";
@@ -77,20 +76,36 @@ type PackagingStatus =
   | "Packaging Done"
   | "Ready for Dispatch";
 
+type QCState = "not-started" | "in-progress" | "done";
+
 type PackagingRow = {
   id: string;
   date: string;
   depTime: string;
-  flights: string[];
+  flight: string;
   mealType: "Breakfast" | "Lunch" | "Dinner" | "Snack" | "Special";
   mealName: string;
   qty: number;
   section: string;
   packagingStatus: PackagingStatus;
-  qcStatus: "Passed" | "Pending";
-  qcCheckedBy?: string;
-  qcCheckedAt?: string;
   dspRef?: string;
+};
+
+type FlightQCData = { qcState: QCState; qcCheckedAt?: string };
+
+type FlightGroup = { flight: string; rows: PackagingRow[] };
+type DepTimeGroup = { depTime: string; flightGroups: FlightGroup[] };
+
+type DispatchedFlightEntry = {
+  id: string;
+  flight: string;
+  depTime: string;
+  date: string;
+  totalQty: number;
+  dispatchExecName: string;
+  dispatchedDate: string;
+  dispatchedTime: string;
+  recordId: string;
 };
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -130,6 +145,22 @@ const MEAL_TYPE_BADGE: Record<string, string> = {
   Special:   "bg-purple-100 text-purple-700",
 };
 
+const FLIGHT_STATUS_BADGE: Record<string, string> = {
+  "Packaging Pending":     "bg-amber-100 text-amber-700",
+  "Packaging In Progress": "bg-blue-100 text-blue-700",
+  "Packaging Done":        "bg-teal-100 text-teal-700",
+  "QC In Progress":        "bg-violet-100 text-violet-700",
+  "Ready for Dispatch":    "bg-emerald-100 text-emerald-700",
+};
+
+function getFlightStatus(rows: PackagingRow[], qcState: QCState): string {
+  if (qcState === "done") return "Ready for Dispatch";
+  if (qcState === "in-progress") return "QC In Progress";
+  if (rows.every((r) => r.packagingStatus === "Packaging Done" || r.packagingStatus === "Ready for Dispatch")) return "Packaging Done";
+  if (rows.some((r) => r.packagingStatus === "Packaging In Progress")) return "Packaging In Progress";
+  return "Packaging Pending";
+}
+
 const MATERIAL_NAMES = [
   "Passenger tray", "Crew tray", "Main course container",
   "Bread roll wrapper", "Dessert cup", "Cutlery set", "Tray liner", "Cart label",
@@ -150,52 +181,13 @@ function getMaterials(qty: number) {
 const TODAY = "2026-05-18";
 
 const INITIAL_PACKAGING_ROWS: PackagingRow[] = [
-  {
-    id: "PRD-9006", date: TODAY, depTime: "7:00 AM",
-    flights: ["BS-225"],
-    mealType: "Snack", mealName: "Heavy Snack Box", qty: 174, section: "Cold Kitchen",
-    packagingStatus: "Packaging In Progress",
-    qcStatus: "Passed", qcCheckedBy: "F. Begum", qcCheckedAt: "06:30 AM",
-    dspRef: "DSP-7704",
-  },
-  {
-    id: "PRD-9001", date: TODAY, depTime: "7:00 AM",
-    flights: ["BS-225"],
-    mealType: "Lunch", mealName: "Chicken Biryani", qty: 168, section: "Hot Kitchen",
-    packagingStatus: "Ready for Packaging",
-    qcStatus: "Pending",
-    dspRef: "DSP-7704",
-  },
-  {
-    id: "PRD-9002", date: TODAY, depTime: "7:00 AM",
-    flights: ["BS-225", "BS-203"],
-    mealType: "Snack", mealName: "Veg Pulao", qty: 24, section: "Veg Section",
-    packagingStatus: "Packaging In Progress",
-    qcStatus: "Pending",
-    dspRef: "DSP-7704",
-  },
-  {
-    id: "PRD-9003", date: TODAY, depTime: "8:30 AM",
-    flights: ["BS-307"],
-    mealType: "Dinner", mealName: "Grilled Salmon", qty: 282, section: "Hot Kitchen",
-    packagingStatus: "Packaging In Progress",
-    qcStatus: "Passed", qcCheckedBy: "A. Khan", qcCheckedAt: "07:15 AM",
-  },
-  {
-    id: "PRD-9004", date: TODAY, depTime: "8:30 AM",
-    flights: ["BS-307"],
-    mealType: "Breakfast", mealName: "Continental Breakfast", qty: 282, section: "Cold Kitchen",
-    packagingStatus: "Packaging Done",
-    qcStatus: "Passed", qcCheckedBy: "N. Islam", qcCheckedAt: "07:45 AM",
-  },
-  {
-    id: "PRD-9005", date: TODAY, depTime: "9:00 AM",
-    flights: ["BS-101"],
-    mealType: "Special", mealName: "Hindu Meal Special", qty: 8, section: "Special Meal",
-    packagingStatus: "Ready for Dispatch",
-    qcStatus: "Passed", qcCheckedBy: "F. Begum", qcCheckedAt: "08:00 AM",
-    dspRef: "DSP-7701",
-  },
+  { id: "PRD-9006", date: TODAY, depTime: "7:00 AM", flight: "BS-225", mealType: "Snack",     mealName: "Heavy Snack Box",        qty: 174, section: "Cold Kitchen",   packagingStatus: "Packaging In Progress", dspRef: "DSP-7704" },
+  { id: "PRD-9001", date: TODAY, depTime: "7:00 AM", flight: "BS-225", mealType: "Lunch",     mealName: "Chicken Biryani",         qty: 168, section: "Hot Kitchen",    packagingStatus: "Ready for Packaging",   dspRef: "DSP-7704" },
+  { id: "PRD-9002", date: TODAY, depTime: "7:00 AM", flight: "BS-225", mealType: "Snack",     mealName: "Veg Pulao",               qty: 24,  section: "Veg Section",    packagingStatus: "Packaging In Progress", dspRef: "DSP-7704" },
+  { id: "PRD-9002B",date: TODAY, depTime: "7:00 AM", flight: "BS-203", mealType: "Snack",     mealName: "Veg Pulao",               qty: 24,  section: "Veg Section",    packagingStatus: "Packaging In Progress", dspRef: "DSP-7702" },
+  { id: "PRD-9003", date: TODAY, depTime: "8:30 AM", flight: "BS-307", mealType: "Dinner",    mealName: "Grilled Salmon",          qty: 282, section: "Hot Kitchen",    packagingStatus: "Packaging In Progress" },
+  { id: "PRD-9004", date: TODAY, depTime: "8:30 AM", flight: "BS-307", mealType: "Breakfast", mealName: "Continental Breakfast",   qty: 282, section: "Cold Kitchen",   packagingStatus: "Packaging Done" },
+  { id: "PRD-9005", date: TODAY, depTime: "9:00 AM", flight: "BS-101", mealType: "Special",   mealName: "Hindu Meal Special",      qty: 8,   section: "Special Meal",   packagingStatus: "Packaging Done",        dspRef: "DSP-7701" },
 ];
 
 // ─── Dispatch Seed Data ───────────────────────────────────────────────────────
@@ -304,12 +296,18 @@ function Dispatch() {
 
   // ── Packaging pipeline state ────────────────────────────────────────────────
   const [packagingRows, setPackagingRows] = useState<PackagingRow[]>(INITIAL_PACKAGING_ROWS);
+  const [flightQCStates, setFlightQCStates] = useState<Map<string, FlightQCData>>(
+    new Map([["BS-101", { qcState: "done", qcCheckedAt: "08:00 AM" }]])
+  );
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo]     = useState("");
+  const [filterDepTime, setFilterDepTime]   = useState("");
   const [filterStatus, setFilterStatus]     = useState("All Statuses");
   const [materialsRow, setMaterialsRow]             = useState<PackagingRow | null>(null);
   const [markReadyRow, setMarkReadyRow]             = useState<PackagingRow | null>(null);
-  const [initiateDispatchRow, setInitiateDispatchRow] = useState<PackagingRow | null>(null);
+  const [viewPackagingRow, setViewPackagingRow]     = useState<PackagingRow | null>(null);
+  const [dispatchedFlightEntries, setDispatchedFlightEntries] = useState<DispatchedFlightEntry[]>([]);
+  const [viewDispatchedEntry, setViewDispatchedEntry] = useState<DispatchedFlightEntry | null>(null);
 
   // ── New Dispatch Config modal ───────────────────────────────────────────────
   const [configOpen, setConfigOpen]         = useState(false);
@@ -364,27 +362,38 @@ function Dispatch() {
 
   // ── Packaging derived ───────────────────────────────────────────────────────
 
+  const depTimesForDate = useMemo(() => {
+    const dateFiltered = packagingRows.filter((r) =>
+      (!filterDateFrom || r.date >= filterDateFrom) &&
+      (!filterDateTo   || r.date <= filterDateTo)
+    );
+    return [...new Set(dateFiltered.map((r) => r.depTime))].sort();
+  }, [packagingRows, filterDateFrom, filterDateTo]);
+
   const filteredPRDs = useMemo(
     () =>
       packagingRows.filter((r) => {
         const matchDate =
           (!filterDateFrom || r.date >= filterDateFrom) &&
           (!filterDateTo   || r.date <= filterDateTo);
+        const matchDepTime = !filterDepTime || r.depTime === filterDepTime;
         const matchStatus =
           filterStatus === "All Statuses" || r.packagingStatus === filterStatus;
-        return matchDate && matchStatus;
+        return matchDate && matchDepTime && matchStatus;
       }),
-    [packagingRows, filterDateFrom, filterDateTo, filterStatus]
+    [packagingRows, filterDateFrom, filterDateTo, filterDepTime, filterStatus]
   );
 
   const groupedPRDs = useMemo(() => {
-    const groups: { depTime: string; rows: PackagingRow[] }[] = [];
+    const timeGroups: DepTimeGroup[] = [];
     for (const row of filteredPRDs) {
-      const g = groups.find((g) => g.depTime === row.depTime);
-      if (g) g.rows.push(row);
-      else groups.push({ depTime: row.depTime, rows: [row] });
+      let tg = timeGroups.find((g) => g.depTime === row.depTime);
+      if (!tg) { tg = { depTime: row.depTime, flightGroups: [] }; timeGroups.push(tg); }
+      let fg = tg.flightGroups.find((g) => g.flight === row.flight);
+      if (!fg) { fg = { flight: row.flight, rows: [] }; tg.flightGroups.push(fg); }
+      fg.rows.push(row);
     }
-    return groups;
+    return timeGroups;
   }, [filteredPRDs]);
 
   // ── DSP aggregate recalculation ─────────────────────────────────────────────
@@ -431,9 +440,53 @@ function Dispatch() {
     toast.success(`${row.id} is Ready for Dispatch.`);
   };
 
-  const handleInitiateDispatch = (row: PackagingRow) => {
-    toast.success(`Dispatch initiated for ${row.id} — Flight ${row.flights[0]}`);
-    setInitiateDispatchRow(null);
+  const handleQCAction = (flight: string) => {
+    const current = flightQCStates.get(flight) ?? { qcState: "not-started" as QCState };
+    if (current.qcState === "not-started") {
+      setFlightQCStates((prev) => new Map(prev).set(flight, { qcState: "in-progress" }));
+      toast.info(`QC started for flight ${flight}.`);
+    } else if (current.qcState === "in-progress") {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+      setFlightQCStates((prev) => new Map(prev).set(flight, { qcState: "done", qcCheckedAt: timeStr }));
+      const dspRef = packagingRows.find((r) => r.flight === flight)?.dspRef;
+      if (dspRef) setRecords((prev) => prev.map((r) => r.id === dspRef ? { ...r, status: "Ready For Dispatch" as DispatchStatus } : r));
+      toast.success(`QC Done for flight ${flight}. Status → Ready for Dispatch.`);
+    }
+  };
+
+  const openWarningForFlightGroup = (fg: FlightGroup) => {
+    const firstRow = fg.rows[0];
+    if (!firstRow) return;
+    const dspRef = firstRow.dspRef;
+    const existing = dspRef ? records.find((r) => r.id === dspRef) : undefined;
+    const totalQty = fg.rows.reduce((sum, r) => sum + r.qty, 0);
+    const rec: DispatchRecord = existing ?? {
+      id: `DSP-${fg.flight}`,
+      date: firstRow.date,
+      depTime: firstRow.depTime,
+      kitchenName: firstRow.section,
+      flightNos: [fg.flight],
+      status: "Ready For Dispatch",
+      trail: [],
+      detail: {
+        flightKitchen: { name: firstRow.section, totalMeals: totalQty, lunch: 0, breakfast: 0 },
+        bakery: [],
+        amenities: [],
+        foodSafety: { result: "—", checkedBy: "", date: "", time: "" },
+      },
+      sections: [{
+        flightNo: fg.flight,
+        sector: "",
+        paxLines: [{ itemName: "PBDR", percent: 100, qty: totalQty }],
+        vgml: 0, chml: 0, spml: 0,
+        crewMeals: [],
+        pastry: 0,
+        childMealsPastry: 0,
+      }],
+      dynamicItems: [],
+    };
+    openWarning(rec);
   };
 
   // ── Config helpers ──────────────────────────────────────────────────────────
@@ -583,6 +636,23 @@ function Dispatch() {
           : r
       )
     );
+    if (dispatchingRecord) {
+      const execName = "M. Karim";
+      const newEntries: DispatchedFlightEntry[] = dispatchingRecord.flightNos.map((flight) => ({
+        id: `DE-${Date.now()}-${flight}`,
+        flight,
+        depTime: dispatchingRecord.depTime,
+        date: dispatchingRecord.date,
+        totalQty: packagingRows.filter((r) => r.flight === flight).reduce((s, r) => s + r.qty, 0),
+        dispatchExecName: execName,
+        dispatchedDate: dateStr,
+        dispatchedTime: timeStr,
+        recordId: dispatchingRecord.id,
+      }));
+      setDispatchedFlightEntries((prev) => [...prev, ...newEntries]);
+      const dispatchedFlightSet = new Set(dispatchingRecord.flightNos);
+      setPackagingRows((prev) => prev.filter((r) => !dispatchedFlightSet.has(r.flight)));
+    }
     setDispatched(true);
     toast.success("Dispatch initiated successfully.");
   };
@@ -594,58 +664,6 @@ function Dispatch() {
     setNotifyOpen(false);
     setFormOpen(false);
   };
-
-  // ── DSP table columns ───────────────────────────────────────────────────────
-
-  const cols: Column<DispatchRecord>[] = [
-    { key: "id", header: "Dispatch #" },
-    { key: "depTime", header: "Dep Time" },
-    {
-      key: "flightNos", header: "Flight(s)",
-      render: (r) => (
-        <div className="space-y-1">
-          {r.flightNos.map((fn) => {
-            const sec = r.sections.find((s) => s.flightNo === fn);
-            return (
-              <div key={fn} className="flex items-center gap-1.5">
-                <span className="font-semibold text-sm">{fn}</span>
-                {sec?.sector && <span className="text-xs text-muted-foreground">{sec.sector}</span>}
-              </div>
-            );
-          })}
-        </div>
-      ),
-    },
-    {
-      key: "kitchenName", header: "Flight Kitchen",
-      render: (r) => (
-        <div>
-          <div className="font-semibold text-slate-700 text-sm">{r.kitchenName}</div>
-          <div className="text-xs text-muted-foreground">{r.detail.flightKitchen.totalMeals.toLocaleString()} meals</div>
-        </div>
-      ),
-    },
-    {
-      key: "status", header: "Status",
-      render: (r) => (
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_BADGE[r.status]}`}>
-          {r.status}
-        </span>
-      ),
-    },
-    {
-      key: "detail_qc", header: "Food Safety & QC",
-      render: (r) => {
-        const { result } = r.detail.foodSafety;
-        if (result === "—") return <span className="text-muted-foreground text-sm">—</span>;
-        return (
-          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${result === "Passed" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
-            <ShieldCheck className="h-3 w-3" />{result}
-          </span>
-        );
-      },
-    },
-  ];
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -667,7 +685,7 @@ function Dispatch() {
       </div>
 
       {/* ── Filter Bar ──────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 py-3 mb-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 py-3 mb-4 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto">
           <span className="text-xs text-muted-foreground whitespace-nowrap">From</span>
           <Input
@@ -687,6 +705,16 @@ function Dispatch() {
           />
         </div>
         <select
+          value={filterDepTime}
+          onChange={(e) => setFilterDepTime(e.target.value)}
+          className="h-9 rounded-md border border-input bg-background px-3 text-sm w-full sm:w-40"
+        >
+          <option value="">All Dep Times</option>
+          {depTimesForDate.map((t) => (
+            <option key={t} value={t}>{t}</option>
+          ))}
+        </select>
+        <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
           className="h-9 rounded-md border border-input bg-background px-3 text-sm w-full sm:w-52"
@@ -705,12 +733,12 @@ function Dispatch() {
           <table className="w-full text-sm min-w-[1100px]">
             <thead className="bg-muted/50 border-b border-border">
               <tr>
+                <th className="p-3 text-left font-semibold">Dep Time</th>
+                <th className="p-3 text-left font-semibold">Flight</th>
                 <th className="p-3 w-10 text-center">
                   <input type="checkbox" className="h-4 w-4 rounded" />
                 </th>
                 <th className="p-3 text-left font-semibold">Order #</th>
-                <th className="p-3 text-left font-semibold">Dep Time</th>
-                <th className="p-3 text-left font-semibold">Flight(s)</th>
                 <th className="p-3 text-left font-semibold">Meal Type</th>
                 <th className="p-3 text-left font-semibold">Meal Name</th>
                 <th className="p-3 text-right font-semibold">Qty</th>
@@ -730,134 +758,143 @@ function Dispatch() {
                 </tr>
               </tbody>
             ) : (
-              groupedPRDs.map((group) => {
-                const uniqueFlights = [...new Set(group.rows.flatMap((r) => r.flights))];
+              groupedPRDs.map((timeGroup) => {
+                const totalTimeRows = timeGroup.flightGroups.reduce((sum, fg) => sum + fg.rows.length, 0);
+                let timeDepRendered = false;
                 return (
-                  <tbody key={group.depTime}>
-                    {/* Group header */}
-                    <tr className="bg-slate-50 border-y border-slate-200">
-                      <td colSpan={11} className="px-4 py-2 text-xs font-semibold text-slate-600">
-                        {group.depTime} — {group.rows.length} order{group.rows.length !== 1 ? "s" : ""}: {uniqueFlights.join(", ")}
-                      </td>
-                    </tr>
-
-                    {/* Child rows */}
-                    {group.rows.flatMap((row, rIdx) => {
-                      const isLastRow = rIdx === group.rows.length - 1;
-                      const span = row.flights.length;
-                      return row.flights.map((flight, fIdx) => {
-                        const isFirst = fIdx === 0;
-                        const isAbsoluteLast = isLastRow && fIdx === span - 1;
+                  <tbody key={timeGroup.depTime}>
+                    {timeGroup.flightGroups.flatMap((flightGroup, fgIdx) => {
+                      const flightRowSpan = flightGroup.rows.length;
+                      const flightQCData = flightQCStates.get(flightGroup.flight);
+                      const flightQCState = flightQCData?.qcState ?? "not-started";
+                      const allPackagingDone = flightGroup.rows.every(
+                        (r) => r.packagingStatus === "Packaging Done" || r.packagingStatus === "Ready for Dispatch"
+                      );
+                      const flightStatus = getFlightStatus(flightGroup.rows, flightQCState);
+                      const isLastFlightGroup = fgIdx === timeGroup.flightGroups.length - 1;
+                      return flightGroup.rows.map((row, rIdx) => {
+                        const isFirstInFlight = rIdx === 0;
+                        const isFirstInTime = isFirstInFlight && !timeDepRendered;
+                        if (isFirstInTime) timeDepRendered = true;
+                        const isAbsoluteLast = isLastFlightGroup && rIdx === flightGroup.rows.length - 1;
                         return (
-                      <tr
-                        key={`${row.id}-f${fIdx}`}
-                        className={`hover:bg-muted/20 ${
-                          isAbsoluteLast
-                            ? "border-b-2 border-border"
-                            : "border-b border-border/50"
-                        }`}
-                      >
-                        {isFirst && (
-                          <>
-                        <td rowSpan={span} className="p-3 pl-6 text-center align-middle">
-                          <input type="checkbox" className="h-4 w-4 rounded" />
-                        </td>
-                        <td rowSpan={span} className="p-3 pl-6 font-bold text-slate-800 align-middle">{row.id}</td>
-                        <td rowSpan={span} className="p-3 text-sm text-muted-foreground align-middle">{row.depTime}</td>
-                          </>
-                        )}
-                        <td className="p-3">
-                          <div className="font-semibold text-sm">{flight}</div>
-                          {false && (
-                            <div className="text-xs text-muted-foreground">+ {row.flights[1]}</div>
-                          )}
-                        </td>
-                        <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${MEAL_TYPE_BADGE[row.mealType] ?? "bg-muted text-foreground"}`}>
-                            {row.mealType}
-                          </span>
-                        </td>
-                        <td className="p-3 text-sm">{row.mealName}</td>
-                        <td className="p-3 text-right font-medium">{row.qty}</td>
-                        <td className="p-3 text-sm text-muted-foreground">{row.section}</td>
-                        <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${PACKAGING_BADGE[row.packagingStatus]}`}>
-                            {row.packagingStatus}
-                          </span>
-                        </td>
-                        <td className="p-3">
-                          {row.qcStatus === "Passed" ? (
-                            <span
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border border-emerald-500 text-emerald-700 cursor-default"
-                              title={`QC checked by ${row.qcCheckedBy} at ${row.qcCheckedAt}`}
-                            >
-                              <ShieldCheck className="h-3 w-3" /> Passed
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-muted text-muted-foreground">
-                              Pending
-                            </span>
-                          )}
-                        </td>
-                        {isFirst && (
-                          <td rowSpan={span} className="p-3 align-middle">
-                            <div className="flex items-center gap-2 flex-nowrap">
-                              <Button
-                                size="sm"
-                                className="h-7 px-3 text-xs bg-navy text-navy-foreground hover:opacity-90 shrink-0"
-                                onClick={() => toast.info(`Viewing ${row.id}`)}
-                              >
-                                <Eye className="h-3 w-3 mr-1" /> View
-                              </Button>
-                              {row.packagingStatus === "Ready for Packaging" && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 px-3 text-xs shrink-0"
-                                  onClick={() => setMaterialsRow(row)}
-                                >
-                                  <Package className="h-3 w-3 mr-1" /> Initiate Packaging
-                                </Button>
-                              )}
-                              {(row.packagingStatus === "Packaging Done" || row.packagingStatus === "Ready for Dispatch") && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  disabled={row.qcStatus !== "Passed"}
-                                  className="h-7 px-3 text-xs shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                                  onClick={() => setInitiateDispatchRow(row)}
-                                >
-                                  <Truck className="h-3 w-3 mr-1" /> Initiate Dispatch
-                                </Button>
-                              )}
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
-                                    <MoreHorizontal className="h-4 w-4" />
+                          <tr
+                            key={row.id}
+                            className={`hover:bg-muted/20 ${isAbsoluteLast ? "border-b-2 border-border" : "border-b border-border/50"}`}
+                          >
+                            {isFirstInTime && (
+                              <td rowSpan={totalTimeRows} className="p-3 text-sm text-muted-foreground align-middle font-medium border-r border-border/40 bg-slate-50/60 whitespace-nowrap">
+                                {timeGroup.depTime}
+                              </td>
+                            )}
+                            {isFirstInFlight && (
+                              <td rowSpan={flightRowSpan} className="p-3 font-semibold text-sm align-middle border-r border-border/20 whitespace-nowrap">
+                                {flightGroup.flight}
+                              </td>
+                            )}
+                            <td className="p-3 text-center align-middle">
+                              <input type="checkbox" className="h-4 w-4 rounded" />
+                            </td>
+                            <td className="p-3 font-bold text-slate-800 align-middle">{row.id}</td>
+                            <td className="p-3">
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${MEAL_TYPE_BADGE[row.mealType] ?? "bg-muted text-foreground"}`}>
+                                {row.mealType}
+                              </span>
+                            </td>
+                            <td className="p-3 text-sm">{row.mealName}</td>
+                            <td className="p-3 text-right font-medium">{row.qty}</td>
+                            <td className="p-3 text-sm text-muted-foreground">{row.section}</td>
+                            {isFirstInFlight && (
+                              <td rowSpan={flightRowSpan} className="p-3 align-middle border-l border-border/20">
+                                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${FLIGHT_STATUS_BADGE[flightStatus] ?? "bg-muted text-muted-foreground"}`}>
+                                  {flightStatus}
+                                </span>
+                              </td>
+                            )}
+                            {isFirstInFlight && (
+                              <td rowSpan={flightRowSpan} className="p-3 align-middle border-l border-border/20">
+                                {flightQCState === "done" ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border border-emerald-500 text-emerald-700 cursor-default"
+                                    title={`QC checked at ${flightQCData?.qcCheckedAt ?? ""}`}>
+                                    <ShieldCheck className="h-3 w-3" /> QC Done
+                                  </span>
+                                ) : flightQCState === "in-progress" ? (
+                                  <Button size="sm"
+                                    className="h-7 px-3 text-xs shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white border-0"
+                                    onClick={() => handleQCAction(flightGroup.flight)}>
+                                    <ShieldCheck className="h-3 w-3 mr-1" /> QC Passed
                                   </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-52">
-                                  <DropdownMenuItem onClick={() => toast.info(`Viewing ${row.id}`)}>
-                                    <Eye className="h-4 w-4 mr-2" /> View Details
-                                  </DropdownMenuItem>
-                                  {row.packagingStatus === "Packaging In Progress" && (
-                                    <DropdownMenuItem onClick={() => handleMarkPackagingDone(row)}>
-                                      <CheckCircle2 className="h-4 w-4 mr-2" /> Mark As Packaging Done
-                                    </DropdownMenuItem>
+                                ) : allPackagingDone ? (
+                                  <Button size="sm"
+                                    className="h-7 px-3 text-xs shrink-0 bg-violet-600 hover:bg-violet-700 text-white border-0"
+                                    onClick={() => handleQCAction(flightGroup.flight)}>
+                                    <ShieldCheck className="h-3 w-3 mr-1" /> Initiate QC
+                                  </Button>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-muted text-muted-foreground">Pending</span>
+                                )}
+                              </td>
+                            )}
+                            {isFirstInFlight && (
+                              <td rowSpan={flightRowSpan} className="p-3 align-middle border-l border-border/20">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <Button
+                                    size="sm"
+                                    className="h-7 px-3 text-xs bg-navy text-navy-foreground hover:opacity-90 shrink-0"
+                                    onClick={() => setViewPackagingRow(flightGroup.rows[0])}
+                                  >
+                                    <Eye className="h-3 w-3 mr-1" /> View
+                                  </Button>
+                                  {flightGroup.rows.some((r) => r.packagingStatus === "Ready for Packaging") && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 px-3 text-xs shrink-0"
+                                      onClick={() => setMaterialsRow(flightGroup.rows.find((r) => r.packagingStatus === "Ready for Packaging")!)}
+                                    >
+                                      <Package className="h-3 w-3 mr-1" /> Initiate Packaging
+                                    </Button>
                                   )}
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem onClick={() => toast.info(`Printing label for ${row.id}`)}>
-                                    Print Label
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => toast.info(`QC Report for ${row.id}`)}>
-                                    View QC Report
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          </td>
-                        )}
-                      </tr>
+                                  {flightQCState === "done" && (
+                                    <Button
+                                      size="sm"
+                                      className="h-7 px-3 text-xs shrink-0 bg-gradient-to-r from-teal-500 to-cyan-600 text-white hover:from-teal-600 hover:to-cyan-700 border-0 shadow-sm"
+                                      onClick={() => openWarningForFlightGroup(flightGroup)}
+                                    >
+                                      <Truck className="h-3 w-3 mr-1" /> Initiate Dispatch
+                                    </Button>
+                                  )}
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+                                        <MoreHorizontal className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-52">
+                                      {flightGroup.rows.some((r) => r.packagingStatus === "Packaging In Progress") && (
+                                        <>
+                                          <DropdownMenuItem onClick={() => {
+                                            const ids = new Set(flightGroup.rows.filter((r) => r.packagingStatus === "Packaging In Progress").map((r) => r.id));
+                                            setPackagingRows((prev) => prev.map((r) => ids.has(r.id) ? { ...r, packagingStatus: "Packaging Done" as PackagingStatus } : r));
+                                            toast.success(`Packaging done for flight ${flightGroup.flight}.`);
+                                          }}>
+                                            <CheckCircle2 className="h-4 w-4 mr-2" /> Mark Packaging Done
+                                          </DropdownMenuItem>
+                                          <DropdownMenuSeparator />
+                                        </>
+                                      )}
+                                      <DropdownMenuItem onClick={() => toast.info(`Print Label for ${flightGroup.flight}`)}>
+                                        Print Label
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => toast.info(`QC Report for ${flightGroup.flight}`)}>
+                                        View QC Report
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </div>
+                              </td>
+                            )}
+                          </tr>
                         );
                       });
                     })}
@@ -869,45 +906,118 @@ function Dispatch() {
         </div>
       </div>
 
-      {/* ── Dispatch Summary Table ───────────────────────────────────────────── */}
-      <DataTable
-        title="dispatch"
-        data={records}
-        columns={cols}
-        searchKeys={["id", "status", "depTime"]}
-        actions={(r) => (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={() => setViewRecord(r)}>
-                <Eye className="h-4 w-4 mr-2" /> View
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.info(`Editing ${r.id}`)}>
-                <Pencil className="h-4 w-4 mr-2" /> Edit
-              </DropdownMenuItem>
-              {r.status === "Ready For Dispatch" && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => openWarning(r)}
-                    className="text-emerald-700 focus:text-emerald-700 font-medium"
-                  >
-                    <Truck className="h-4 w-4 mr-2" /> Initiate Dispatch
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      />
+
+      {/* ── Dispatched Records Table ────────────────────────────────────────── */}
+      {dispatchedFlightEntries.length > 0 && (
+        <div className="rounded-lg border border-border bg-card shadow-sm mb-6 overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted/30 flex items-center gap-2">
+            <Truck className="h-4 w-4 text-emerald-600" />
+            <span className="text-sm font-semibold text-slate-700">Dispatched Records</span>
+            <span className="ml-auto text-xs text-muted-foreground">
+              {dispatchedFlightEntries.length} dispatch{dispatchedFlightEntries.length !== 1 ? "es" : ""}
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[800px]">
+              <thead className="bg-muted/50 border-b border-border">
+                <tr>
+                  <th className="p-3 text-left font-semibold">Flight</th>
+                  <th className="p-3 text-left font-semibold">Dep Time</th>
+                  <th className="p-3 text-left font-semibold">Date</th>
+                  <th className="p-3 text-right font-semibold">Total Qty</th>
+                  <th className="p-3 text-left font-semibold">Status</th>
+                  <th className="p-3 text-left font-semibold">Dispatch Executive</th>
+                  <th className="p-3 text-left font-semibold">Dispatched At</th>
+                  <th className="p-3 text-left font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dispatchedFlightEntries.map((entry) => (
+                  <tr key={entry.id} className="border-b border-border/50 hover:bg-muted/20">
+                    <td className="p-3 font-semibold">{entry.flight}</td>
+                    <td className="p-3 text-muted-foreground">{entry.depTime}</td>
+                    <td className="p-3 text-muted-foreground">{entry.date}</td>
+                    <td className="p-3 text-right font-medium">{entry.totalQty}</td>
+                    <td className="p-3">
+                      <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
+                        Dispatched
+                      </span>
+                    </td>
+                    <td className="p-3 text-sm">{entry.dispatchExecName}</td>
+                    <td className="p-3 text-sm text-muted-foreground">
+                      {entry.dispatchedDate}, {entry.dispatchedTime}
+                    </td>
+                    <td className="p-3">
+                      <Button
+                        size="sm"
+                        className="h-7 px-3 text-xs bg-navy text-navy-foreground hover:opacity-90"
+                        onClick={() => setViewDispatchedEntry(entry)}
+                      >
+                        <Eye className="h-3 w-3 mr-1" /> View
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* ════════════════════════════════════════════════════════════════════
           MODALS
       ════════════════════════════════════════════════════════════════════ */}
+
+      {/* ── View Packaging Row Modal ────────────────────────────────────────── */}
+      <Dialog open={!!viewPackagingRow} onOpenChange={(v) => !v && setViewPackagingRow(null)}>
+        <DialogContent className="w-full max-w-full sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Order Details — {viewPackagingRow?.id}</DialogTitle>
+          </DialogHeader>
+          {viewPackagingRow && (
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                <div><span className="text-muted-foreground">Meal:</span><span className="font-semibold ml-1">{viewPackagingRow.mealName}</span></div>
+                <div><span className="text-muted-foreground">Type:</span><span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-semibold ${MEAL_TYPE_BADGE[viewPackagingRow.mealType]}`}>{viewPackagingRow.mealType}</span></div>
+                <div><span className="text-muted-foreground">Qty:</span><span className="font-semibold ml-1">{viewPackagingRow.qty} units</span></div>
+                <div><span className="text-muted-foreground">Section:</span><span className="font-semibold ml-1">{viewPackagingRow.section}</span></div>
+                <div><span className="text-muted-foreground">Dep Time:</span><span className="font-semibold ml-1">{viewPackagingRow.depTime}</span></div>
+                <div><span className="text-muted-foreground">Date:</span><span className="font-semibold ml-1">{viewPackagingRow.date}</span></div>
+                <div className="col-span-2"><span className="text-muted-foreground">Flight:</span><span className="font-semibold ml-1">{viewPackagingRow.flight}</span></div>
+                {viewPackagingRow.dspRef && (
+                  <div className="col-span-2"><span className="text-muted-foreground">Dispatch Ref:</span><span className="font-semibold ml-1">{viewPackagingRow.dspRef}</span></div>
+                )}
+              </div>
+              <div className="pt-2 border-t border-border flex gap-3 flex-wrap">
+                <div>
+                  <span className="text-muted-foreground">Packaging:</span>
+                  <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-semibold ${PACKAGING_BADGE[viewPackagingRow.packagingStatus]}`}>{viewPackagingRow.packagingStatus}</span>
+                </div>
+                {(() => {
+                  const qc = flightQCStates.get(viewPackagingRow.flight);
+                  const qs = qc?.qcState ?? "not-started";
+                  return (
+                    <>
+                      <div>
+                        <span className="text-muted-foreground">QC:</span>
+                        <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-semibold ${qs === "done" ? "bg-emerald-100 text-emerald-700" : qs === "in-progress" ? "bg-amber-100 text-amber-700" : "bg-muted text-muted-foreground"}`}>
+                          {qs === "done" ? "QC Done" : qs === "in-progress" ? "QC In Progress" : "Pending"}
+                        </span>
+                      </div>
+                      {qc?.qcCheckedAt && (
+                        <div><span className="text-muted-foreground">QC at:</span><span className="font-semibold ml-1">{qc.qcCheckedAt}</span></div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewPackagingRow(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Packaging Materials Check Modal ─────────────────────────────────── */}
       <Dialog open={!!materialsRow} onOpenChange={(v) => !v && setMaterialsRow(null)}>
@@ -998,7 +1108,7 @@ function Dispatch() {
             <p className="text-sm text-muted-foreground leading-relaxed">
               Confirm all <strong>{markReadyRow.qty}</strong> units of{" "}
               <strong>{markReadyRow.mealName}</strong> for flight{" "}
-              <strong>{markReadyRow.flights[0]}</strong> are packaged, labeled,
+              <strong>{markReadyRow.flight}</strong> are packaged, labeled,
               and loaded onto the cart.
             </p>
           )}
@@ -1006,29 +1116,6 @@ function Dispatch() {
             <Button variant="outline" onClick={() => setMarkReadyRow(null)}>Cancel</Button>
             <Button onClick={() => markReadyRow && handleMarkReadyForDispatch(markReadyRow)}>
               Confirm
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Initiate Dispatch Confirm Modal ──────────────────────────────────── */}
-      <Dialog open={!!initiateDispatchRow} onOpenChange={(v) => !v && setInitiateDispatchRow(null)}>
-        <DialogContent className="w-full max-w-full sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Initiate Dispatch — {initiateDispatchRow?.id}</DialogTitle>
-          </DialogHeader>
-          {initiateDispatchRow && (
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Confirm <strong>{initiateDispatchRow.qty}</strong> units of{" "}
-              <strong>{initiateDispatchRow.mealName}</strong> for flight{" "}
-              <strong>{initiateDispatchRow.flights[0]}</strong> are ready to be
-              dispatched to the aircraft.
-            </p>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setInitiateDispatchRow(null)}>Cancel</Button>
-            <Button onClick={() => initiateDispatchRow && handleInitiateDispatch(initiateDispatchRow)}>
-              Initiate Dispatch
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1637,6 +1724,61 @@ function Dispatch() {
           </div>
           <DialogFooter>
             <Button onClick={handleNotify}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── View Dispatched Entry Modal ──────────────────────────────────────── */}
+      <Dialog open={!!viewDispatchedEntry} onOpenChange={(v) => !v && setViewDispatchedEntry(null)}>
+        <DialogContent className="w-full max-w-full sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Dispatch Details — {viewDispatchedEntry?.flight}</DialogTitle>
+          </DialogHeader>
+          {viewDispatchedEntry && (
+            <div className="space-y-4 text-sm">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                <div>
+                  <span className="text-xs text-muted-foreground">Flight</span>
+                  <div className="font-semibold mt-0.5">{viewDispatchedEntry.flight}</div>
+                </div>
+                <div>
+                  <span className="text-xs text-muted-foreground">Dep Time</span>
+                  <div className="font-semibold mt-0.5">{viewDispatchedEntry.depTime}</div>
+                </div>
+                <div>
+                  <span className="text-xs text-muted-foreground">Date</span>
+                  <div className="font-medium mt-0.5">{viewDispatchedEntry.date}</div>
+                </div>
+                <div>
+                  <span className="text-xs text-muted-foreground">Total Qty</span>
+                  <div className="font-semibold mt-0.5">{viewDispatchedEntry.totalQty} units</div>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-xs text-muted-foreground">Status</span>
+                  <div className="mt-0.5">
+                    <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">Dispatched</span>
+                  </div>
+                </div>
+              </div>
+              <div className="border-t border-border pt-3 space-y-2.5">
+                <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Dispatch Info</div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Dispatch Executive</span>
+                  <span className="font-semibold">{viewDispatchedEntry.dispatchExecName}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Date</span>
+                  <span className="font-medium">{viewDispatchedEntry.dispatchedDate}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Time</span>
+                  <span className="font-medium">{viewDispatchedEntry.dispatchedTime}</span>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewDispatchedEntry(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
