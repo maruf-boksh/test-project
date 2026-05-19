@@ -1,0 +1,254 @@
+export type MealItem = { name: string; weight: number; calories: number };
+export type MealChoice = { label: string; percentage: number; items: MealItem[] };
+export type SpecialMeal = {
+  type: string;
+  portions: number | string;
+  items: MealItem[];
+  enabled: boolean;
+};
+
+export type FlightType = "International" | "Domestic";
+export type ForType = "Passengers" | "Crew";
+
+export type MealCard = {
+  id: string;
+  day: string;
+  mealType: string;
+  flightType: FlightType[];
+  forType: ForType;
+  choices: MealChoice[];
+  specialMeals: SpecialMeal[];
+  dessert: MealItem;
+  servingTime: { start: string; end: string };
+  totalKcal: number;
+};
+
+export type GMOrderSummary = {
+  flightNumber: string;
+  route: string;
+  date: string;
+  departureTime: string;
+  paxCount: number;
+  crewCount: number;
+  totalMealsToday: number;
+  totalMeals96h: number;
+  approvedBy: string;
+  approvedTimestamp: string;
+};
+
+export const DAYS = [
+  "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+] as const;
+
+export const gmOrderSummary: GMOrderSummary = {
+  flightNumber: "BS-315",
+  route: "DAC → KUL",
+  date: "20 May 2026",
+  departureTime: "14:30",
+  paxCount: 300,
+  crewCount: 16,
+  totalMealsToday: 9600,
+  totalMeals96h: 38400,
+  approvedBy: "S. Ahmed",
+  approvedTimestamp: "19 May 2026 10:45 AM",
+};
+
+export const mealCards: MealCard[] = [
+  {
+    id: "meal-1",
+    day: "Monday",
+    mealType: "Lunch",
+    flightType: ["International"],
+    forType: "Passengers",
+    choices: [
+      { label: "CHOICE 1", percentage: 60, items: [
+        { name: "Plain Polao", weight: 180, calories: 240 },
+        { name: "Beef Rezala", weight: 100, calories: 150 },
+        { name: "Mug Dal Vuna", weight: 50, calories: 80 },
+      ]},
+      { label: "CHOICE 2", percentage: 40, items: [
+        { name: "Jeera Polao", weight: 180, calories: 245 },
+        { name: "Chicken Masala", weight: 100, calories: 155 },
+        { name: "Mixed Veg Curry", weight: 50, calories: 75 },
+      ]},
+    ],
+    specialMeals: [
+      { type: "VGML", portions: 5, enabled: true, items: [
+        { name: "Plain Polao", weight: 170, calories: 230 },
+        { name: "Mixed Veg Curry", weight: 70, calories: 90 },
+        { name: "Mug Dal Vuna", weight: 50, calories: 80 },
+      ]},
+      { type: "CHML", portions: "As per demand", enabled: true, items: [
+        { name: "Plain Polao, Saffron Rice, Chicken Korma, Kitkat Chocolate", weight: 250, calories: 450 },
+      ]},
+    ],
+    dessert: { name: "Vanilla Pastry", weight: 60, calories: 180 },
+    servingTime: { start: "11:00", end: "14:00" },
+    totalKcal: 720,
+  },
+  {
+    id: "meal-2",
+    day: "Monday",
+    mealType: "Breakfast",
+    flightType: ["International", "Domestic"],
+    forType: "Crew",
+    choices: [
+      { label: "CHOICE 1", percentage: 50, items: [
+        { name: "Chicken Khichuri", weight: 250, calories: 280 },
+        { name: "Fried Egg", weight: 50, calories: 85 },
+      ]},
+      { label: "CHOICE 2", percentage: 50, items: [
+        { name: "Roti", weight: 80, calories: 120 },
+        { name: "Scrambled Egg", weight: 100, calories: 145 },
+        { name: "Mixed Veg Curry", weight: 50, calories: 75 },
+      ]},
+    ],
+    specialMeals: [
+      { type: "VGML", portions: 1, enabled: true, items: [
+        { name: "Roti", weight: 80, calories: 120 },
+        { name: "Mixed Veg", weight: 40, calories: 60 },
+        { name: "Mug Dal", weight: 30, calories: 50 },
+      ]},
+    ],
+    dessert: { name: "Yoghurt & Semolina", weight: 80, calories: 120 },
+    servingTime: { start: "07:00", end: "10:00" },
+    totalKcal: 480,
+  },
+  {
+    id: "meal-3",
+    day: "Tuesday",
+    mealType: "Lunch",
+    flightType: ["International"],
+    forType: "Passengers",
+    choices: [
+      { label: "CHOICE 1", percentage: 55, items: [
+        { name: "Saffron Rice", weight: 180, calories: 250 },
+        { name: "Mutton Rezala", weight: 110, calories: 180 },
+        { name: "Garlic Naan", weight: 60, calories: 170 },
+      ]},
+      { label: "CHOICE 2", percentage: 45, items: [
+        { name: "Steamed Rice", weight: 180, calories: 220 },
+        { name: "Fish Curry", weight: 100, calories: 140 },
+        { name: "Sauteed Vegetables", weight: 80, calories: 90 },
+      ]},
+    ],
+    specialMeals: [
+      { type: "VGML", portions: 4, enabled: true, items: [
+        { name: "Saffron Rice", weight: 170, calories: 240 },
+        { name: "Paneer Tikka Masala", weight: 100, calories: 200 },
+        { name: "Garlic Naan", weight: 60, calories: 170 },
+      ]},
+    ],
+    dessert: { name: "Mango Mousse", weight: 70, calories: 200 },
+    servingTime: { start: "11:30", end: "14:30" },
+    totalKcal: 760,
+  },
+  {
+    id: "meal-4",
+    day: "Tuesday",
+    mealType: "Dinner",
+    flightType: ["International", "Domestic"],
+    forType: "Crew",
+    choices: [
+      { label: "CHOICE 1", percentage: 50, items: [
+        { name: "Boiled Rice", weight: 180, calories: 210 },
+        { name: "Chicken Dopiaza", weight: 100, calories: 140 },
+        { name: "Dal Butter Fry", weight: 50, calories: 120 },
+      ]},
+      { label: "CHOICE 2", percentage: 50, items: [
+        { name: "Tandoori Chicken", weight: 100, calories: 160 },
+        { name: "Sauteed Veg", weight: 100, calories: 110 },
+        { name: "Kulcha", weight: 60, calories: 180 },
+      ]},
+    ],
+    specialMeals: [
+      { type: "VGML", portions: 1, enabled: true, items: [
+        { name: "Boiled Rice", weight: 150, calories: 170 },
+        { name: "Mixed Veg", weight: 100, calories: 130 },
+        { name: "Chana Dal", weight: 40, calories: 100 },
+      ]},
+    ],
+    dessert: { name: "Firni & Semolina", weight: 100, calories: 210 },
+    servingTime: { start: "19:00", end: "22:00" },
+    totalKcal: 590,
+  },
+  {
+    id: "meal-5",
+    day: "Wednesday",
+    mealType: "Breakfast",
+    flightType: ["Domestic"],
+    forType: "Passengers",
+    choices: [
+      { label: "CHOICE 1", percentage: 70, items: [
+        { name: "Paratha", weight: 80, calories: 220 },
+        { name: "Channa Masala", weight: 100, calories: 150 },
+        { name: "Boiled Egg", weight: 50, calories: 80 },
+      ]},
+      { label: "CHOICE 2", percentage: 30, items: [
+        { name: "Vegetable Sandwich", weight: 120, calories: 240 },
+        { name: "Fruit Salad", weight: 80, calories: 70 },
+      ]},
+    ],
+    specialMeals: [
+      { type: "VGML", portions: 3, enabled: true, items: [
+        { name: "Paratha", weight: 80, calories: 220 },
+        { name: "Channa Masala", weight: 100, calories: 150 },
+      ]},
+    ],
+    dessert: { name: "Yoghurt", weight: 60, calories: 90 },
+    servingTime: { start: "07:00", end: "10:00" },
+    totalKcal: 450,
+  },
+  {
+    id: "meal-6",
+    day: "Wednesday",
+    mealType: "Heavy Snacks",
+    flightType: ["International", "Domestic"],
+    forType: "Crew",
+    choices: [
+      { label: "CHOICE 1", percentage: 50, items: [
+        { name: "Roll Sandwich with Chicken & Cheese", weight: 150, calories: 320 },
+      ]},
+      { label: "CHOICE 2", percentage: 50, items: [
+        { name: "Korean Fried Chicken", weight: 100, calories: 280 },
+        { name: "Potato Wedges", weight: 50, calories: 180 },
+      ]},
+    ],
+    specialMeals: [
+      { type: "VGML", portions: 1, enabled: true, items: [
+        { name: "Veg Frankie", weight: 80, calories: 200 },
+        { name: "Buttered Veg", weight: 30, calories: 60 },
+      ]},
+    ],
+    dessert: { name: "Firni & Vanilla Pastry", weight: 80, calories: 160 },
+    servingTime: { start: "16:00", end: "19:00" },
+    totalKcal: 410,
+  },
+  {
+    id: "meal-7",
+    day: "Thursday",
+    mealType: "Lunch",
+    flightType: ["Domestic"],
+    forType: "Crew",
+    choices: [
+      { label: "CHOICE 1", percentage: 60, items: [
+        { name: "Plain Rice", weight: 180, calories: 210 },
+        { name: "Chicken Korma", weight: 100, calories: 170 },
+        { name: "Dal Tadka", weight: 50, calories: 100 },
+      ]},
+      { label: "CHOICE 2", percentage: 40, items: [
+        { name: "Vegetable Biryani", weight: 200, calories: 320 },
+        { name: "Raita", weight: 50, calories: 50 },
+      ]},
+    ],
+    specialMeals: [
+      { type: "VGML", portions: 1, enabled: true, items: [
+        { name: "Vegetable Biryani", weight: 200, calories: 320 },
+        { name: "Raita", weight: 50, calories: 50 },
+      ]},
+    ],
+    dessert: { name: "Gulab Jamun", weight: 60, calories: 220 },
+    servingTime: { start: "12:00", end: "14:30" },
+    totalKcal: 580,
+  },
+];

@@ -26,7 +26,7 @@ export const useRole = () => useContext(RoleContext);
 /** Which sidebar group keys each role can see. "*" = all. */
 export const ROLE_PERMS: Record<Role, string[] | "*"> = {
   "GM/Admin": "*",
-  "Meal Planner": ["dashboard", "upload", "meal-planning", "production"],
+  "Meal Planner": ["dashboard", "order-management", "meal-planning", "production"],
   "Flight Kitchen": ["dashboard", "production-kitchen", "qc"],
   "Bakery Production": ["dashboard", "production-bakery", "qc"],
   "Amenities": ["dashboard", "production-amenities"],

@@ -17,7 +17,7 @@ export type Column<T> = {
 };
 
 export function DataTable<T extends { id: string }>({
-  columns, data, actions, searchKeys, pageSize = 8, title,
+  columns, data, actions, searchKeys, pageSize = 8, title, selectable = true,
 }: {
   columns: Column<T>[];
   data: T[];
@@ -25,6 +25,7 @@ export function DataTable<T extends { id: string }>({
   searchKeys?: (keyof T)[];
   pageSize?: number;
   title?: string;
+  selectable?: boolean;
 }) {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
@@ -88,7 +89,7 @@ export function DataTable<T extends { id: string }>({
             className="pl-9 h-9"
           />
         </div>
-        {selected.size > 0 && (
+        {selectable && selected.size > 0 && (
           <>
             <span className="text-sm text-muted-foreground">{selected.size} selected</span>
             <Button size="sm" variant="outline" onClick={() => { toast.success(`Bulk action on ${selected.size} rows`); setSelected(new Set()); }}>
@@ -107,12 +108,14 @@ export function DataTable<T extends { id: string }>({
         <Table>
           <TableHeader className="bg-muted/50 sticky top-0">
             <TableRow>
-              <TableHead className="w-10">
-                <Checkbox
-                  checked={paged.length > 0 && selected.size === paged.length}
-                  onCheckedChange={toggleAll}
-                />
-              </TableHead>
+              {selectable && (
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={paged.length > 0 && selected.size === paged.length}
+                    onCheckedChange={toggleAll}
+                  />
+                </TableHead>
+              )}
               {columns.map((c) => (
                 <TableHead key={String(c.key)} className={c.className}>
                   {c.sortable !== false ? (
@@ -132,22 +135,27 @@ export function DataTable<T extends { id: string }>({
           <TableBody>
             {paged.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={columns.length + 2} className="text-center text-muted-foreground py-10">
+                <TableCell
+                  colSpan={columns.length + (selectable ? 1 : 0) + (actions ? 1 : 0)}
+                  className="text-center text-muted-foreground py-10"
+                >
                   No records found
                 </TableCell>
               </TableRow>
             ) : paged.map((row) => (
               <TableRow key={row.id} className="hover:bg-muted/40">
-                <TableCell>
-                  <Checkbox
-                    checked={selected.has(row.id)}
-                    onCheckedChange={(v) => {
-                      const next = new Set(selected);
-                      if (v) next.add(row.id); else next.delete(row.id);
-                      setSelected(next);
-                    }}
-                  />
-                </TableCell>
+                {selectable && (
+                  <TableCell>
+                    <Checkbox
+                      checked={selected.has(row.id)}
+                      onCheckedChange={(v) => {
+                        const next = new Set(selected);
+                        if (v) next.add(row.id); else next.delete(row.id);
+                        setSelected(next);
+                      }}
+                    />
+                  </TableCell>
+                )}
                 {columns.map((c) => (
                   <TableCell key={String(c.key)} className={c.className}>
                     {c.render ? c.render(row) : String((row as any)[c.key] ?? "")}

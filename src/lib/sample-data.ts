@@ -227,10 +227,10 @@ export const cookingTempLogs = [
 ];
 
 export const billOfMaterials = [
-  { id: "BOM-001", meal: "ML-001 — Chicken Biryani", components: 9, version: "v3.2", yield: "100 portions", lastUpdated: "2025-10-22", status: "Active" },
-  { id: "BOM-002", meal: "ML-002 — Veg Pulao", components: 7, version: "v2.1", yield: "100 portions", lastUpdated: "2025-09-15", status: "Active" },
-  { id: "BOM-003", meal: "ML-003 — Continental Breakfast", components: 11, version: "v1.4", yield: "Set", lastUpdated: "2025-10-30", status: "Active" },
-  { id: "BOM-004", meal: "ML-004 — Grilled Salmon", components: 8, version: "v1.0", yield: "100 portions", lastUpdated: "2025-11-01", status: "Draft" },
-  { id: "BOM-005", meal: "ML-005 — Hindu Meal Special", components: 10, version: "v2.0", yield: "50 portions", lastUpdated: "2025-10-12", status: "Active" },
-  { id: "BOM-006", meal: "ML-008 — Crew Combo Meal", components: 6, version: "v1.2", yield: "Set", lastUpdated: "2025-08-28", status: "Active" },
+  { id: "BOM-001", name: "Chicken Biryani",        components: 9,  version: "v3.2", yield: "100 portions", lastUpdated: "2025-10-22", status: "Active" },
+  { id: "BOM-002", name: "Veg Pulao",              components: 7,  version: "v2.1", yield: "100 portions", lastUpdated: "2025-09-15", status: "Active" },
+  { id: "BOM-003", name: "Continental Breakfast",  components: 11, version: "v1.4", yield: "Set",          lastUpdated: "2025-10-30", status: "Active" },
+  { id: "BOM-004", name: "Grilled Salmon",         components: 8,  version: "v1.0", yield: "100 portions", lastUpdated: "2025-11-01", status: "Draft"  },
+  { id: "BOM-005", name: "Hindu Meal Special",     components: 10, version: "v2.0", yield: "50 portions",  lastUpdated: "2025-10-12", status: "Active" },
+  { id: "BOM-006", name: "Crew Combo Meal",        components: 6,  version: "v1.2", yield: "Set",          lastUpdated: "2025-08-28", status: "Active" },
 ];

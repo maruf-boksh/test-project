@@ -13,13 +13,15 @@ import { Route as UsersRouteImport } from './routes/users'
 import { Route as StockAdjustmentRouteImport } from './routes/stock-adjustment'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as ReceiveItemRouteImport } from './routes/receive-item'
+import { Route as ProductionReportsRouteImport } from './routes/production-reports'
+import { Route as ProductionEntryRouteImport } from './routes/production-entry'
 import { Route as ProcurementRouteImport } from './routes/procurement'
+import { Route as OrderManagementRouteImport } from './routes/order-management'
 import { Route as MealPlanningRouteImport } from './routes/meal-planning'
 import { Route as MaintenanceRouteImport } from './routes/maintenance'
 import { Route as KitchenRouteImport } from './routes/kitchen'
 import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as HygieneMonitoringRouteImport } from './routes/hygiene-monitoring'
-import { Route as FlightUploadRouteImport } from './routes/flight-upload'
 import { Route as DispatchMonitoringRouteImport } from './routes/dispatch-monitoring'
 import { Route as DispatchRouteImport } from './routes/dispatch'
 import { Route as DemandOrdersRouteImport } from './routes/demand-orders'
@@ -54,9 +56,24 @@ const ReceiveItemRoute = ReceiveItemRouteImport.update({
   path: '/receive-item',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProductionReportsRoute = ProductionReportsRouteImport.update({
+  id: '/production-reports',
+  path: '/production-reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductionEntryRoute = ProductionEntryRouteImport.update({
+  id: '/production-entry',
+  path: '/production-entry',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProcurementRoute = ProcurementRouteImport.update({
   id: '/procurement',
   path: '/procurement',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrderManagementRoute = OrderManagementRouteImport.update({
+  id: '/order-management',
+  path: '/order-management',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MealPlanningRoute = MealPlanningRouteImport.update({
@@ -82,11 +99,6 @@ const InventoryRoute = InventoryRouteImport.update({
 const HygieneMonitoringRoute = HygieneMonitoringRouteImport.update({
   id: '/hygiene-monitoring',
   path: '/hygiene-monitoring',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FlightUploadRoute = FlightUploadRouteImport.update({
-  id: '/flight-upload',
-  path: '/flight-upload',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DispatchMonitoringRoute = DispatchMonitoringRouteImport.update({
@@ -169,13 +181,15 @@ export interface FileRoutesByFullPath {
   '/demand-orders': typeof DemandOrdersRoute
   '/dispatch': typeof DispatchRoute
   '/dispatch-monitoring': typeof DispatchMonitoringRoute
-  '/flight-upload': typeof FlightUploadRoute
   '/hygiene-monitoring': typeof HygieneMonitoringRoute
   '/inventory': typeof InventoryRoute
   '/kitchen': typeof KitchenRoute
   '/maintenance': typeof MaintenanceRoute
   '/meal-planning': typeof MealPlanningRoute
+  '/order-management': typeof OrderManagementRoute
   '/procurement': typeof ProcurementRoute
+  '/production-entry': typeof ProductionEntryRoute
+  '/production-reports': typeof ProductionReportsRoute
   '/receive-item': typeof ReceiveItemRoute
   '/reports': typeof ReportsRoute
   '/stock-adjustment': typeof StockAdjustmentRoute
@@ -195,13 +209,15 @@ export interface FileRoutesByTo {
   '/demand-orders': typeof DemandOrdersRoute
   '/dispatch': typeof DispatchRoute
   '/dispatch-monitoring': typeof DispatchMonitoringRoute
-  '/flight-upload': typeof FlightUploadRoute
   '/hygiene-monitoring': typeof HygieneMonitoringRoute
   '/inventory': typeof InventoryRoute
   '/kitchen': typeof KitchenRoute
   '/maintenance': typeof MaintenanceRoute
   '/meal-planning': typeof MealPlanningRoute
+  '/order-management': typeof OrderManagementRoute
   '/procurement': typeof ProcurementRoute
+  '/production-entry': typeof ProductionEntryRoute
+  '/production-reports': typeof ProductionReportsRoute
   '/receive-item': typeof ReceiveItemRoute
   '/reports': typeof ReportsRoute
   '/stock-adjustment': typeof StockAdjustmentRoute
@@ -222,13 +238,15 @@ export interface FileRoutesById {
   '/demand-orders': typeof DemandOrdersRoute
   '/dispatch': typeof DispatchRoute
   '/dispatch-monitoring': typeof DispatchMonitoringRoute
-  '/flight-upload': typeof FlightUploadRoute
   '/hygiene-monitoring': typeof HygieneMonitoringRoute
   '/inventory': typeof InventoryRoute
   '/kitchen': typeof KitchenRoute
   '/maintenance': typeof MaintenanceRoute
   '/meal-planning': typeof MealPlanningRoute
+  '/order-management': typeof OrderManagementRoute
   '/procurement': typeof ProcurementRoute
+  '/production-entry': typeof ProductionEntryRoute
+  '/production-reports': typeof ProductionReportsRoute
   '/receive-item': typeof ReceiveItemRoute
   '/reports': typeof ReportsRoute
   '/stock-adjustment': typeof StockAdjustmentRoute
@@ -250,13 +268,15 @@ export interface FileRouteTypes {
     | '/demand-orders'
     | '/dispatch'
     | '/dispatch-monitoring'
-    | '/flight-upload'
     | '/hygiene-monitoring'
     | '/inventory'
     | '/kitchen'
     | '/maintenance'
     | '/meal-planning'
+    | '/order-management'
     | '/procurement'
+    | '/production-entry'
+    | '/production-reports'
     | '/receive-item'
     | '/reports'
     | '/stock-adjustment'
@@ -276,13 +296,15 @@ export interface FileRouteTypes {
     | '/demand-orders'
     | '/dispatch'
     | '/dispatch-monitoring'
-    | '/flight-upload'
     | '/hygiene-monitoring'
     | '/inventory'
     | '/kitchen'
     | '/maintenance'
     | '/meal-planning'
+    | '/order-management'
     | '/procurement'
+    | '/production-entry'
+    | '/production-reports'
     | '/receive-item'
     | '/reports'
     | '/stock-adjustment'
@@ -302,13 +324,15 @@ export interface FileRouteTypes {
     | '/demand-orders'
     | '/dispatch'
     | '/dispatch-monitoring'
-    | '/flight-upload'
     | '/hygiene-monitoring'
     | '/inventory'
     | '/kitchen'
     | '/maintenance'
     | '/meal-planning'
+    | '/order-management'
     | '/procurement'
+    | '/production-entry'
+    | '/production-reports'
     | '/receive-item'
     | '/reports'
     | '/stock-adjustment'
@@ -329,13 +353,15 @@ export interface RootRouteChildren {
   DemandOrdersRoute: typeof DemandOrdersRoute
   DispatchRoute: typeof DispatchRoute
   DispatchMonitoringRoute: typeof DispatchMonitoringRoute
-  FlightUploadRoute: typeof FlightUploadRoute
   HygieneMonitoringRoute: typeof HygieneMonitoringRoute
   InventoryRoute: typeof InventoryRoute
   KitchenRoute: typeof KitchenRoute
   MaintenanceRoute: typeof MaintenanceRoute
   MealPlanningRoute: typeof MealPlanningRoute
+  OrderManagementRoute: typeof OrderManagementRoute
   ProcurementRoute: typeof ProcurementRoute
+  ProductionEntryRoute: typeof ProductionEntryRoute
+  ProductionReportsRoute: typeof ProductionReportsRoute
   ReceiveItemRoute: typeof ReceiveItemRoute
   ReportsRoute: typeof ReportsRoute
   StockAdjustmentRoute: typeof StockAdjustmentRoute
@@ -372,11 +398,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReceiveItemRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/production-reports': {
+      id: '/production-reports'
+      path: '/production-reports'
+      fullPath: '/production-reports'
+      preLoaderRoute: typeof ProductionReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/production-entry': {
+      id: '/production-entry'
+      path: '/production-entry'
+      fullPath: '/production-entry'
+      preLoaderRoute: typeof ProductionEntryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/procurement': {
       id: '/procurement'
       path: '/procurement'
       fullPath: '/procurement'
       preLoaderRoute: typeof ProcurementRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/order-management': {
+      id: '/order-management'
+      path: '/order-management'
+      fullPath: '/order-management'
+      preLoaderRoute: typeof OrderManagementRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/meal-planning': {
@@ -412,13 +459,6 @@ declare module '@tanstack/react-router' {
       path: '/hygiene-monitoring'
       fullPath: '/hygiene-monitoring'
       preLoaderRoute: typeof HygieneMonitoringRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/flight-upload': {
-      id: '/flight-upload'
-      path: '/flight-upload'
-      fullPath: '/flight-upload'
-      preLoaderRoute: typeof FlightUploadRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dispatch-monitoring': {
@@ -529,13 +569,15 @@ const rootRouteChildren: RootRouteChildren = {
   DemandOrdersRoute: DemandOrdersRoute,
   DispatchRoute: DispatchRoute,
   DispatchMonitoringRoute: DispatchMonitoringRoute,
-  FlightUploadRoute: FlightUploadRoute,
   HygieneMonitoringRoute: HygieneMonitoringRoute,
   InventoryRoute: InventoryRoute,
   KitchenRoute: KitchenRoute,
   MaintenanceRoute: MaintenanceRoute,
   MealPlanningRoute: MealPlanningRoute,
+  OrderManagementRoute: OrderManagementRoute,
   ProcurementRoute: ProcurementRoute,
+  ProductionEntryRoute: ProductionEntryRoute,
+  ProductionReportsRoute: ProductionReportsRoute,
   ReceiveItemRoute: ReceiveItemRoute,
   ReportsRoute: ReportsRoute,
   StockAdjustmentRoute: StockAdjustmentRoute,

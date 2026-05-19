@@ -15,13 +15,16 @@ type Entry = Item | Group;
 
 const NAV: Entry[] = [
   { key: "dashboard", to: "/", label: "Dashboard", icon: LayoutDashboard },
-  { key: "upload", to: "/flight-upload", label: "Flight Data Upload", icon: Upload },
+  { key: "order-management", to: "/order-management", label: "Order Management", icon: Upload },
   { key: "meal-planning", to: "/meal-planning", label: "Meal Planning", icon: UtensilsCrossed },
   {
     key: "production",
     label: "Production",
     icon: Factory,
     items: [
+      { key: "inventory-bom", to: "/bom", label: "Bill of Materials", icon: Layers },
+      { key: "production-entry", to: "/production-entry", label: "Production Entry", icon: ClipboardCheck },
+      { key: "production-reports", to: "/production-reports", label: "Production Reports", icon: BarChart3 },
       { key: "production-kitchen", to: "/kitchen", label: "Flight Kitchen", icon: ChefHat },
       { key: "production-bakery", to: "/bakery", label: "Bakery", icon: Croissant },
       { key: "production-amenities", to: "/amenities", label: "Amenities", icon: Pill },
@@ -32,7 +35,6 @@ const NAV: Entry[] = [
     label: "Inventory & Store",
     icon: Boxes,
     items: [
-      { key: "inventory-bom", to: "/bom", label: "Bill of Materials", icon: Layers },
       { key: "inventory-demand", to: "/demand-orders", label: "Demand Requests", icon: FileText },
       { key: "inventory-stock", to: "/inventory", label: "Stock Overview", icon: Package },
       { key: "inventory-adjustment", to: "/stock-adjustment", label: "Stock Adjustment", icon: SlidersHorizontal },
