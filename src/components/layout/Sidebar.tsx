@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Upload, UtensilsCrossed, ChefHat, Croissant, PackageCheck,
   Package, Boxes, ShoppingCart, ShieldCheck, Wrench, BarChart3, Users, ScrollText,
   ChevronDown, Factory, Truck, Pill, ThermometerSun, ClipboardCheck,
-  Layers, FileText, SlidersHorizontal, Wallet, Receipt, BadgeCheck, PieChart,
+  Layers, FileText, SlidersHorizontal, Wallet, Receipt, BadgeCheck, PieChart, Send,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRole, ROLE_PERMS } from "@/lib/roles";
@@ -36,6 +36,7 @@ const NAV: Entry[] = [
     icon: Boxes,
     items: [
       { key: "inventory-demand", to: "/demand-orders", label: "Demand Requests", icon: FileText },
+      { key: "inventory-issue", to: "/item-issue", label: "Item Issue", icon: Send },
       { key: "inventory-stock", to: "/inventory", label: "Stock Overview", icon: Package },
       { key: "inventory-adjustment", to: "/stock-adjustment", label: "Stock Adjustment", icon: SlidersHorizontal },
     ],
@@ -45,6 +46,7 @@ const NAV: Entry[] = [
     label: "Supply Chain",
     icon: ShoppingCart,
     items: [
+      { key: "supply-pr", to: "/purchase-requisition", label: "Purchase Requisition", icon: FileText },
       { key: "supply-po", to: "/procurement", label: "Purchase Orders", icon: ShoppingCart },
       { key: "supply-receive", to: "/receive-item", label: "Receive Items", icon: Truck },
     ],

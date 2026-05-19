@@ -234,3 +234,33 @@ export const billOfMaterials = [
   { id: "BOM-005", name: "Hindu Meal Special",     components: 10, version: "v2.0", yield: "50 portions",  lastUpdated: "2025-10-12", status: "Active" },
   { id: "BOM-006", name: "Crew Combo Meal",        components: 6,  version: "v1.2", yield: "Set",          lastUpdated: "2025-08-28", status: "Active" },
 ];
+
+const bomAt = (i: number) => billOfMaterials[i % billOfMaterials.length].name;
+
+export const seedProductionEntries = [
+  { id: "PE-2026-000031", date: "2026-05-19", bom: bomAt(0), producedQty: 280, status: "In Preparation" },
+  { id: "PE-2026-000030", date: "2026-05-18", bom: bomAt(2), producedQty: 150, status: "Ready for QC"   },
+  { id: "PE-2026-000029", date: "2026-05-17", bom: bomAt(1), producedQty: 320, status: "Approved"       },
+  { id: "PE-2026-000028", date: "2026-05-12", bom: bomAt(0), producedQty: 250, status: "Closed"         },
+  { id: "PE-2026-000025", date: "2026-05-10", bom: bomAt(1), producedQty: 180, status: "Closed"         },
+  { id: "PE-2026-000022", date: "2026-05-08", bom: bomAt(2), producedQty: 220, status: "Closed"         },
+  { id: "PE-2026-000019", date: "2026-05-05", bom: bomAt(3), producedQty: 130, status: "Closed"         },
+  { id: "PE-2026-000016", date: "2026-05-02", bom: bomAt(4), producedQty: 80,  status: "Closed"         },
+  { id: "PE-2026-000013", date: "2026-04-28", bom: bomAt(5), producedQty: 95,  status: "Closed"         },
+  { id: "PE-2026-000010", date: "2026-04-25", bom: bomAt(0), producedQty: 310, status: "Closed"         },
+  { id: "PE-2026-000007", date: "2026-04-22", bom: bomAt(1), producedQty: 160, status: "Closed"         },
+  { id: "PE-2026-000004", date: "2026-04-18", bom: bomAt(2), producedQty: 200, status: "Closed"         },
+  { id: "PE-2026-000001", date: "2026-04-15", bom: bomAt(3), producedQty: 140, status: "Closed"         },
+];
+
+export type ProductionEntryRow = (typeof seedProductionEntries)[number];
+
+export const seedFlightOrders = [
+  { id: "ORD-3411", flight: "BG-401", airline: "Air Astra",  sector: "DAC → DXB", date: "2026-05-20", etd: "10:30", pax: 186, crew: 14, specialMeals: 12, status: "Dispatched" },
+  { id: "ORD-3412", flight: "BG-522", airline: "Air Astra",  sector: "DAC → LHR", date: "2026-05-20", etd: "14:45", pax: 214, crew: 18, specialMeals: 18, status: "Production" },
+  { id: "ORD-3413", flight: "VQ-901", airline: "US-Bangla",  sector: "DAC → KUL", date: "2026-05-20", etd: "16:20", pax: 162, crew: 12, specialMeals: 8,  status: "Production" },
+  { id: "ORD-3414", flight: "BS-203", airline: "US-Bangla",  sector: "DAC → DOH", date: "2026-05-21", etd: "18:10", pax: 168, crew: 14, specialMeals: 10, status: "Pending"    },
+  { id: "ORD-3415", flight: "BS-307", airline: "US-Bangla",  sector: "DAC → BKK", date: "2026-05-21", etd: "20:00", pax: 282, crew: 16, specialMeals: 22, status: "Pending"    },
+];
+
+export type FlightOrderRow = (typeof seedFlightOrders)[number];

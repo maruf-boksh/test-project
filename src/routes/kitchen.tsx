@@ -112,7 +112,7 @@ function Kitchen() {
   }, [stockOrderFilter, stockSearch, effectiveInventory]);
 
   const pendingTransfers = useMemo(
-    () => transferNotes.filter(t => t.status === "Pending Acknowledgment"),
+    () => transferNotes.filter(t => t.status === "Pending"),
     [transferNotes]
   );
 

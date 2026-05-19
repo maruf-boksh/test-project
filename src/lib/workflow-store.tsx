@@ -5,6 +5,7 @@ import { demandRequests as seedDemands, requisitions as seedReqs, purchaseOrders
 export type WfDemandStatus =
   | "Pending Store Review"
   | "Partially Available"
+  | "Partially Issued"
   | "Escalated to Supply Chain"
   | "Fulfilled";
 
@@ -21,7 +22,7 @@ export type WfPOStatus =
   | "Closed"
   | "Issued to Vendor";
 
-export type WfTransferStatus = "Pending Acknowledgment" | "Acknowledged";
+export type WfTransferStatus = "Pending" | "Issued";
 
 // ── Entity types ───────────────────────────────────────────────────────────────
 export type WfDemandItem = { id: string; name: string; qty: number; uom: string; type: string };
@@ -191,7 +192,49 @@ export function WorkflowProvider({ children }: { children: ReactNode }) {
   );
 
   const [grns, setGRNs] = useState<WfGRN[]>([]);
-  const [transferNotes, setTransferNotes] = useState<WfTransferNote[]>([]);
+  const [transferNotes, setTransferNotes] = useState<WfTransferNote[]>([
+    {
+      id: "TN-50001",
+      demandRef: "DR-9001",
+      grnRef: "Direct from Store",
+      items: [
+        { id: "INV-1002", name: "Chicken Breast", qty: 80,  uom: "Kg" },
+        { id: "INV-1005", name: "Tomato",         qty: 110, uom: "Kg" },
+      ],
+      from: "Store",
+      to: "Hot Kitchen",
+      issuedBy: "S. Ahmed",
+      date: "2026-05-18 14:30",
+      status: "Issued",
+    },
+    {
+      id: "TN-50002",
+      demandRef: "DR-9002",
+      grnRef: "Direct from Store",
+      items: [
+        { id: "INV-1010", name: "Basmati Rice",   qty: 150, uom: "Kg" },
+        { id: "INV-1015", name: "Mineral Water 250ml", qty: 600, uom: "Bottle" },
+      ],
+      from: "Store",
+      to: "Cold Kitchen",
+      issuedBy: "M. Hossain",
+      date: "2026-05-19 09:15",
+      status: "Pending",
+    },
+    {
+      id: "TN-50003",
+      demandRef: "Direct Issue",
+      grnRef: "Direct from Store",
+      items: [
+        { id: "INV-1003", name: "Cooking Oil", qty: 25, uom: "Litre" },
+      ],
+      from: "Store",
+      to: "Bakery",
+      issuedBy: "F. Begum",
+      date: "2026-05-19 11:40",
+      status: "Pending",
+    },
+  ]);
   const [stockDeltas, setStockDeltas] = useState<StockDelta[]>([]);
   const [prdStatuses, setPrdStatuses] = useState<Record<string, string>>({});
   const [prdProgress, setPrdProgress] = useState<Record<string, number>>({});
@@ -219,7 +262,7 @@ export function WorkflowProvider({ children }: { children: ReactNode }) {
       transferNotes,
       addTransferNote: (tn) => setTransferNotes(prev => [tn, ...prev]),
       acknowledgeTransfer: (id) =>
-        setTransferNotes(prev => prev.map(t => t.id === id ? { ...t, status: "Acknowledged" } : t)),
+        setTransferNotes(prev => prev.map(t => t.id === id ? { ...t, status: "Issued" } : t)),
 
       stockDeltas,
       applyStockDeltas: (deltas) => setStockDeltas(prev => [...prev, ...deltas]),

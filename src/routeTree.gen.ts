@@ -13,6 +13,7 @@ import { Route as UsersRouteImport } from './routes/users'
 import { Route as StockAdjustmentRouteImport } from './routes/stock-adjustment'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as ReceiveItemRouteImport } from './routes/receive-item'
+import { Route as PurchaseRequisitionRouteImport } from './routes/purchase-requisition'
 import { Route as ProductionReportsRouteImport } from './routes/production-reports'
 import { Route as ProductionEntryRouteImport } from './routes/production-entry'
 import { Route as ProcurementRouteImport } from './routes/procurement'
@@ -20,6 +21,7 @@ import { Route as OrderManagementRouteImport } from './routes/order-management'
 import { Route as MealPlanningRouteImport } from './routes/meal-planning'
 import { Route as MaintenanceRouteImport } from './routes/maintenance'
 import { Route as KitchenRouteImport } from './routes/kitchen'
+import { Route as ItemIssueRouteImport } from './routes/item-issue'
 import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as HygieneMonitoringRouteImport } from './routes/hygiene-monitoring'
 import { Route as DispatchMonitoringRouteImport } from './routes/dispatch-monitoring'
@@ -56,6 +58,11 @@ const ReceiveItemRoute = ReceiveItemRouteImport.update({
   path: '/receive-item',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PurchaseRequisitionRoute = PurchaseRequisitionRouteImport.update({
+  id: '/purchase-requisition',
+  path: '/purchase-requisition',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProductionReportsRoute = ProductionReportsRouteImport.update({
   id: '/production-reports',
   path: '/production-reports',
@@ -89,6 +96,11 @@ const MaintenanceRoute = MaintenanceRouteImport.update({
 const KitchenRoute = KitchenRouteImport.update({
   id: '/kitchen',
   path: '/kitchen',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ItemIssueRoute = ItemIssueRouteImport.update({
+  id: '/item-issue',
+  path: '/item-issue',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InventoryRoute = InventoryRouteImport.update({
@@ -183,6 +195,7 @@ export interface FileRoutesByFullPath {
   '/dispatch-monitoring': typeof DispatchMonitoringRoute
   '/hygiene-monitoring': typeof HygieneMonitoringRoute
   '/inventory': typeof InventoryRoute
+  '/item-issue': typeof ItemIssueRoute
   '/kitchen': typeof KitchenRoute
   '/maintenance': typeof MaintenanceRoute
   '/meal-planning': typeof MealPlanningRoute
@@ -190,6 +203,7 @@ export interface FileRoutesByFullPath {
   '/procurement': typeof ProcurementRoute
   '/production-entry': typeof ProductionEntryRoute
   '/production-reports': typeof ProductionReportsRoute
+  '/purchase-requisition': typeof PurchaseRequisitionRoute
   '/receive-item': typeof ReceiveItemRoute
   '/reports': typeof ReportsRoute
   '/stock-adjustment': typeof StockAdjustmentRoute
@@ -211,6 +225,7 @@ export interface FileRoutesByTo {
   '/dispatch-monitoring': typeof DispatchMonitoringRoute
   '/hygiene-monitoring': typeof HygieneMonitoringRoute
   '/inventory': typeof InventoryRoute
+  '/item-issue': typeof ItemIssueRoute
   '/kitchen': typeof KitchenRoute
   '/maintenance': typeof MaintenanceRoute
   '/meal-planning': typeof MealPlanningRoute
@@ -218,6 +233,7 @@ export interface FileRoutesByTo {
   '/procurement': typeof ProcurementRoute
   '/production-entry': typeof ProductionEntryRoute
   '/production-reports': typeof ProductionReportsRoute
+  '/purchase-requisition': typeof PurchaseRequisitionRoute
   '/receive-item': typeof ReceiveItemRoute
   '/reports': typeof ReportsRoute
   '/stock-adjustment': typeof StockAdjustmentRoute
@@ -240,6 +256,7 @@ export interface FileRoutesById {
   '/dispatch-monitoring': typeof DispatchMonitoringRoute
   '/hygiene-monitoring': typeof HygieneMonitoringRoute
   '/inventory': typeof InventoryRoute
+  '/item-issue': typeof ItemIssueRoute
   '/kitchen': typeof KitchenRoute
   '/maintenance': typeof MaintenanceRoute
   '/meal-planning': typeof MealPlanningRoute
@@ -247,6 +264,7 @@ export interface FileRoutesById {
   '/procurement': typeof ProcurementRoute
   '/production-entry': typeof ProductionEntryRoute
   '/production-reports': typeof ProductionReportsRoute
+  '/purchase-requisition': typeof PurchaseRequisitionRoute
   '/receive-item': typeof ReceiveItemRoute
   '/reports': typeof ReportsRoute
   '/stock-adjustment': typeof StockAdjustmentRoute
@@ -270,6 +288,7 @@ export interface FileRouteTypes {
     | '/dispatch-monitoring'
     | '/hygiene-monitoring'
     | '/inventory'
+    | '/item-issue'
     | '/kitchen'
     | '/maintenance'
     | '/meal-planning'
@@ -277,6 +296,7 @@ export interface FileRouteTypes {
     | '/procurement'
     | '/production-entry'
     | '/production-reports'
+    | '/purchase-requisition'
     | '/receive-item'
     | '/reports'
     | '/stock-adjustment'
@@ -298,6 +318,7 @@ export interface FileRouteTypes {
     | '/dispatch-monitoring'
     | '/hygiene-monitoring'
     | '/inventory'
+    | '/item-issue'
     | '/kitchen'
     | '/maintenance'
     | '/meal-planning'
@@ -305,6 +326,7 @@ export interface FileRouteTypes {
     | '/procurement'
     | '/production-entry'
     | '/production-reports'
+    | '/purchase-requisition'
     | '/receive-item'
     | '/reports'
     | '/stock-adjustment'
@@ -326,6 +348,7 @@ export interface FileRouteTypes {
     | '/dispatch-monitoring'
     | '/hygiene-monitoring'
     | '/inventory'
+    | '/item-issue'
     | '/kitchen'
     | '/maintenance'
     | '/meal-planning'
@@ -333,6 +356,7 @@ export interface FileRouteTypes {
     | '/procurement'
     | '/production-entry'
     | '/production-reports'
+    | '/purchase-requisition'
     | '/receive-item'
     | '/reports'
     | '/stock-adjustment'
@@ -355,6 +379,7 @@ export interface RootRouteChildren {
   DispatchMonitoringRoute: typeof DispatchMonitoringRoute
   HygieneMonitoringRoute: typeof HygieneMonitoringRoute
   InventoryRoute: typeof InventoryRoute
+  ItemIssueRoute: typeof ItemIssueRoute
   KitchenRoute: typeof KitchenRoute
   MaintenanceRoute: typeof MaintenanceRoute
   MealPlanningRoute: typeof MealPlanningRoute
@@ -362,6 +387,7 @@ export interface RootRouteChildren {
   ProcurementRoute: typeof ProcurementRoute
   ProductionEntryRoute: typeof ProductionEntryRoute
   ProductionReportsRoute: typeof ProductionReportsRoute
+  PurchaseRequisitionRoute: typeof PurchaseRequisitionRoute
   ReceiveItemRoute: typeof ReceiveItemRoute
   ReportsRoute: typeof ReportsRoute
   StockAdjustmentRoute: typeof StockAdjustmentRoute
@@ -396,6 +422,13 @@ declare module '@tanstack/react-router' {
       path: '/receive-item'
       fullPath: '/receive-item'
       preLoaderRoute: typeof ReceiveItemRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/purchase-requisition': {
+      id: '/purchase-requisition'
+      path: '/purchase-requisition'
+      fullPath: '/purchase-requisition'
+      preLoaderRoute: typeof PurchaseRequisitionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/production-reports': {
@@ -445,6 +478,13 @@ declare module '@tanstack/react-router' {
       path: '/kitchen'
       fullPath: '/kitchen'
       preLoaderRoute: typeof KitchenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/item-issue': {
+      id: '/item-issue'
+      path: '/item-issue'
+      fullPath: '/item-issue'
+      preLoaderRoute: typeof ItemIssueRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inventory': {
@@ -571,6 +611,7 @@ const rootRouteChildren: RootRouteChildren = {
   DispatchMonitoringRoute: DispatchMonitoringRoute,
   HygieneMonitoringRoute: HygieneMonitoringRoute,
   InventoryRoute: InventoryRoute,
+  ItemIssueRoute: ItemIssueRoute,
   KitchenRoute: KitchenRoute,
   MaintenanceRoute: MaintenanceRoute,
   MealPlanningRoute: MealPlanningRoute,
@@ -578,6 +619,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProcurementRoute: ProcurementRoute,
   ProductionEntryRoute: ProductionEntryRoute,
   ProductionReportsRoute: ProductionReportsRoute,
+  PurchaseRequisitionRoute: PurchaseRequisitionRoute,
   ReceiveItemRoute: ReceiveItemRoute,
   ReportsRoute: ReportsRoute,
   StockAdjustmentRoute: StockAdjustmentRoute,
