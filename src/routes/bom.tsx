@@ -38,6 +38,7 @@ function BomList({ data }: { data: BOM[] }) {
       data={data}
       columns={cols}
       searchKeys={["id", "name", "status"]}
+      selectable={false}
       actions={(r) => <RowActions row={r} actions={["view", "edit", "approve", "print", "delete"]} />}
     />
   );

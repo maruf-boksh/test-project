@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Plus, FileText, Clock, Send, ShoppingCart, AlertTriangle,
-  CheckCircle2, ArrowUpRight, PackageCheck,
+  CheckCircle2, ArrowUpRight, PackageCheck, Trash2,
 } from "lucide-react";
 import { inventory, vendors } from "@/lib/sample-data";
 import { KpiCard } from "@/components/common/KpiCard";
@@ -18,7 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useWorkflow, type WfDemandRequest, type WfDemandStatus, type WfTransferNote } from "@/lib/workflow-store";
+import { useWorkflow, type WfDemandRequest, type WfDemandItem, type WfTransferNote } from "@/lib/workflow-store";
 import { useRole } from "@/lib/roles";
 
 export const Route = createFileRoute("/demand-orders")({
@@ -33,20 +33,18 @@ function DemandOrders() {
   const wf = useWorkflow();
   const {
     demands, addDemands, updateDemandStatus,
-    addRequisition, transferNotes, addTransferNote, grns,
+    addRequisition, transferNotes,
   } = wf;
+  const navigate = useNavigate();
 
   const [selectedRequest, setSelectedRequest] = useState<WfDemandRequest | null>(null);
   const [needsPurchase, setNeedsPurchase] = useState<Record<string, boolean>>({});
   const [newOpen, setNewOpen] = useState(false);
-  const [newRef, setNewRef] = useState("");
   const [newBy, setNewBy] = useState("");
   const [newNote, setNewNote] = useState("");
-
-  // Transfer Note form state
-  const [transferOpen, setTransferOpen] = useState(false);
-  const [transferTo, setTransferTo] = useState("Hot Kitchen");
-  const [transferIssuedBy, setTransferIssuedBy] = useState<string>(role);
+  const [newItems, setNewItems] = useState<WfDemandItem[]>([]);
+  const [newItemId, setNewItemId] = useState("");
+  const [newItemQty, setNewItemQty] = useState("");
 
   // Derived counts
   const pending = useMemo(() => demands.filter(r => r.status === "Pending Store Review").length, [demands]);
@@ -55,7 +53,6 @@ function DemandOrders() {
 
   const requestCols: Column<WfDemandRequest>[] = [
     { key: "id", header: "Request #" },
-    { key: "reference", header: "Ref (PRD)" },
     { key: "requestedBy", header: "Requested By" },
     { key: "role", header: "From" },
     { key: "date", header: "Date" },
@@ -63,12 +60,10 @@ function DemandOrders() {
     { key: "items", header: "Items", render: (r) => r.items.length },
   ];
 
-  // ── Step 2a: Fulfill directly from Store stock ──────────────────────────────
+  // ── Step 2a: Fulfill from Store → route to Item Issue with this demand ─────
   const fulfillFromStore = () => {
     if (!selectedRequest) return;
-    updateDemandStatus(selectedRequest.id, "Fulfilled");
-    setSelectedRequest(prev => prev ? { ...prev, status: "Fulfilled" } : prev);
-    toast.success(`Demand ${selectedRequest.id} fulfilled from Store stock.`);
+    navigate({ to: "/item-issue", search: { demand: selectedRequest.id } });
   };
 
   // ── Step 2b: Escalate to Supply Chain → auto-create Requisition ─────────────
@@ -92,46 +87,50 @@ function DemandOrders() {
     toast.success(`Demand ${selectedRequest.id} escalated → Requisition ${reqId} created in Supply Chain.`);
   };
 
-  // ── Step 7: Issue Transfer Note ─────────────────────────────────────────────
-  const issueTransferNote = () => {
-    if (!selectedRequest) return;
-    // Find the GRN linked to this demand (via grnRef or most recent GRN)
-    const grnRef = selectedRequest.grnRef ?? grns[0]?.id ?? "Direct from Store";
-    const tnId = `TN-${Date.now().toString().slice(-5)}`;
-    const tn: WfTransferNote = {
-      id: tnId,
-      demandRef: selectedRequest.id,
-      grnRef,
-      items: selectedRequest.items.map(i => ({ id: i.id, name: i.name, qty: i.qty, uom: i.uom })),
-      from: "Store",
-      to: transferTo,
-      issuedBy: transferIssuedBy,
-      date: new Date().toLocaleString(),
-      status: "Pending Acknowledgment",
-    };
-    addTransferNote(tn);
-    setTransferOpen(false);
-    toast.success(`Transfer Note ${tnId} issued to ${transferTo}. Kitchen can now acknowledge.`);
-  };
 
   // ── New Demand dialog ────────────────────────────────────────────────────────
+  const addItemLine = () => {
+    const inv = inventory.find(i => i.id === newItemId);
+    if (!inv) { toast.error("Select an item."); return; }
+    if (newItems.some(i => i.id === inv.id)) { toast.error(`${inv.name} is already added.`); return; }
+    const qty = Number(newItemQty);
+    if (!qty || qty <= 0) { toast.error("Quantity must be greater than zero."); return; }
+    setNewItems(prev => [
+      ...prev,
+      { id: inv.id, name: inv.name, type: inv.category, qty, uom: inv.uom },
+    ]);
+    setNewItemId("");
+    setNewItemQty("");
+  };
+
+  const removeItemLine = (id: string) => {
+    setNewItems(prev => prev.filter(i => i.id !== id));
+  };
+
+  const resetNewDemand = () => {
+    setNewBy(""); setNewNote("");
+    setNewItems([]); setNewItemId(""); setNewItemQty("");
+  };
+
   const handleNewDemand = () => {
-    if (!newRef || !newBy) { toast.error("Reference and Requested By are required."); return; }
+    if (!newBy.trim()) { toast.error("Requested By is required."); return; }
+    if (newItems.length === 0) { toast.error("Add at least one item line."); return; }
+    const ref = `REQ-${String(Date.now()).slice(-5)}`;
     const req: WfDemandRequest = {
       id: `DR-${9000 + demands.length + 1}`,
-      reference: newRef,
-      requestedBy: newBy,
+      reference: ref,
+      requestedBy: newBy.trim(),
       role: "Store Executive",
       date: new Date().toLocaleString(),
       status: "Pending Store Review",
-      items: [],
-      note: newNote || "Demand request created from store.",
+      items: newItems,
+      note: newNote.trim() || "Internal item requisition raised from store.",
       source: "Store",
     };
     addDemands([req]);
     setNewOpen(false);
-    setNewRef(""); setNewBy(""); setNewNote("");
-    toast.success("Demand request created.");
+    resetNewDemand();
+    toast.success(`Demand request ${req.id} created with ${newItems.length} item${newItems.length > 1 ? "s" : ""}.`);
   };
 
   return (
@@ -301,23 +300,28 @@ function DemandOrders() {
                           {Object.values(needsPurchase).filter(Boolean).length} item(s) flagged
                         </span>
                       </div>
+                    ) : selectedRequest.status === "Partially Issued" ? (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center gap-2 text-xs text-amber-700 font-medium">
+                          <PackageCheck className="h-3.5 w-3.5" />
+                          Partially issued — some items still pending
+                        </div>
+                        <Button
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                          onClick={fulfillFromStore}
+                        >
+                          <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                          Continue Issuing
+                        </Button>
+                      </div>
                     ) : selectedRequest.status === "Escalated to Supply Chain" ? (
                       <div className="flex items-center gap-2 text-xs text-amber-700 font-medium">
                         <Send className="h-3.5 w-3.5" />
                         Escalated — Requisition created in Supply Chain. Awaiting PO and GRN.
                       </div>
                     ) : selectedRequest.status === "Fulfilled" ? (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <div className="flex items-center gap-2 text-xs text-green-700 font-medium">
-                          <CheckCircle2 className="h-3.5 w-3.5" /> Fulfilled
-                        </div>
-                        <Button
-                          className="bg-blue-600 hover:bg-blue-700 text-white"
-                          onClick={() => setTransferOpen(true)}
-                        >
-                          <PackageCheck className="h-4 w-4 mr-1.5" />
-                          Issue Transfer Note
-                        </Button>
+                      <div className="flex items-center gap-2 text-xs text-green-700 font-medium">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Fulfilled — all items issued
                       </div>
                     ) : null}
                   </div>
@@ -355,79 +359,125 @@ function DemandOrders() {
       </Card>
 
       {/* New Demand Dialog */}
-      <Dialog open={newOpen} onOpenChange={setNewOpen}>
-        <DialogContent className="max-w-md">
+      <Dialog
+        open={newOpen}
+        onOpenChange={(open) => { setNewOpen(open); if (!open) resetNewDemand(); }}
+      >
+        <DialogContent className="max-w-2xl">
           <DialogHeader><DialogTitle>New Demand Request</DialogTitle></DialogHeader>
-          <div className="grid gap-4">
+
+          <div className="grid gap-5">
             <div>
-              <Label>Reference (Flight / PRD Order)</Label>
-              <Input value={newRef} onChange={(e) => setNewRef(e.target.value)} placeholder="e.g. PRD-9004 or BS-203" className="mt-1" />
+              <Label>Requested By <span className="text-destructive">*</span></Label>
+              <Input
+                value={newBy}
+                onChange={(e) => setNewBy(e.target.value)}
+                placeholder="Name"
+                className="mt-1"
+              />
             </div>
-            <div>
-              <Label>Requested By</Label>
-              <Input value={newBy} onChange={(e) => setNewBy(e.target.value)} placeholder="Name" className="mt-1" />
-            </div>
+
             <div>
               <Label>Note</Label>
-              <Textarea value={newNote} onChange={(e) => setNewNote(e.target.value)} rows={3} placeholder="Demand details..." className="mt-1" />
+              <Textarea
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
+                rows={2}
+                placeholder="Why is this needed?"
+                className="mt-1"
+              />
+            </div>
+
+            <div>
+              <Label className="mb-1.5 block">Items <span className="text-destructive">*</span></Label>
+              <div className="grid grid-cols-12 gap-2 items-end">
+                <div className="col-span-7">
+                  <select
+                    value={newItemId}
+                    onChange={(e) => setNewItemId(e.target.value)}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <option value="">Select item...</option>
+                    {inventory.map((i) => (
+                      <option key={i.id} value={i.id}>
+                        {i.id} — {i.name} ({i.uom})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-span-3">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={newItemQty}
+                    onChange={(e) => setNewItemQty(e.target.value)}
+                    placeholder="Qty"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <Button variant="outline" onClick={addItemLine} className="w-full">
+                    <Plus className="h-4 w-4 mr-1" /> Add
+                  </Button>
+                </div>
+              </div>
+
+              <div className="mt-3 border border-border rounded-md overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/40">
+                    <tr>
+                      <th className="text-left px-3 py-2 text-[10px] uppercase tracking-wider w-10">SL</th>
+                      <th className="text-left px-3 py-2 text-[10px] uppercase tracking-wider">Item</th>
+                      <th className="text-right px-3 py-2 text-[10px] uppercase tracking-wider w-24">Qty</th>
+                      <th className="px-3 py-2 w-12" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {newItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="text-center text-xs text-muted-foreground py-5">
+                          No items added yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      newItems.map((it, i) => (
+                        <tr key={it.id} className="border-t border-border">
+                          <td className="px-3 py-2">{i + 1}</td>
+                          <td className="px-3 py-2">
+                            <div className="font-medium">{it.name}</div>
+                            <div className="text-[11px] text-muted-foreground">{it.type}</div>
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums">
+                            {it.qty} <span className="text-[11px] text-muted-foreground">{it.uom}</span>
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0"
+                              onClick={() => removeItemLine(it.id)}
+                              aria-label={`Remove ${it.name}`}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
+
           <DialogFooter>
-            <Button variant="outline" onClick={() => setNewOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setNewOpen(false); resetNewDemand(); }}>
+              Cancel
+            </Button>
             <Button onClick={handleNewDemand}>Create Demand</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Transfer Note Dialog */}
-      <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Issue Transfer Note — {selectedRequest?.id}</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4">
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <span className="text-muted-foreground text-xs">Demand Ref</span>
-                <div className="font-medium">{selectedRequest?.id}</div>
-              </div>
-              <div>
-                <span className="text-muted-foreground text-xs">From</span>
-                <div className="font-medium">Store</div>
-              </div>
-            </div>
-            <div>
-              <Label>To (Kitchen Section)</Label>
-              <select
-                value={transferTo}
-                onChange={(e) => setTransferTo(e.target.value)}
-                className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                {KITCHEN_SECTIONS.map(s => <option key={s}>{s}</option>)}
-              </select>
-            </div>
-            <div>
-              <Label>Issued By</Label>
-              <Input value={transferIssuedBy} onChange={(e) => setTransferIssuedBy(e.target.value)} className="mt-1" />
-            </div>
-            <div>
-              <Label>Items to Transfer</Label>
-              <div className="mt-1 space-y-1 rounded-md border border-border p-2 bg-muted/40">
-                {selectedRequest?.items.map(item => (
-                  <div key={item.id} className="flex justify-between text-sm py-1 border-b border-border/40 last:border-0">
-                    <span>{item.name}</span>
-                    <span className="text-muted-foreground">{item.qty} {item.uom}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setTransferOpen(false)}>Cancel</Button>
-            <Button onClick={issueTransferNote}>Issue Transfer Note</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

@@ -24,7 +24,7 @@ import {
   History, CheckCircle2, AlertCircle, Eye,
 } from "lucide-react";
 import { toast } from "sonner";
-import { recentUploads } from "@/lib/sample-data";
+import { recentUploads, seedFlightOrders } from "@/lib/sample-data";
 
 export const Route = createFileRoute("/order-management")({
   head: () => ({ meta: [{ title: "Order Management" }] }),
@@ -36,13 +36,15 @@ type FlightOrder = {
   flight: string;
   airline: string;
   sector: string;
+  date: string;
   etd: string;
   pax: number;
+  crew: number;
   specialMeals: number;
   status: string;
 };
 
-const AIRLINES = ["US-Bangla", "Air Astra", "Biman Bangladesh", "NovoAir"];
+const AIRLINES = ["US-Bangla", "Air Astra"];
 const AIRPORTS: { code: string; name: string }[] = [
   { code: "DAC", name: "Dhaka" },
   { code: "CXB", name: "Cox's Bazar" },
@@ -60,13 +62,7 @@ const AIRPORTS: { code: string; name: string }[] = [
   { code: "KTM", name: "Kathmandu" },
 ];
 
-const seedOrders: FlightOrder[] = [
-  { id: "ORD-3411", flight: "BG-401", airline: "Air Astra",  sector: "DAC → DXB", etd: "10:30", pax: 186, specialMeals: 12, status: "Dispatched" },
-  { id: "ORD-3412", flight: "BG-522", airline: "Air Astra",  sector: "DAC → LHR", etd: "14:45", pax: 214, specialMeals: 18, status: "Packing"    },
-  { id: "ORD-3413", flight: "VQ-901", airline: "US-Bangla",  sector: "DAC → KUL", etd: "16:20", pax: 162, specialMeals: 8,  status: "Production" },
-  { id: "ORD-3414", flight: "BS-203", airline: "US-Bangla",  sector: "DAC → DOH", etd: "18:10", pax: 168, specialMeals: 10, status: "Pending"    },
-  { id: "ORD-3415", flight: "BS-307", airline: "US-Bangla",  sector: "DAC → BKK", etd: "20:00", pax: 282, specialMeals: 22, status: "Pending"    },
-];
+const seedOrders: FlightOrder[] = seedFlightOrders;
 
 type ParsedRow = {
   row: number;
@@ -253,8 +249,10 @@ function OrderCreate({
       flight: flight.trim().toUpperCase(),
       airline,
       sector: `${from} → ${to}`,
+      date: new Date().toISOString().slice(0, 10),
       etd: etd || "—",
       pax: paxNum,
+      crew: 16,
       specialMeals: smNum,
       status: "Pending",
     };
@@ -435,13 +433,16 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
 
   const confirmImport = () => {
     const valid = parsed.filter((r) => r.valid);
+    const today = new Date().toISOString().slice(0, 10);
     const orders: FlightOrder[] = valid.map((r) => ({
       id: r.id,
       flight: r.flight,
       airline: r.airline,
       sector: r.sector,
+      date: today,
       etd: r.etd,
       pax: r.pax,
+      crew: 16,
       specialMeals: r.specialMeals,
       status: "Pending",
     }));

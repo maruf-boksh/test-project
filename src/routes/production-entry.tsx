@@ -20,28 +20,74 @@ import {
 import { cn } from "@/lib/utils";
 import { Plus, Plane, Users, Clock, Flame, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { billOfMaterials } from "@/lib/sample-data";
+import { billOfMaterials, seedProductionEntries, seedFlightOrders, type FlightOrderRow } from "@/lib/sample-data";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DAYS,
   gmOrderSummary,
   mealCards,
   type FlightType,
-  type ForType,
   type MealCard,
 } from "@/lib/meal-planning-data";
 
-const FORWARDED_ORDER = {
-  date: gmOrderSummary.date,
-  totalMeals: gmOrderSummary.totalMealsToday,
+const TOTAL_MEALS_FROM_ORDERS = seedFlightOrders.reduce(
+  (sum, o) => sum + o.pax + o.crew + o.specialMeals,
+  0,
+);
+
+const DOMESTIC_AIRPORTS = new Set(["DAC", "CXB", "CGP", "ZYL", "JSR"]);
+
+function getFlightTypeFromSector(sector: string): FlightType {
+  const parts = sector.split("→");
+  const dest = parts[parts.length - 1]?.trim();
+  return dest && DOMESTIC_AIRPORTS.has(dest) ? "Domestic" : "International";
+}
+
+function getDayFromDate(dateStr: string): (typeof DAYS)[number] {
+  const d = new Date(dateStr);
+  const idx = d.getDay() === 0 ? 6 : d.getDay() - 1;
+  return DAYS[idx];
+}
+
+type OrderRequirement = {
+  day: (typeof DAYS)[number];
+  flightType: FlightType;
+  flights: number;
+  passengers: number;
+  crew: number;
+  specialMeals: number;
+  orders: FlightOrderRow[];
 };
 
-type FlightFilter = "All" | FlightType;
-type ForFilter = "All" | ForType;
-type DayFilter = "All" | (typeof DAYS)[number];
+function computeOrderRequirements(orders: FlightOrderRow[]): OrderRequirement[] {
+  const map = new Map<string, OrderRequirement>();
+  for (const o of orders) {
+    const day = getDayFromDate(o.date);
+    const flightType = getFlightTypeFromSector(o.sector);
+    const key = `${day}|${flightType}`;
+    if (!map.has(key)) {
+      map.set(key, {
+        day, flightType, flights: 0, passengers: 0, crew: 0, specialMeals: 0, orders: [],
+      });
+    }
+    const r = map.get(key)!;
+    r.flights += 1;
+    r.passengers += o.pax;
+    r.crew += o.crew;
+    r.specialMeals += o.specialMeals;
+    r.orders.push(o);
+  }
+  return Array.from(map.values()).sort((a, b) => {
+    const dayDiff = DAYS.indexOf(a.day) - DAYS.indexOf(b.day);
+    if (dayDiff !== 0) return dayDiff;
+    return a.flightType.localeCompare(b.flightType);
+  });
+}
 
-const FLIGHT_OPTIONS: FlightFilter[] = ["All", "International", "Domestic"];
-const FOR_OPTIONS: ForFilter[] = ["All", "Passengers", "Crew"];
-const DAY_OPTIONS: DayFilter[] = ["All", ...DAYS];
+const FORWARDED_ORDER = {
+  date: gmOrderSummary.date,
+  totalMeals: TOTAL_MEALS_FROM_ORDERS,
+};
 
 const DEPARTMENTS = ["Hot Kitchen", "Cold Kitchen", "Bakery", "Beverage", "Special Meal"];
 
@@ -61,21 +107,7 @@ type ProductionEntry = {
   status: string;
 };
 
-const bomNameAt = (i: number) =>
-  billOfMaterials[i % billOfMaterials.length].name;
-
-const seedEntries: ProductionEntry[] = [
-  { id: "PE-2026-000028", date: "2026-05-12", bom: bomNameAt(0), producedQty: 1, status: "Closed" },
-  { id: "PE-2026-000025", date: "2026-05-10", bom: bomNameAt(1), producedQty: 1, status: "Closed" },
-  { id: "PE-2026-000022", date: "2026-05-08", bom: bomNameAt(2), producedQty: 1, status: "Closed" },
-  { id: "PE-2026-000019", date: "2026-05-05", bom: bomNameAt(3), producedQty: 1, status: "Closed" },
-  { id: "PE-2026-000016", date: "2026-05-02", bom: bomNameAt(4), producedQty: 1, status: "Closed" },
-  { id: "PE-2026-000013", date: "2026-04-28", bom: bomNameAt(5), producedQty: 1, status: "Closed" },
-  { id: "PE-2026-000010", date: "2026-04-25", bom: bomNameAt(0), producedQty: 1, status: "Closed" },
-  { id: "PE-2026-000007", date: "2026-04-22", bom: bomNameAt(1), producedQty: 1, status: "Closed" },
-  { id: "PE-2026-000004", date: "2026-04-18", bom: bomNameAt(2), producedQty: 1, status: "Closed" },
-  { id: "PE-2026-000001", date: "2026-04-15", bom: bomNameAt(3), producedQty: 1, status: "Closed" },
-];
+const seedEntries: ProductionEntry[] = seedProductionEntries;
 
 function ProductionEntryPage() {
   const [entries, setEntries] = useState<ProductionEntry[]>(seedEntries);
@@ -114,7 +146,7 @@ function ProductionEntryPage() {
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-wider text-success">
-                  Forwarded from Meal Planning
+                  Forwarded from Order Management
                 </div>
                 <div className="mt-1 text-base font-bold text-foreground">
                   New Meal Order for {FORWARDED_ORDER.date}
@@ -127,12 +159,6 @@ function ProductionEntryPage() {
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => toast.success("Stock check — coming soon.")}
-                >
-                  Check Stock Against This Order
-                </Button>
                 <Button
                   className="bg-success text-success-foreground hover:bg-success/90"
                   onClick={() => setDetailsOpen(true)}
@@ -595,42 +621,6 @@ function ProductionEntryCreate({ onSave }: { onSave?: (entry: ProductionEntry) =
   );
 }
 
-function FilterChips<T extends string>({
-  label, options, value, onChange,
-}: {
-  label: string;
-  options: readonly T[];
-  value: T;
-  onChange: (v: T) => void;
-}) {
-  return (
-    <div>
-      <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-        {label}
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        {options.map((opt) => {
-          const active = opt === value;
-          return (
-            <button
-              key={opt}
-              type="button"
-              onClick={() => onChange(opt)}
-              className={cn(
-                "h-7 rounded-full px-3 text-xs font-medium border transition-colors",
-                active
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-background text-foreground border-border hover:bg-muted",
-              )}
-            >
-              {opt}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 function MealCardView({ meal }: { meal: MealCard }) {
   return (
@@ -728,29 +718,25 @@ function MealCardView({ meal }: { meal: MealCard }) {
 function MealPlanningDetailsDialog({
   open, onOpenChange,
 }: { open: boolean; onOpenChange: (v: boolean) => void }) {
-  const [flightFilter, setFlightFilter] = useState<FlightFilter>("All");
-  const [forFilter, setForFilter] = useState<ForFilter>("All");
-  const [dayFilter, setDayFilter] = useState<DayFilter>("All");
-
-  const filtered = useMemo(() => {
-    return mealCards.filter((m) => {
-      if (flightFilter !== "All" && !m.flightType.includes(flightFilter)) return false;
-      if (forFilter !== "All" && m.forType !== forFilter) return false;
-      if (dayFilter !== "All" && m.day !== dayFilter) return false;
-      return true;
-    });
-  }, [flightFilter, forFilter, dayFilter]);
+  const requirements = useMemo(() => computeOrderRequirements(seedFlightOrders), []);
+  const orderDays = useMemo(() => new Set(requirements.map((r) => r.day)), [requirements]);
 
   const byDay = useMemo(() => {
     const groups = new Map<string, MealCard[]>();
-    for (const m of filtered) {
+    for (const m of mealCards) {
+      if (!orderDays.has(m.day as (typeof DAYS)[number])) continue;
       if (!groups.has(m.day)) groups.set(m.day, []);
       groups.get(m.day)!.push(m);
     }
     return Array.from(groups.entries()).sort(
       ([a], [b]) => DAYS.indexOf(a as (typeof DAYS)[number]) - DAYS.indexOf(b as (typeof DAYS)[number]),
     );
-  }, [filtered]);
+  }, [orderDays]);
+
+  const totalPax = seedFlightOrders.reduce((s, o) => s + o.pax, 0);
+  const totalCrew = seedFlightOrders.reduce((s, o) => s + o.crew, 0);
+  const totalSpecial = seedFlightOrders.reduce((s, o) => s + o.specialMeals, 0);
+  const totalMeals = totalPax + totalCrew + totalSpecial;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -759,62 +745,218 @@ function MealPlanningDetailsDialog({
           <DialogTitle>
             Meal Planning Details — New Meal Order for {gmOrderSummary.date}
           </DialogTitle>
-          <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-            <div>
-              <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Flight</div>
-              <div className="font-semibold text-foreground">
-                {gmOrderSummary.flightNumber} <span className="text-muted-foreground font-normal">· {gmOrderSummary.route}</span>
-              </div>
-            </div>
-            <div>
-              <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Passengers</div>
-              <div className="font-semibold text-foreground">{gmOrderSummary.paxCount.toLocaleString()}</div>
-            </div>
-            <div>
-              <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Crew</div>
-              <div className="font-semibold text-foreground">{gmOrderSummary.crewCount}</div>
-            </div>
-            <div>
-              <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Total Meals</div>
-              <div className="font-semibold text-success">
-                {gmOrderSummary.totalMealsToday.toLocaleString()}
-              </div>
-            </div>
+          <div className="mt-3 grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
+            <SummaryStat label="Flights"        value={seedFlightOrders.length.toString()} />
+            <SummaryStat label="Passengers"     value={totalPax.toLocaleString()} />
+            <SummaryStat label="Crew"           value={totalCrew.toString()} />
+            <SummaryStat label="Special Meals"  value={totalSpecial.toString()} />
+            <SummaryStat label="Total Meals"    value={totalMeals.toLocaleString()} success />
           </div>
         </DialogHeader>
 
-        <div className="px-6 py-4 border-b border-border bg-muted/30 space-y-3">
-          <FilterChips label="Flight Type" options={FLIGHT_OPTIONS} value={flightFilter} onChange={setFlightFilter} />
-          <FilterChips label="For" options={FOR_OPTIONS} value={forFilter} onChange={setForFilter} />
-          <FilterChips label="Day" options={DAY_OPTIONS} value={dayFilter} onChange={setDayFilter} />
-        </div>
+        <Tabs defaultValue="orders" className="flex-1 overflow-hidden flex flex-col">
+          <div className="px-6 pt-4 border-b border-border">
+            <TabsList className="bg-transparent p-0 h-auto rounded-none gap-4">
+              <TabsTrigger
+                value="orders"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none px-1 pb-3 text-xs uppercase tracking-wider font-semibold"
+              >
+                Flight Orders ({seedFlightOrders.length})
+              </TabsTrigger>
+              <TabsTrigger
+                value="meals"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none px-1 pb-3 text-xs uppercase tracking-wider font-semibold"
+              >
+                Meal Plan
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5">
-          {byDay.length === 0 ? (
-            <div className="text-center text-sm text-muted-foreground py-12">
-              No meals match the selected filters.
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {byDay.map(([day, meals]) => (
-                <div key={day}>
-                  <div className="flex items-center gap-2 mb-3">
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">
-                      {day}
-                    </h3>
-                    <span className="text-xs text-muted-foreground">
-                      ({meals.length} meal{meals.length > 1 ? "s" : ""})
-                    </span>
-                  </div>
-                  <div className="space-y-3">
-                    {meals.map((m) => <MealCardView key={m.id} meal={m} />)}
-                  </div>
+          <TabsContent value="orders" className="flex-1 overflow-y-auto px-6 py-5 mt-0">
+            <FlightOrdersTabContent orders={seedFlightOrders} />
+          </TabsContent>
+
+          <TabsContent value="meals" className="flex-1 overflow-hidden flex flex-col mt-0">
+            <div className="flex-1 overflow-y-auto">
+              <div className="px-6 pt-5 pb-4">
+                <RequirementsSummary requirements={requirements} />
+              </div>
+
+              <div className="px-6 py-3 border-y border-border bg-muted/30">
+                <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Menu Templates &mdash; {Array.from(orderDays).join(" · ")}
                 </div>
-              ))}
+              </div>
+
+              <div className="px-6 py-5">
+                {byDay.length === 0 ? (
+                  <div className="text-center text-sm text-muted-foreground py-12">
+                    No menu templates available for the order days.
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {byDay.map(([day, meals]) => (
+                      <div key={day}>
+                        <div className="flex items-center gap-2 mb-3">
+                          <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">
+                            {day}
+                          </h3>
+                          <span className="text-xs text-muted-foreground">
+                            ({meals.length} meal{meals.length > 1 ? "s" : ""})
+                          </span>
+                        </div>
+                        <div className="space-y-3">
+                          {meals.map((m) => <MealCardView key={m.id} meal={m} />)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-        </div>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function SummaryStat({
+  label, value, success,
+}: { label: string; value: string; success?: boolean }) {
+  return (
+    <div>
+      <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className={cn("mt-0.5 font-semibold", success ? "text-success" : "text-foreground")}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function FlightOrdersTabContent({ orders }: { orders: FlightOrderRow[] }) {
+  const totalPax = orders.reduce((s, o) => s + o.pax, 0);
+  const totalCrew = orders.reduce((s, o) => s + o.crew, 0);
+  const totalSpecial = orders.reduce((s, o) => s + o.specialMeals, 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="border border-border rounded-md overflow-hidden">
+        <Table>
+          <TableHeader className="bg-muted/40">
+            <TableRow>
+              <TableHead className="text-xs uppercase tracking-wider">Order #</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider">Flight</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider">Sector</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider">Date</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider">ETD</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-right">PAX</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-right">Crew</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-right">Special</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider">Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {orders.map((o) => (
+              <TableRow key={o.id} className="hover:bg-muted/30">
+                <TableCell className="font-mono text-xs">{o.id}</TableCell>
+                <TableCell className="font-medium">{o.flight}</TableCell>
+                <TableCell>{o.sector}</TableCell>
+                <TableCell>{o.date}</TableCell>
+                <TableCell>{o.etd}</TableCell>
+                <TableCell className="text-right tabular-nums">{o.pax}</TableCell>
+                <TableCell className="text-right tabular-nums">{o.crew}</TableCell>
+                <TableCell className="text-right tabular-nums">{o.specialMeals}</TableCell>
+                <TableCell><StatusBadge status={o.status} /></TableCell>
+              </TableRow>
+            ))}
+            <TableRow className="bg-muted/30 font-semibold">
+              <TableCell colSpan={5} className="text-right uppercase text-xs tracking-wider">
+                Totals
+              </TableCell>
+              <TableCell className="text-right tabular-nums">{totalPax.toLocaleString()}</TableCell>
+              <TableCell className="text-right tabular-nums">{totalCrew.toLocaleString()}</TableCell>
+              <TableCell className="text-right tabular-nums">{totalSpecial.toLocaleString()}</TableCell>
+              <TableCell />
+            </TableRow>
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+function RequirementsSummary({ requirements }: { requirements: OrderRequirement[] }) {
+  const totals = requirements.reduce(
+    (acc, r) => ({
+      flights: acc.flights + r.flights,
+      passengers: acc.passengers + r.passengers,
+      crew: acc.crew + r.crew,
+      specialMeals: acc.specialMeals + r.specialMeals,
+    }),
+    { flights: 0, passengers: 0, crew: 0, specialMeals: 0 },
+  );
+  const grandTotal = totals.passengers + totals.crew + totals.specialMeals;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-xs font-semibold uppercase tracking-wider text-success">
+          Required Meals (derived from Flight Orders)
+        </div>
+        <div className="text-[11px] text-muted-foreground">
+          Grouped by Day &times; Flight Type
+        </div>
+      </div>
+      <div className="border border-border rounded-md overflow-hidden">
+        <Table>
+          <TableHeader className="bg-muted/40">
+            <TableRow>
+              <TableHead className="text-xs uppercase tracking-wider">Day</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider">Flight Type</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-right">Flights</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-right">Passengers</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-right">Crew</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-right">Special</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-right">Total Meals</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {requirements.map((r) => {
+              const total = r.passengers + r.crew + r.specialMeals;
+              return (
+                <TableRow key={`${r.day}-${r.flightType}`}>
+                  <TableCell className="font-medium">{r.day}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="text-[10px]">
+                      <Plane className="h-2.5 w-2.5 mr-1" /> {r.flightType}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{r.flights}</TableCell>
+                  <TableCell className="text-right tabular-nums">{r.passengers.toLocaleString()}</TableCell>
+                  <TableCell className="text-right tabular-nums">{r.crew.toLocaleString()}</TableCell>
+                  <TableCell className="text-right tabular-nums">{r.specialMeals.toLocaleString()}</TableCell>
+                  <TableCell className="text-right tabular-nums font-semibold">
+                    {total.toLocaleString()}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+            <TableRow className="bg-muted/30 font-semibold">
+              <TableCell colSpan={2} className="text-right uppercase text-xs tracking-wider">
+                Grand Total
+              </TableCell>
+              <TableCell className="text-right tabular-nums">{totals.flights}</TableCell>
+              <TableCell className="text-right tabular-nums">{totals.passengers.toLocaleString()}</TableCell>
+              <TableCell className="text-right tabular-nums">{totals.crew.toLocaleString()}</TableCell>
+              <TableCell className="text-right tabular-nums">{totals.specialMeals.toLocaleString()}</TableCell>
+              <TableCell className="text-right tabular-nums text-success">
+                {grandTotal.toLocaleString()}
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </div>
+    </div>
   );
 }
