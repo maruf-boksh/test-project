@@ -17,6 +17,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { useWorkflow, type WfPurchaseOrder, type WfRequisition } from "@/lib/workflow-store";
+import { LocationPicker, LocationFilter, LocationCell } from "@/components/common/LocationPicker";
 
 export const Route = createFileRoute("/procurement")({
   head: () => ({ meta: [{ title: "Purchase Orders" }] }),
@@ -36,12 +37,20 @@ function ProcurementPage() {
   const [poDeliveryDate, setPoDeliveryDate] = useState("");
   const [poNotes, setPoNotes] = useState("");
   const [poLines, setPoLines] = useState<POLineRow[]>([]);
+  const [poOfficeId, setPoOfficeId] = useState("OFF-001");
+  const [poWarehouseId, setPoWarehouseId] = useState("WH-001");
+
+  // List filter state
+  const [filterOffice, setFilterOffice] = useState("");
+  const [filterWarehouse, setFilterWarehouse] = useState("");
 
   const openPODialog = (req: WfRequisition) => {
     setSelectedReq(req);
     setPoVendor(vendors[0]?.name ?? "");
     setPoDeliveryDate("");
     setPoNotes("");
+    setPoOfficeId(req.officeId ?? "OFF-001");
+    setPoWarehouseId(req.warehouseId ?? "WH-001");
     // Pre-populate lines from demand items if available
     setPoLines(
       (req.demandItems ?? []).map((item, i) => ({
@@ -79,6 +88,8 @@ function ProcurementPage() {
   const savePO = (submitForApproval: boolean) => {
     if (!selectedReq) return;
     if (!poVendor) { toast.error("Please select a vendor."); return; }
+    if (!poOfficeId) { toast.error("Office is required."); return; }
+    if (!poWarehouseId) { toast.error("Warehouse is required."); return; }
 
     const poId = `PO-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
     const newPO: WfPurchaseOrder = {
@@ -91,6 +102,8 @@ function ProcurementPage() {
       requisitionRef: selectedReq.id,
       deliveryDate: poDeliveryDate,
       notes: poNotes,
+      officeId: poOfficeId,
+      warehouseId: poWarehouseId,
       lineItems: poLines.map(l => ({
         itemId: l.id,
         name: l.name,
@@ -121,6 +134,10 @@ function ProcurementPage() {
     { key: "id", header: "PO #" },
     { key: "vendor", header: "Vendor" },
     { key: "requisitionRef", header: "Req Ref" },
+    {
+      key: "officeId" as keyof WfPurchaseOrder, header: "Office / Warehouse",
+      render: (r) => <LocationCell officeId={r.officeId} warehouseId={r.warehouseId} />,
+    },
     { key: "items", header: "Items" },
     { key: "amount", header: "Amount (৳)", render: (r) => r.amount > 0 ? r.amount.toLocaleString() : "—" },
     { key: "date", header: "Date" },
@@ -130,11 +147,26 @@ function ProcurementPage() {
   const reqCols: Column<WfRequisition>[] = [
     { key: "id", header: "Req #" },
     { key: "reference", header: "Reference" },
+    {
+      key: "officeId" as keyof WfRequisition, header: "Office / Warehouse",
+      render: (r) => <LocationCell officeId={r.officeId} warehouseId={r.warehouseId} />,
+    },
     { key: "requestedBy", header: "Requested By" },
     { key: "source", header: "Source" },
     { key: "date", header: "Date" },
     { key: "status", header: "Status", render: (r) => <StatusBadge status={r.status} /> },
   ];
+
+  const filteredReqs = wfRequisitions.filter((r) => {
+    if (filterOffice && r.officeId !== filterOffice) return false;
+    if (filterWarehouse && r.warehouseId !== filterWarehouse) return false;
+    return true;
+  });
+  const filteredPOs = wfPurchaseOrders.filter((p) => {
+    if (filterOffice && p.officeId !== filterOffice) return false;
+    if (filterWarehouse && p.warehouseId !== filterWarehouse) return false;
+    return true;
+  });
 
   return (
     <>
@@ -156,6 +188,14 @@ function ProcurementPage() {
         <KpiCard label="Active Vendors" value={vendors.length} icon={Truck} tone="success" />
       </div>
 
+      <div className="mb-4">
+        <LocationFilter
+          officeId={filterOffice}
+          warehouseId={filterWarehouse}
+          onChange={(n) => { setFilterOffice(n.officeId); setFilterWarehouse(n.warehouseId); }}
+        />
+      </div>
+
       {/* Requisitions from Store */}
       <Card className="mb-6">
         <CardHeader>
@@ -164,7 +204,7 @@ function ProcurementPage() {
         <CardContent>
           <DataTable
             title="requisitions"
-            data={wfRequisitions}
+            data={filteredReqs}
             columns={reqCols}
             searchKeys={["id", "reference", "requestedBy", "status"]}
             actions={(r) => (
@@ -187,10 +227,10 @@ function ProcurementPage() {
       </div>
       <DataTable
         title="purchase-orders"
-        data={wfPurchaseOrders}
+        data={filteredPOs}
         columns={poCols}
         searchKeys={["id", "vendor", "status", "requisitionRef"]}
-        actions={(r) => <RowActions row={r} actions={["view", "edit", "approve", "reject", "print", "delete"]} />}
+        actions={(r) => <RowActions row={r} actions={["view", "edit", "print", "delete"]} />}
       />
 
       {/* PO Creation Dialog */}
@@ -223,6 +263,11 @@ function ProcurementPage() {
               <Label>Delivery Date</Label>
               <Input type="date" value={poDeliveryDate} onChange={(e) => setPoDeliveryDate(e.target.value)} className="mt-1" />
             </div>
+            <LocationPicker
+              officeId={poOfficeId}
+              warehouseId={poWarehouseId}
+              onChange={(n) => { setPoOfficeId(n.officeId); setPoWarehouseId(n.warehouseId); }}
+            />
             <div className="col-span-2">
               <Label>Notes</Label>
               <Textarea value={poNotes} onChange={(e) => setPoNotes(e.target.value)} rows={2} className="mt-1" />

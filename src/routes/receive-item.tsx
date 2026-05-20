@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useWorkflow, type WfGRN, type WfGRNLine } from "@/lib/workflow-store";
+import { LocationPicker, LocationFilter, LocationCell } from "@/components/common/LocationPicker";
 
 export const Route = createFileRoute("/receive-item")({
   head: () => ({ meta: [{ title: "Receive Item — Inbound GRN" }] }),
@@ -33,6 +34,8 @@ type GRNRow = {
   expiry: string;
   receivedBy: string;
   status: string;
+  officeId?: string;
+  warehouseId?: string;
 };
 
 // GRN form line state
@@ -51,6 +54,8 @@ function seedToRow(s: SeedGRN): GRNRow {
     id: s.id, po: s.po, vendor: s.vendor, item: s.item,
     qty: s.qty, uom: s.uom, temp: s.temp, expiry: s.expiry,
     receivedBy: s.receivedBy, status: s.status,
+    // Backfill seed GRNs to default Office + Warehouse so reports stay consistent
+    officeId: "OFF-001", warehouseId: "WH-001",
   };
 }
 
@@ -66,6 +71,8 @@ function wfGRNToRows(grn: WfGRN): GRNRow[] {
     expiry: l.expiry,
     receivedBy: grn.receivedBy,
     status: l.qcStatus,
+    officeId: grn.officeId,
+    warehouseId: grn.warehouseId,
   }));
 }
 
@@ -76,6 +83,10 @@ function ReceiveItem() {
   const [grnOpen, setGrnOpen] = useState(false);
   const [selectedPORef, setSelectedPORef] = useState("");
   const [receivedBy, setReceivedBy] = useState("");
+  const [grnOfficeId, setGrnOfficeId] = useState("OFF-001");
+  const [grnWarehouseId, setGrnWarehouseId] = useState("WH-001");
+  const [filterOffice, setFilterOffice] = useState("");
+  const [filterWarehouse, setFilterWarehouse] = useState("");
   const [formLines, setFormLines] = useState<FormLine[]>([{ id: "l0", name: "", qty: 1, uom: "Kg", temp: "", expiry: "", qcStatus: "Accepted" }]);
 
   // Selectable POs (not closed/delivered)
@@ -93,6 +104,11 @@ function ReceiveItem() {
   const handleSelectPO = (poId: string) => {
     setSelectedPORef(poId);
     const po = wfPurchaseOrders.find(p => p.id === poId);
+    if (po) {
+      // Inherit Office + Warehouse from PO if set
+      if (po.officeId) setGrnOfficeId(po.officeId);
+      if (po.warehouseId) setGrnWarehouseId(po.warehouseId);
+    }
     if (po?.lineItems && po.lineItems.length > 0) {
       setFormLines(po.lineItems.map((l, i) => ({
         id: `l${i}`,
@@ -119,6 +135,8 @@ function ReceiveItem() {
   const saveGRN = () => {
     if (!selectedPORef) { toast.error("Please select a PO."); return; }
     if (!receivedBy.trim()) { toast.error("Received By is required."); return; }
+    if (!grnOfficeId) { toast.error("Office is required."); return; }
+    if (!grnWarehouseId) { toast.error("Warehouse is required."); return; }
     if (formLines.some(l => !l.name.trim())) { toast.error("All item rows must have an item name."); return; }
 
     const grnId = `GRN-${Date.now().toString().slice(-5)}`;
@@ -144,6 +162,8 @@ function ReceiveItem() {
       date: new Date().toLocaleString(),
       lines,
       linkedDemandRef: linkedDemand?.id,
+      officeId: grnOfficeId,
+      warehouseId: grnWarehouseId,
     };
 
     addGRN(grn);
@@ -175,10 +195,20 @@ function ReceiveItem() {
     ...receiveItems.map(seedToRow),
   ], [grns]);
 
+  const filteredRows = allRows.filter((r) => {
+    if (filterOffice && r.officeId !== filterOffice) return false;
+    if (filterWarehouse && r.warehouseId !== filterWarehouse) return false;
+    return true;
+  });
+
   const cols: Column<GRNRow>[] = [
     { key: "id", header: "GRN #" },
     { key: "po", header: "PO Ref" },
     { key: "vendor", header: "Vendor" },
+    {
+      key: "officeId" as keyof GRNRow, header: "Office / Warehouse",
+      render: (r) => <LocationCell officeId={r.officeId} warehouseId={r.warehouseId} />,
+    },
     { key: "item", header: "Item" },
     { key: "qty", header: "Qty" },
     { key: "uom", header: "UOM" },
@@ -214,12 +244,19 @@ function ReceiveItem() {
         <KpiCard label="On Hold" value={onHold} icon={ClipboardCheck} tone="warning" />
         <KpiCard label="Rejected" value={rejected} icon={AlertOctagon} tone="red" />
       </div>
+      <div className="mb-4">
+        <LocationFilter
+          officeId={filterOffice}
+          warehouseId={filterWarehouse}
+          onChange={(n) => { setFilterOffice(n.officeId); setFilterWarehouse(n.warehouseId); }}
+        />
+      </div>
       <DataTable
         title="receive-item"
-        data={allRows}
+        data={filteredRows}
         columns={cols}
         searchKeys={["id", "po", "vendor", "item", "status"]}
-        actions={(r) => <RowActions row={r} actions={["view", "approve", "reject", "print"]} />}
+        actions={(r) => <RowActions row={r} actions={["view", "print"]} />}
       />
 
       {/* New GRN Dialog */}
@@ -253,6 +290,11 @@ function ReceiveItem() {
               <Label>Received By *</Label>
               <Input value={receivedBy} onChange={(e) => setReceivedBy(e.target.value)} className="mt-1" placeholder="Name of person receiving" />
             </div>
+            <LocationPicker
+              officeId={grnOfficeId}
+              warehouseId={grnWarehouseId}
+              onChange={(n) => { setGrnOfficeId(n.officeId); setGrnWarehouseId(n.warehouseId); }}
+            />
           </div>
 
           {/* Line items */}

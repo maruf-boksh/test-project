@@ -26,11 +26,12 @@ const META: Record<ActionKey, { label: string; icon: any }> = {
 
 export function RowActions({
   row, actions = ["view", "edit", "approve", "delete"],
-  detail,
+  detail, editDetail,
 }: {
   row: Record<string, any>;
   actions?: ActionKey[];
   detail?: ReactNode;
+  editDetail?: ReactNode;
 }) {
   const [open, setOpen] = useState<null | "view" | "edit" | "delete" | "approve" | "reject">(null);
 
@@ -72,7 +73,13 @@ export function RowActions({
       </DropdownMenu>
 
       <Dialog open={!!open} onOpenChange={(v) => !v && setOpen(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent
+          className={
+            (open === "view" && detail) || (open === "edit" && editDetail)
+              ? "max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+              : "max-w-2xl"
+          }
+        >
           <DialogHeader>
             <DialogTitle>
               {open === "view" && `Record Details — ${row.id}`}
@@ -90,9 +97,15 @@ export function RowActions({
             </DialogDescription>
           </DialogHeader>
 
-          {(open === "view" || open === "edit") && (
+          {open === "view" && detail && (
+            <div className="flex-1 overflow-auto">{detail}</div>
+          )}
+          {open === "edit" && editDetail && (
+            <div className="flex-1 overflow-auto">{editDetail}</div>
+          )}
+          {(open === "view" || open === "edit") && !((open === "view" && detail) || (open === "edit" && editDetail)) && (
             <div className="grid grid-cols-2 gap-3 max-h-[420px] overflow-auto">
-              {detail ?? Object.entries(row).map(([k, v]) => (
+              {Object.entries(row).map(([k, v]) => (
                 <div key={k} className="border border-border rounded-md p-2">
                   <div className="text-[10px] uppercase text-muted-foreground">{k}</div>
                   {open === "edit" ? (
@@ -116,7 +129,9 @@ export function RowActions({
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(null)}>Cancel</Button>
+            {open !== "view" && (
+              <Button variant="outline" onClick={() => setOpen(null)}>Cancel</Button>
+            )}
             {open === "delete" && (
               <Button variant="destructive" onClick={() => { toast.success(`Deleted ${row.id}`); setOpen(null); }}>
                 Delete

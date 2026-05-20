@@ -4,14 +4,16 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { Button } from "@/components/ui/button";
-import { Plus, ThermometerSun, ShieldCheck, AlertOctagon, ClipboardCheck } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Plus, ThermometerSun, ShieldCheck, AlertOctagon, ClipboardCheck, Factory, Check, X as XIcon, PackageCheck } from "lucide-react";
 import { cookingTempLogs } from "@/lib/sample-data";
 import { KpiCard } from "@/components/common/KpiCard";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useWorkflow, type WfProductionEntry } from "@/lib/workflow-store";
 
 export const Route = createFileRoute("/cooking-temp")({
   head: () => ({ meta: [{ title: "Cooking Temp & Sensory Test" }] }),
@@ -21,6 +23,7 @@ export const Route = createFileRoute("/cooking-temp")({
 type T = (typeof cookingTempLogs)[number];
 
 function CookingTemp() {
+  const { productionEntries, updateProductionEntryStatus, applyStockDeltas } = useWorkflow();
   const [records, setRecords] = useState<T[]>(cookingTempLogs);
   const [newRecordOpen, setNewRecordOpen] = useState(false);
   const [newRecordBatch, setNewRecordBatch] = useState("");
@@ -31,6 +34,69 @@ function CookingTemp() {
   const [newRecordCheckedBy, setNewRecordCheckedBy] = useState("");
   const [newRecordSensory, setNewRecordSensory] = useState(true);
   const [newRecordStandardTemp, setNewRecordStandardTemp] = useState(75);
+
+  // QC sign-off dialog (from production entries pending QC)
+  const [qcOpen, setQcOpen] = useState(false);
+  const [qcTarget, setQcTarget] = useState<WfProductionEntry | null>(null);
+  const [qcTemp, setQcTemp] = useState(75);
+  const [qcMeasured, setQcMeasured] = useState(75);
+  const [qcCheckedBy, setQcCheckedBy] = useState("");
+  const [qcCookedBy, setQcCookedBy] = useState("");
+
+  const pendingQC = productionEntries.filter((e) => e.status === "Ready for QC");
+
+  const openQc = (entry: WfProductionEntry) => {
+    setQcTarget(entry);
+    setQcTemp(75);
+    setQcMeasured(75);
+    setQcCheckedBy("");
+    setQcCookedBy("");
+    setQcOpen(true);
+  };
+
+  const signOff = (passed: boolean) => {
+    if (!qcTarget) return;
+    if (!qcCheckedBy.trim()) { toast.error("Checked By is required."); return; }
+    const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+    const logId = `CT-${Date.now()}`;
+    // Add to QC log
+    setRecords((curr) => [
+      {
+        id: logId,
+        batch: qcTarget.id,
+        item: qcTarget.outputItemName ?? qcTarget.bom,
+        cookingTime: "—",
+        standardTemp: `≥${qcTemp}°C`,
+        standardTempMin: qcTemp,
+        measuredTemp: qcMeasured,
+        cookedBy: qcCookedBy.trim() || "Kitchen Staff",
+        sensoryPass: passed,
+        checkedBy: qcCheckedBy.trim(),
+      } as T,
+      ...curr,
+    ]);
+
+    if (passed) {
+      // Flip to Completed and push to inventory
+      updateProductionEntryStatus(qcTarget.id, "Completed", {
+        qcLogId: logId,
+        qcPassedAt: stamp,
+        qcCheckedBy: qcCheckedBy.trim(),
+        completedAt: stamp,
+        inventoryAdded: true,
+      });
+      applyStockDeltas([{
+        itemId: qcTarget.outputItemCode ?? qcTarget.outputItemName ?? qcTarget.id,
+        delta: qcTarget.producedQty,
+      }]);
+      toast.success(`${qcTarget.id} passed QC — ${qcTarget.producedQty.toLocaleString()} units added to inventory.`);
+    } else {
+      // Send back for rework
+      updateProductionEntryStatus(qcTarget.id, "In Preparation");
+      toast.error(`${qcTarget.id} failed sensory check — sent back to In Preparation.`);
+    }
+    setQcOpen(false);
+  };
 
   const cols: Column<T>[] = [
     { key: "id", header: "Log #" },
@@ -62,7 +128,7 @@ function CookingTemp() {
         batch: newRecordBatch,
         item: newRecordItem,
         cookingTime: newRecordTime || "00:00",
-        standardTemp: newRecordStandardTemp,
+        standardTemp: `≥${newRecordStandardTemp}°C`,
         standardTempMin: newRecordStandardTemp,
         measuredTemp: newRecordTemp,
         cookedBy: newRecordCookedBy || "Kitchen Staff",
@@ -174,12 +240,120 @@ function CookingTemp() {
         <KpiCard label="Failed" value={failCount} icon={AlertOctagon} tone="red" />
       </div>
 
+      <Card className="brand-accent-border-left mb-6">
+        <CardContent className="pt-5">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <div>
+              <h3 className="text-sm font-semibold uppercase tracking-wider inline-flex items-center gap-2">
+                <Factory className="h-4 w-4 text-primary" /> Batches Pending QC
+              </h3>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Production entries at <span className="font-medium">Ready for QC</span> — record the test and sign off.
+              </p>
+            </div>
+            <Badge variant="outline" className="bg-warning/15 text-warning-foreground border-warning/40">
+              {pendingQC.length} pending
+            </Badge>
+          </div>
+
+          {pendingQC.length === 0 ? (
+            <div className="text-center text-sm text-muted-foreground py-6">
+              No batches awaiting QC sign-off. All caught up.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {pendingQC.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between rounded-md border border-border p-3 hover:bg-muted/30 transition-colors flex-wrap gap-3"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-xs text-foreground">{p.id}</span>
+                      <Badge variant="outline" className="text-[10px] font-normal">{p.bom}</Badge>
+                    </div>
+                    <div className="mt-1 text-sm font-medium">
+                      {p.outputItemName ?? p.bom}
+                      <span className="ml-2 text-xs text-muted-foreground tabular-nums">
+                        × {p.producedQty.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">Produced on {p.date}</div>
+                  </div>
+                  <Button size="sm" onClick={() => openQc(p)}>
+                    <ClipboardCheck className="h-3.5 w-3.5 mr-1.5" /> Record Test
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <DataTable
         title="cooking-temp"
         data={records}
         columns={cols}
         searchKeys={["id", "batch", "item", "cookedBy", "checkedBy"]}
       />
+
+      <Dialog open={qcOpen} onOpenChange={setQcOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>QC Sign-off — {qcTarget?.id}</DialogTitle>
+            <DialogDescription>
+              Record the cooking temperature & sensory result. Pass moves this batch to{" "}
+              <span className="font-medium">Completed</span> and adds the produced quantity to inventory.
+            </DialogDescription>
+          </DialogHeader>
+
+          {qcTarget && (
+            <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
+              <div className="font-semibold">{qcTarget.outputItemName ?? qcTarget.bom}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                BOM: {qcTarget.bom} · Qty: <span className="font-medium tabular-nums">{qcTarget.producedQty.toLocaleString()}</span>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Standard °C</Label>
+              <Input type="number" value={qcTemp}     onChange={(e) => setQcTemp(Number(e.target.value))}     className="mt-1 tabular-nums" />
+            </div>
+            <div>
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Measured °C</Label>
+              <Input type="number" value={qcMeasured} onChange={(e) => setQcMeasured(Number(e.target.value))} className="mt-1 tabular-nums" />
+            </div>
+            <div>
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Cooked By</Label>
+              <Input value={qcCookedBy} onChange={(e) => setQcCookedBy(e.target.value)} className="mt-1" placeholder="Chef name" />
+            </div>
+            <div>
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Checked By <span className="text-destructive">*</span></Label>
+              <Input value={qcCheckedBy} onChange={(e) => setQcCheckedBy(e.target.value)} className="mt-1" placeholder="Hygiene lead" />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setQcOpen(false)}>Cancel</Button>
+            <Button
+              variant="outline"
+              className="border-destructive/40 text-destructive hover:bg-destructive/10"
+              onClick={() => signOff(false)}
+            >
+              <XIcon className="h-4 w-4 mr-1.5" /> Fail (Send Back)
+            </Button>
+            <Button
+              className="bg-success text-success-foreground hover:bg-success/90"
+              onClick={() => signOff(true)}
+            >
+              <Check className="h-4 w-4 mr-1.5" /> Pass & Complete
+              <PackageCheck className="h-4 w-4 ml-1.5" />
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

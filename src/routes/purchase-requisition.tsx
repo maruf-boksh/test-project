@@ -20,6 +20,8 @@ import {
   FileText, ClipboardList, CheckCircle, Plus, Save, Send, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { activeItems } from "@/lib/sample-data";
+import { LocationPicker, LocationFilter, LocationCell } from "@/components/common/LocationPicker";
 
 export const Route = createFileRoute("/purchase-requisition")({
   head: () => ({ meta: [{ title: "Purchase Requisition" }] }),
@@ -40,6 +42,8 @@ type Priority = "Normal" | "Urgent";
 type PurchaseRequisition = {
   id: string;
   date: string;
+  officeId: string;
+  warehouseId: string;
   requestedBy: string;
   department: string;
   requiredBy: string;
@@ -54,12 +58,32 @@ const DEPARTMENTS = ["Hot Kitchen", "Cold Kitchen", "Bakery", "Beverage", "Speci
 const PRIORITIES: Priority[] = ["Normal", "Urgent"];
 const UOMS = ["Kg", "Litre", "Pcs", "Box", "Pack", "Unit", "Bottle"];
 
+const REQUESTERS = [
+  "S. Ahmed",
+  "M. Hossain",
+  "F. Begum",
+  "A. Khan",
+  "N. Hasan",
+  "M. Karim",
+  "R. Islam",
+  "T. Rahman",
+];
+
+
 const selectCls =
   "w-full mt-1 h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
+// Item picker — pulled from the central Item Profile
+const ITEM_MASTER = activeItems.map((i) => ({
+  name: i.name,
+  uom: i.uom,
+  description: `${i.code} · ${i.category}${i.subCategory ? ` · ${i.subCategory}` : ""}`,
+}));
+
 const seedRequisitions: PurchaseRequisition[] = [
   {
-    id: "PR-2026-005", date: "2026-05-18", requestedBy: "S. Ahmed", department: "Hot Kitchen",
+    id: "PR-2026-005", date: "2026-05-18", officeId: "OFF-001", warehouseId: "WH-003",
+    requestedBy: "S. Ahmed", department: "Hot Kitchen",
     requiredBy: "2026-05-22", priority: "Normal", justification: "Weekly stock replenishment for hot kitchen line.",
     lines: [
       { id: "L1", itemName: "Basmati Rice",   description: "Premium long grain", qty: 200, uom: "Kg",    rate: 120 },
@@ -69,7 +93,8 @@ const seedRequisitions: PurchaseRequisition[] = [
     status: "Approved", totalAmount: 76500,
   },
   {
-    id: "PR-2026-004", date: "2026-05-17", requestedBy: "M. Hossain", department: "Bakery",
+    id: "PR-2026-004", date: "2026-05-17", officeId: "OFF-001", warehouseId: "WH-001",
+    requestedBy: "M. Hossain", department: "Bakery",
     requiredBy: "2026-05-21", priority: "Normal", justification: "Production run for the next 4 days.",
     lines: [
       { id: "L1", itemName: "All-Purpose Flour", description: "10kg bag",    qty: 25, uom: "Box",   rate: 1200 },
@@ -79,7 +104,8 @@ const seedRequisitions: PurchaseRequisition[] = [
     status: "Pending Approval", totalAmount: 61060,
   },
   {
-    id: "PR-2026-003", date: "2026-05-15", requestedBy: "F. Begum", department: "Cold Kitchen",
+    id: "PR-2026-003", date: "2026-05-15", officeId: "OFF-001", warehouseId: "WH-004",
+    requestedBy: "F. Begum", department: "Cold Kitchen",
     requiredBy: "2026-05-19", priority: "Urgent", justification: "Salmon stock fell below reorder level after weekend rush.",
     lines: [
       { id: "L1", itemName: "Salmon Fillet", description: "Frozen, premium grade", qty: 40, uom: "Kg",  rate: 1400 },
@@ -89,7 +115,8 @@ const seedRequisitions: PurchaseRequisition[] = [
     status: "Approved", totalAmount: 65700,
   },
   {
-    id: "PR-2026-002", date: "2026-05-12", requestedBy: "A. Khan", department: "Beverage",
+    id: "PR-2026-002", date: "2026-05-12", officeId: "OFF-001", warehouseId: "WH-002",
+    requestedBy: "A. Khan", department: "Beverage",
     requiredBy: "2026-05-18", priority: "Normal", justification: "Replenish beverage stock for international flights.",
     lines: [
       { id: "L1", itemName: "Mineral Water",      description: "500ml",     qty: 50,  uom: "Box",    rate: 480 },
@@ -99,7 +126,8 @@ const seedRequisitions: PurchaseRequisition[] = [
     status: "Closed", totalAmount: 55100,
   },
   {
-    id: "PR-2026-001", date: "2026-05-10", requestedBy: "N. Hasan", department: "Maintenance",
+    id: "PR-2026-001", date: "2026-05-10", officeId: "OFF-001", warehouseId: "WH-001",
+    requestedBy: "N. Hasan", department: "Maintenance",
     requiredBy: "2026-05-25", priority: "Normal", justification: "Quarterly maintenance consumables.",
     lines: [
       { id: "L1", itemName: "Industrial Detergent", description: "5L jar",      qty: 12, uom: "Bottle", rate: 650 },
@@ -113,20 +141,32 @@ function PurchaseRequisitionPage() {
   const [requisitions, setRequisitions] = useState<PurchaseRequisition[]>(seedRequisitions);
   const [view, setView] = useState<"list" | "create">("list");
   const [selected, setSelected] = useState<PurchaseRequisition | null>(null);
+  const [filterOffice, setFilterOffice] = useState("");
+  const [filterWarehouse, setFilterWarehouse] = useState("");
 
   const addRequisition = (pr: PurchaseRequisition) => {
     setRequisitions((prev) => [pr, ...prev]);
     setView("list");
   };
 
-  const totalCount = requisitions.length;
-  const draftCount = requisitions.filter((r) => r.status === "Draft").length;
-  const pendingCount = requisitions.filter((r) => r.status === "Pending Approval").length;
-  const approvedCount = requisitions.filter((r) => r.status === "Approved").length;
+  const filtered = requisitions.filter((r) => {
+    if (filterOffice && r.officeId !== filterOffice) return false;
+    if (filterWarehouse && r.warehouseId !== filterWarehouse) return false;
+    return true;
+  });
+
+  const totalCount = filtered.length;
+  const draftCount = filtered.filter((r) => r.status === "Draft").length;
+  const pendingCount = filtered.filter((r) => r.status === "Pending Approval").length;
+  const approvedCount = filtered.filter((r) => r.status === "Approved").length;
 
   const cols: Column<PurchaseRequisition>[] = [
     { key: "id",          header: "PR No" },
     { key: "date",        header: "Date" },
+    {
+      key: "officeId", header: "Office / Warehouse",
+      render: (r) => <LocationCell officeId={r.officeId} warehouseId={r.warehouseId} />,
+    },
     { key: "department",  header: "Department" },
     { key: "requestedBy", header: "Requested By" },
     {
@@ -173,9 +213,20 @@ function PurchaseRequisitionPage() {
             <KpiCard label="Approved"           value={approvedCount} icon={CheckCircle}   tone="success" />
           </div>
 
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <LocationFilter
+              officeId={filterOffice}
+              warehouseId={filterWarehouse}
+              onChange={(n) => { setFilterOffice(n.officeId); setFilterWarehouse(n.warehouseId); }}
+            />
+            <span className="text-xs text-muted-foreground">
+              Showing <strong className="text-foreground tabular-nums">{filtered.length}</strong> of {requisitions.length}
+            </span>
+          </div>
+
           <DataTable
             title="purchase-requisitions"
-            data={requisitions}
+            data={filtered}
             columns={cols}
             searchKeys={["id", "department", "requestedBy", "status"]}
             actions={(r) => (
@@ -212,6 +263,8 @@ function PurchaseRequisitionCreate({
 
   // Header state
   const [prDate, setPrDate] = useState(today);
+  const [officeId, setOfficeId] = useState("OFF-001");
+  const [warehouseId, setWarehouseId] = useState("WH-001");
   const [requestedBy, setRequestedBy] = useState("");
   const [department, setDepartment] = useState(DEPARTMENTS[0]);
   const [requiredBy, setRequiredBy] = useState("");
@@ -256,12 +309,15 @@ function PurchaseRequisitionCreate({
   };
 
   const handleSave = (submit: boolean) => {
+    if (!officeId) { toast.error("Office is required."); return; }
+    if (!warehouseId) { toast.error("Warehouse is required."); return; }
     if (!requestedBy.trim()) { toast.error("Requested By is required."); return; }
     if (lines.length === 0) { toast.error("Add at least one line item."); return; }
 
     const newPR: PurchaseRequisition = {
       id: `PR-2026-${String(nextNumber).padStart(3, "0")}`,
       date: prDate,
+      officeId, warehouseId,
       requestedBy: requestedBy.trim(),
       department,
       requiredBy: requiredBy || "—",
@@ -318,16 +374,24 @@ function PurchaseRequisitionCreate({
               />
             </div>
 
+            <LocationPicker
+              officeId={officeId}
+              warehouseId={warehouseId}
+              onChange={(n) => { setOfficeId(n.officeId); setWarehouseId(n.warehouseId); }}
+            />
+
             <div>
               <Label className="text-xs uppercase tracking-wider text-muted-foreground">
                 Requested By <span className="text-destructive">*</span>
               </Label>
-              <Input
+              <select
                 value={requestedBy}
                 onChange={(e) => setRequestedBy(e.target.value)}
-                placeholder="e.g. S. Ahmed"
-                className="mt-1"
-              />
+                className={selectCls}
+              >
+                <option value="">Select requester…</option>
+                {REQUESTERS.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
             </div>
 
             <div>
@@ -390,12 +454,22 @@ function PurchaseRequisitionCreate({
               <Label className="text-xs uppercase tracking-wider text-muted-foreground">
                 Item <span className="text-destructive">*</span>
               </Label>
-              <Input
+              <select
                 value={itemName}
-                onChange={(e) => setItemName(e.target.value)}
-                placeholder="Item name"
-                className="mt-1"
-              />
+                onChange={(e) => {
+                  const name = e.target.value;
+                  setItemName(name);
+                  const m = ITEM_MASTER.find((i) => i.name === name);
+                  if (m) {
+                    setUom(m.uom);
+                    if (!description.trim()) setDescription(m.description);
+                  }
+                }}
+                className={selectCls}
+              >
+                <option value="">Select item…</option>
+                {ITEM_MASTER.map((i) => <option key={i.name} value={i.name}>{i.name}</option>)}
+              </select>
             </div>
 
             <div className="md:col-span-3">

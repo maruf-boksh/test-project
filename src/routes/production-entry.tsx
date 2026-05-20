@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -18,9 +18,15 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { Plus, Plane, Users, Clock, Flame, Save, Trash2 } from "lucide-react";
+import { Plus, Plane, Users, Clock, Flame, Save, Trash2, UtensilsCrossed, ArrowRight, ClipboardCheck, MoreHorizontal, Eye, Pencil, Printer } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { billOfMaterials, seedProductionEntries, seedFlightOrders, type FlightOrderRow } from "@/lib/sample-data";
+import { billOfMaterials, seedFlightOrders, type FlightOrderRow } from "@/lib/sample-data";
+import { useWorkflow, type WfProductionEntry, type WfProductionEntryStatus } from "@/lib/workflow-store";
+import { LocationPicker, LocationFilter, LocationCell } from "@/components/common/LocationPicker";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DAYS,
@@ -99,32 +105,168 @@ export const Route = createFileRoute("/production-entry")({
   component: ProductionEntryPage,
 });
 
-type ProductionEntry = {
-  id: string;
-  date: string;
-  bom: string;
-  producedQty: number;
-  status: string;
-};
+type ProductionEntry = WfProductionEntry;
 
-const seedEntries: ProductionEntry[] = seedProductionEntries;
+// Status transitions exposed inside the row action menu.
+// Approval (Pending → Approved) is handled in Approval Management.
+// QC sign-off (Ready for QC → Completed) is handled in Cooking Temp & Sensory.
+const STATUS_FLOW: { from: WfProductionEntryStatus; next: WfProductionEntryStatus; label: string; icon: typeof ArrowRight }[] = [
+  { from: "Approved",        next: "In Preparation", label: "Start Production", icon: ArrowRight },
+  { from: "In Preparation",  next: "Ready for QC",   label: "Send to QC",       icon: ClipboardCheck },
+];
+
+function ProductionEntryRowMenu({
+  entry, onAdvance,
+}: {
+  entry: WfProductionEntry;
+  onAdvance: (entry: WfProductionEntry) => void;
+}) {
+  const step = STATUS_FLOW.find((s) => s.from === entry.status);
+  const isPending     = entry.status === "Pending";
+  const isReadyForQC  = entry.status === "Ready for QC";
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-8 w-8">
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuItem onClick={() => toast.info(`Viewing ${entry.id}`)}>
+          <Eye className="h-4 w-4 mr-2" /> View
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => toast.info(`Editing ${entry.id}`)}>
+          <Pencil className="h-4 w-4 mr-2" /> Edit
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => window.print()}>
+          <Printer className="h-4 w-4 mr-2" /> Print
+        </DropdownMenuItem>
+
+        {(step || isPending || isReadyForQC) && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+              Workflow
+            </DropdownMenuLabel>
+            {step && (
+              <DropdownMenuItem onClick={() => onAdvance(entry)}>
+                <step.icon className="h-4 w-4 mr-2" /> {step.label}
+              </DropdownMenuItem>
+            )}
+            {isPending && (
+              <DropdownMenuItem disabled className="text-[11px]">
+                <span className="text-muted-foreground">Approval handled in Approval Management</span>
+              </DropdownMenuItem>
+            )}
+            {isReadyForQC && (
+              <DropdownMenuItem disabled className="text-[11px]">
+                <ClipboardCheck className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                <span className="text-muted-foreground">QC sign-off in Cooking Temp & Sensory</span>
+              </DropdownMenuItem>
+            )}
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 function ProductionEntryPage() {
-  const [entries, setEntries] = useState<ProductionEntry[]>(seedEntries);
+  const { productionEntries, addProductionEntry, updateProductionEntryStatus } = useWorkflow();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [view, setView] = useState<"list" | "create">("list");
+  const [pendingItem, setPendingItem] = useState<OutputLine | undefined>(undefined);
+  const [createKey, setCreateKey] = useState(0);
+  const [filterOffice, setFilterOffice] = useState("");
+  const [filterWarehouse, setFilterWarehouse] = useState("");
+
+  const entries = productionEntries.filter((e) => {
+    if (filterOffice && e.officeId !== filterOffice) return false;
+    if (filterWarehouse && e.warehouseId !== filterWarehouse) return false;
+    return true;
+  });
 
   const addEntry = (entry: ProductionEntry) => {
-    setEntries((prev) => [entry, ...prev]);
+    addProductionEntry(entry);
     setView("list");
+    setPendingItem(undefined);
   };
 
-  const cols: Column<ProductionEntry>[] = [
+  const advanceStatus = (entry: ProductionEntry) => {
+    const step = STATUS_FLOW.find((s) => s.from === entry.status);
+    if (!step) return;
+    updateProductionEntryStatus(entry.id, step.next);
+    toast.success(`${entry.id} → ${step.next}.`);
+  };
+
+  const startFromMealPlan = (item: MealPlanPickItem) => {
+    const line: OutputLine = {
+      id: `OL-MP-${Date.now()}`,
+      itemCode: item.code,
+      itemName: item.name,
+      qty: 0,
+      source: "meal-plan",
+      mealMeta: {
+        day: item.day,
+        mealType: item.mealType,
+        flightType: item.flightType,
+        forType: item.forType,
+        kind: item.kind,
+      },
+    };
+    setPendingItem(line);
+    setCreateKey((k) => k + 1);
+    setDetailsOpen(false);
+    setView("create");
+    toast.success(`"${item.name}" selected — enter production quantity to auto-load materials.`);
+  };
+
+  type NumberedEntry = ProductionEntry & { __sl: number };
+  const numberedEntries: NumberedEntry[] = entries.map((e, i) => ({ ...e, __sl: i + 1 }));
+
+  const cols: Column<NumberedEntry>[] = [
+    {
+      key: "__sl",
+      header: "SL",
+      sortable: false,
+      className: "w-12 text-center",
+      render: (r) => <span className="tabular-nums">{r.__sl}</span>,
+    },
     { key: "id",         header: "Entry No" },
     { key: "date",       header: "Date" },
+    {
+      key: "officeId" as keyof NumberedEntry, header: "Office / Warehouse",
+      render: (r) => <LocationCell officeId={r.officeId} warehouseId={r.warehouseId} />,
+    },
     { key: "bom",        header: "BOM" },
-    { key: "producedQty", header: "Produced Qty", className: "text-right" },
-    { key: "status",     header: "Status", render: (r) => <StatusBadge status={r.status} /> },
+    {
+      key: "outputItemName",
+      header: "Production Item",
+      render: (r) => (
+        <span>
+          {r.outputItemName ? (
+            <>
+              {r.outputItemCode && (
+                <span className="font-mono text-xs text-muted-foreground mr-1">{r.outputItemCode}</span>
+              )}
+              {r.outputItemName}
+            </>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
+        </span>
+      ),
+    },
+    {
+      key: "producedQty",
+      header: "Produced Qty",
+      className: "text-right",
+      render: (r) => (
+        <span className="tabular-nums">{r.producedQty.toLocaleString()}</span>
+      ),
+    },
+    { key: "status", header: "Status", render: (r) => <StatusBadge status={r.status} /> },
   ];
 
   return (
@@ -169,20 +311,31 @@ function ProductionEntryPage() {
             </div>
           </div>
 
+          <div className="mb-4">
+            <LocationFilter
+              officeId={filterOffice}
+              warehouseId={filterWarehouse}
+              onChange={(n) => { setFilterOffice(n.officeId); setFilterWarehouse(n.warehouseId); }}
+            />
+          </div>
           <DataTable
             title="production-entries"
-            data={entries}
+            data={numberedEntries}
             columns={cols}
-            searchKeys={["id", "bom", "status"]}
+            searchKeys={["id", "bom", "outputItemName", "status"]}
             selectable={false}
-            actions={(r) => <RowActions row={r} actions={["view"]} />}
+            actions={(r) => <ProductionEntryRowMenu entry={r} onAdvance={advanceStatus} />}
           />
         </>
       ) : (
-        <ProductionEntryCreate onSave={addEntry} />
+        <ProductionEntryCreate key={createKey} initialItem={pendingItem} onSave={addEntry} />
       )}
 
-      <MealPlanningDetailsDialog open={detailsOpen} onOpenChange={setDetailsOpen} />
+      <MealPlanningDetailsDialog
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        onSelectItem={startFromMealPlan}
+      />
     </>
   );
 }
@@ -280,7 +433,80 @@ type OutputLine = {
   itemCode: string;
   itemName: string;
   qty: number;
+  source?: "bom" | "meal-plan";
+  mealMeta?: { day: string; mealType: string; flightType: string; forType: string; kind: "Choice" | "Special" };
 };
+
+type MealPlanPickItem = {
+  code: string;
+  name: string;
+  day: string;
+  mealType: string;
+  flightType: string;
+  forType: string;
+  kind: "Choice" | "Special";
+  weight: number;
+  calories: number;
+};
+
+function slugifyItem(name: string) {
+  return name
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 24);
+}
+
+function extractMealPlanItems(): MealPlanPickItem[] {
+  const map = new Map<string, MealPlanPickItem>();
+  for (const meal of mealCards) {
+    const ftLabel = meal.flightType.join(" / ");
+    for (const ch of meal.choices) {
+      for (const it of ch.items) {
+        const code = `MP-${slugifyItem(it.name)}`;
+        if (!map.has(code)) {
+          map.set(code, {
+            code,
+            name: it.name,
+            day: meal.day,
+            mealType: meal.mealType,
+            flightType: ftLabel,
+            forType: meal.forType,
+            kind: "Choice",
+            weight: it.weight,
+            calories: it.calories,
+          });
+        }
+      }
+    }
+    for (const sp of meal.specialMeals) {
+      if (!sp.enabled) continue;
+      for (const it of sp.items) {
+        const code = `MP-${slugifyItem(it.name)}`;
+        if (!map.has(code)) {
+          map.set(code, {
+            code,
+            name: it.name,
+            day: meal.day,
+            mealType: meal.mealType,
+            flightType: ftLabel,
+            forType: meal.forType,
+            kind: "Special",
+            weight: it.weight,
+            calories: it.calories,
+          });
+        }
+      }
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => {
+    const d = DAYS.indexOf(a.day as (typeof DAYS)[number]) - DAYS.indexOf(b.day as (typeof DAYS)[number]);
+    if (d !== 0) return d;
+    return a.name.localeCompare(b.name);
+  });
+}
+
+const MEAL_PLAN_ITEMS = extractMealPlanItems();
 
 type AggregatedMaterial = RecipeItem & { reqQty: number };
 
@@ -370,54 +596,215 @@ function MaterialTable({
   );
 }
 
-function ProductionEntryCreate({ onSave }: { onSave?: (entry: ProductionEntry) => void }) {
+type ManualRow = { id: string; itemName: string; uom: string; qty: number; rate: number };
+
+const UOM_OPTIONS = ["Kg", "Gm", "Litre", "ML", "Pcs", "Pack", "Bottle", "Pair"];
+
+function ManualMaterialsEditor({
+  raw, setRaw, pkg, setPkg, other, setOther,
+}: {
+  raw: ManualRow[]; setRaw: React.Dispatch<React.SetStateAction<ManualRow[]>>;
+  pkg: ManualRow[]; setPkg: React.Dispatch<React.SetStateAction<ManualRow[]>>;
+  other: ManualRow[]; setOther: React.Dispatch<React.SetStateAction<ManualRow[]>>;
+}) {
+  return (
+    <div className="space-y-6">
+      <ManualMaterialSection title="Raw Materials"      rows={raw}   onChange={setRaw}   />
+      <ManualMaterialSection title="Packaging Materials" rows={pkg}   onChange={setPkg}   />
+      <ManualMaterialSection title="Other Consumption"   rows={other} onChange={setOther} />
+    </div>
+  );
+}
+
+function ManualMaterialSection({
+  title, rows, onChange,
+}: {
+  title: string;
+  rows: ManualRow[];
+  onChange: React.Dispatch<React.SetStateAction<ManualRow[]>>;
+}) {
+  const [itemName, setItemName] = useState("");
+  const [uom, setUom] = useState(UOM_OPTIONS[0]);
+  const [qty, setQty] = useState("");
+  const [rate, setRate] = useState("");
+
+  const add = () => {
+    if (!itemName.trim()) { toast.error("Item name is required."); return; }
+    const q = Number(qty);
+    const r = Number(rate);
+    if (!q || q <= 0) { toast.error("Required quantity must be greater than zero."); return; }
+    if (r < 0) { toast.error("Rate cannot be negative."); return; }
+    onChange((prev) => [
+      ...prev,
+      { id: `MM-${Date.now()}`, itemName: itemName.trim(), uom, qty: q, rate: r },
+    ]);
+    setItemName(""); setQty(""); setRate("");
+  };
+
+  const remove = (id: string) => onChange((prev) => prev.filter((m) => m.id !== id));
+
+  const total = rows.reduce((s, r) => s + r.qty * r.rate, 0);
+
+  return (
+    <div>
+      <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+        {title}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end mb-3">
+        <div className="md:col-span-5">
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Item Name</Label>
+          <Input value={itemName} onChange={(e) => setItemName(e.target.value)} placeholder="e.g. Basmati Rice" className="mt-1 h-9" />
+        </div>
+        <div className="md:col-span-2">
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">UoM</Label>
+          <select value={uom} onChange={(e) => setUom(e.target.value)} className={cn(selectCls, "mt-1")}>
+            {UOM_OPTIONS.map((u) => <option key={u}>{u}</option>)}
+          </select>
+        </div>
+        <div className="md:col-span-2">
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Req. Qty</Label>
+          <Input type="number" min={0} value={qty} onChange={(e) => setQty(e.target.value)} className="mt-1 h-9 tabular-nums" />
+        </div>
+        <div className="md:col-span-2">
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Rate</Label>
+          <Input type="number" min={0} step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} className="mt-1 h-9 tabular-nums" />
+        </div>
+        <div className="md:col-span-1">
+          <Button variant="outline" onClick={add} className="w-full h-9">
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      <div className="border border-border rounded-md overflow-hidden">
+        <Table>
+          <TableHeader className="bg-muted/40">
+            <TableRow>
+              <TableHead className="w-12 text-xs uppercase tracking-wider">SL</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider">Item Name</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider">UoM</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-right">Req. Qty</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-right">Rate</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-right">Total Cost</TableHead>
+              <TableHead className="w-12" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-5">
+                  No materials added yet.
+                </TableCell>
+              </TableRow>
+            ) : (
+              <>
+                {rows.map((m, i) => (
+                  <TableRow key={m.id}>
+                    <TableCell>{i + 1}</TableCell>
+                    <TableCell className="font-medium">{m.itemName}</TableCell>
+                    <TableCell>{m.uom}</TableCell>
+                    <TableCell className="text-right tabular-nums">{m.qty.toFixed(3)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{m.rate.toFixed(2)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{(m.qty * m.rate).toFixed(2)}</TableCell>
+                    <TableCell className="text-right">
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => remove(m.id)} aria-label={`Remove ${m.itemName}`}>
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                <TableRow className="bg-muted/30 font-semibold">
+                  <TableCell colSpan={5} className="text-right uppercase text-xs tracking-wider">Total</TableCell>
+                  <TableCell className="text-right tabular-nums">{total.toFixed(2)}</TableCell>
+                  <TableCell />
+                </TableRow>
+              </>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+function ProductionEntryCreate({
+  onSave, initialItem,
+}: {
+  onSave?: (entry: ProductionEntry) => void;
+  initialItem?: OutputLine;
+}) {
   // Production Information
   const today = new Date().toISOString().slice(0, 10);
   const [orderDate, setOrderDate] = useState(today);
-  const [withoutBom, setWithoutBom] = useState(false);
+  const [withoutBom, setWithoutBom] = useState(initialItem !== undefined);
   const [bomName, setBomName] = useState("");
   const [department, setDepartment] = useState("");
-  const [remarks, setRemarks] = useState("");
+  const [officeId, setOfficeId] = useState("OFF-001");
+  const [warehouseId, setWarehouseId] = useState("WH-003"); // Hot Kitchen
+  const [remarks, setRemarks] = useState(
+    initialItem ? "Pre-filled from Meal Planning Details — Meal Plan tab." : "",
+  );
 
-  // Production Output Item
-  const [itemCode, setItemCode] = useState("");
-  const [itemQty, setItemQty] = useState("");
-  const [lines, setLines] = useState<OutputLine[]>([]);
+  // Single Production Output Item (constraint: only one item per entry)
+  const [outputItem, setOutputItem] = useState<OutputLine | null>(initialItem ?? null);
+  const [itemQty, setItemQty] = useState<string>(initialItem ? String(initialItem.qty) : "");
 
-  const materials = useMemo(() => aggregateMaterials(lines), [lines]);
+  // Manual materials entered when Without BOM is checked
+  const [manualRaw, setManualRaw] = useState<ManualRow[]>([]);
+  const [manualPkg, setManualPkg] = useState<ManualRow[]>([]);
+  const [manualOther, setManualOther] = useState<ManualRow[]>([]);
 
-  const addLine = () => {
-    const item = PRODUCTION_ITEMS.find((p) => p.code === itemCode);
-    if (!item) { toast.error("Select a production output item."); return; }
+  const bomMaterials = useMemo(() => {
     const qty = Number(itemQty);
-    if (!qty || qty <= 0) { toast.error("Production quantity must be greater than zero."); return; }
-    setLines((prev) => [
-      ...prev,
-      { id: `OL-${Date.now()}`, itemCode: item.code, itemName: item.name, qty },
+    if (withoutBom || !bomName || !qty || qty <= 0) return { raw: [], pkg: [], other: [] };
+    const recipe = PRODUCTION_ITEMS.find((p) => p.name === bomName);
+    if (!recipe) return { raw: [], pkg: [], other: [] };
+    return aggregateMaterials([
+      { id: "current", itemCode: recipe.code, itemName: recipe.name, qty },
     ]);
-    setItemCode("");
-    setItemQty("");
+  }, [withoutBom, bomName, itemQty]);
+
+  const selectBomItem = (code: string) => {
+    if (!code) { setOutputItem(null); return; }
+    const item = PRODUCTION_ITEMS.find((p) => p.code === code);
+    if (!item) return;
+    setOutputItem({
+      id: "current",
+      itemCode: item.code,
+      itemName: item.name,
+      qty: Number(itemQty) || 0,
+      source: "bom",
+    });
   };
 
-  const removeLine = (id: string) => {
-    setLines((prev) => prev.filter((l) => l.id !== id));
+  const clearOutputItem = () => {
+    setOutputItem(null);
+    setItemQty("");
   };
 
   const handleSave = () => {
     if (!withoutBom && !bomName) { toast.error("Select a BOM or check 'Without BOM'."); return; }
-    if (lines.length === 0) { toast.error("Add at least one production output item."); return; }
+    if (!outputItem) { toast.error("Select a production output item."); return; }
+    if (!officeId) { toast.error("Office is required."); return; }
+    if (!warehouseId) { toast.error("Warehouse is required."); return; }
+    const qty = Number(itemQty);
+    if (!qty || qty <= 0) { toast.error("Production quantity must be greater than zero."); return; }
 
-    const totalQty = lines.reduce((sum, l) => sum + l.qty, 0);
     const nextSeq = String(Date.now()).slice(-6);
     const newEntry: ProductionEntry = {
       id: `PE-2026-${nextSeq}`,
       date: orderDate,
       bom: withoutBom ? "Without BOM" : bomName,
-      producedQty: totalQty,
-      status: "Draft",
+      outputItemName: outputItem.itemName,
+      outputItemCode: outputItem.itemCode,
+      producedQty: qty,
+      status: "Pending",
+      officeId,
+      warehouseId,
     };
 
-    toast.success(`Entry ${newEntry.id} created with ${lines.length} item${lines.length > 1 ? "s" : ""}.`);
+    toast.success(`Entry ${newEntry.id} created — ${outputItem.itemName} × ${qty.toLocaleString()}.`);
     onSave?.(newEntry);
   };
 
@@ -460,6 +847,12 @@ function ProductionEntryCreate({ onSave }: { onSave?: (entry: ProductionEntry) =
                 {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
               </select>
             </div>
+
+            <LocationPicker
+              officeId={officeId}
+              warehouseId={warehouseId}
+              onChange={(n) => { setOfficeId(n.officeId); setWarehouseId(n.warehouseId); }}
+            />
 
             <div className="md:col-span-2 flex items-center gap-2">
               <Checkbox
@@ -510,119 +903,166 @@ function ProductionEntryCreate({ onSave }: { onSave?: (entry: ProductionEntry) =
 
       <Card>
         <CardContent className="pt-6">
-          <h3 className="text-sm font-semibold tracking-wider uppercase text-foreground mb-6">
-            Production Output Item
-          </h3>
-
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-            <div className="md:col-span-6">
-              <Label className="text-xs uppercase tracking-wider text-muted-foreground">
-                Production Item <span className="text-destructive">*</span>
-              </Label>
-              <select
-                value={itemCode}
-                onChange={(e) => setItemCode(e.target.value)}
-                className={selectCls}
-              >
-                <option value="">Select Production Item</option>
-                {PRODUCTION_ITEMS.map((p) => (
-                  <option key={p.code} value={p.code}>
-                    {p.code} — {p.name}
-                  </option>
-                ))}
-              </select>
+          <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
+            <div>
+              <h3 className="text-sm font-semibold tracking-wider uppercase text-foreground">
+                Production Output Item
+              </h3>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                One production item per entry. Materials auto-load when item and quantity are set.
+              </p>
             </div>
-
-            <div className="md:col-span-4">
-              <Label className="text-xs uppercase tracking-wider text-muted-foreground">
-                Production Quantity <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                type="number"
-                min={0}
-                value={itemQty}
-                onChange={(e) => setItemQty(e.target.value)}
-                placeholder="Quantity"
-                className="mt-1"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <Button variant="outline" onClick={addLine} className="w-full">
-                <Plus className="h-4 w-4 mr-1" /> Add
-              </Button>
-            </div>
+            {outputItem?.source === "meal-plan" && (
+              <Badge variant="outline" className="bg-success/10 text-success border-success/30 font-normal text-xs">
+                <UtensilsCrossed className="h-3 w-3 mr-1" /> From Meal Plan
+              </Badge>
+            )}
           </div>
 
-          <div className="mt-6 border border-border rounded-md overflow-hidden">
-            <Table>
-              <TableHeader className="bg-muted/40">
-                <TableRow>
-                  <TableHead className="w-14 text-xs uppercase tracking-wider">SL</TableHead>
-                  <TableHead className="text-xs uppercase tracking-wider">Item Code</TableHead>
-                  <TableHead className="text-xs uppercase tracking-wider">Item Name</TableHead>
-                  <TableHead className="text-xs uppercase tracking-wider text-right">Production Qty</TableHead>
-                  <TableHead className="w-16" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {lines.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-8">
-                      No output items added yet.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  lines.map((l, i) => (
-                    <TableRow key={l.id}>
-                      <TableCell>{i + 1}</TableCell>
-                      <TableCell className="font-mono text-xs">{l.itemCode}</TableCell>
-                      <TableCell className="font-medium">{l.itemName}</TableCell>
-                      <TableCell className="text-right tabular-nums">{l.qty}</TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 w-7 p-0"
-                          onClick={() => removeLine(l.id)}
-                          aria-label={`Remove ${l.itemName}`}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
+          {outputItem?.source === "meal-plan" ? (
+            <div className="rounded-md border border-success/30 bg-success/5 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Selected Meal Item</div>
+                  <div className="mt-1 text-base font-semibold text-foreground">{outputItem.itemName}</div>
+                  <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">{outputItem.itemCode}</div>
+                  {outputItem.mealMeta && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      <Badge variant="outline" className="text-[10px] font-normal">{outputItem.mealMeta.day}</Badge>
+                      <Badge variant="outline" className="text-[10px] font-normal">{outputItem.mealMeta.mealType}</Badge>
+                      <Badge variant="outline" className="text-[10px] font-normal">{outputItem.mealMeta.flightType}</Badge>
+                      <Badge variant="outline" className="text-[10px] font-normal">{outputItem.mealMeta.forType}</Badge>
+                      {outputItem.mealMeta.kind === "Special" && (
+                        <Badge variant="outline" className="text-[10px] font-normal bg-warning/15 text-warning-foreground border-warning/40">
+                          Special
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <Button variant="ghost" size="sm" onClick={clearOutputItem}>
+                  <Trash2 className="h-3.5 w-3.5 mr-1 text-destructive" /> Clear
+                </Button>
+              </div>
+
+              <div className="mt-4 max-w-xs">
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Production Quantity <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={itemQty}
+                  onChange={(e) => setItemQty(e.target.value)}
+                  placeholder="Quantity"
+                  className="mt-1 tabular-nums"
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+              <div className="md:col-span-7">
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Production Item <span className="text-destructive">*</span>
+                </Label>
+                <select
+                  value={outputItem?.itemCode ?? ""}
+                  onChange={(e) => selectBomItem(e.target.value)}
+                  className={selectCls}
+                >
+                  <option value="">Select Production Item</option>
+                  {PRODUCTION_ITEMS.map((p) => (
+                    <option key={p.code} value={p.code}>
+                      {p.code} — {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="md:col-span-4">
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Production Quantity <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={itemQty}
+                  onChange={(e) => setItemQty(e.target.value)}
+                  placeholder="Quantity"
+                  className="mt-1 tabular-nums"
+                />
+              </div>
+
+              <div className="md:col-span-1">
+                {outputItem && (
+                  <Button variant="ghost" onClick={clearOutputItem} className="w-full" aria-label="Clear item">
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
                 )}
-              </TableBody>
-            </Table>
-          </div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       <Card>
         <CardContent className="pt-6">
-          <h3 className="text-sm font-semibold tracking-wider uppercase text-foreground mb-6">
-            Material Item Information
-          </h3>
-          {lines.length === 0 ? (
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-sm font-semibold tracking-wider uppercase text-foreground">
+              Material Item Information
+            </h3>
+            {withoutBom ? (
+              <Badge variant="outline" className="bg-warning/15 text-warning-foreground border-warning/40 font-normal text-[10px]">
+                Manual Entry
+              </Badge>
+            ) : bomName && Number(itemQty) > 0 ? (
+              <Badge variant="outline" className="bg-success/10 text-success border-success/30 font-normal text-[10px]">
+                Auto-loaded from BOM
+              </Badge>
+            ) : null}
+          </div>
+
+          {withoutBom ? (
+            <ManualMaterialsEditor
+              raw={manualRaw} setRaw={setManualRaw}
+              pkg={manualPkg} setPkg={setManualPkg}
+              other={manualOther} setOther={setManualOther}
+            />
+          ) : !bomName ? (
             <div className="text-center text-sm text-muted-foreground py-8">
-              Add a production output item to see required materials.
+              Select a BOM to auto-load the required materials, or check{" "}
+              <span className="font-semibold text-foreground">Without BOM</span> to enter materials manually.
+            </div>
+          ) : Number(itemQty) <= 0 ? (
+            <div className="text-center text-sm text-muted-foreground py-8">
+              Enter a production quantity to compute the required materials.
+            </div>
+          ) : bomMaterials.raw.length === 0 && bomMaterials.pkg.length === 0 && bomMaterials.other.length === 0 ? (
+            <div className="rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-foreground">
+              No material recipe is mapped to{" "}
+              <span className="font-semibold">{bomName}</span> yet. Check{" "}
+              <span className="font-semibold">Without BOM</span> to enter materials manually.
             </div>
           ) : (
             <div className="space-y-6">
-              <MaterialTable title="Raw Materials" items={materials.raw} />
-              <MaterialTable title="Packaging Materials" items={materials.pkg} />
-              <MaterialTable title="Other Consumption" items={materials.other} />
+              <MaterialTable title="Raw Materials" items={bomMaterials.raw} />
+              <MaterialTable title="Packaging Materials" items={bomMaterials.pkg} />
+              <MaterialTable title="Other Consumption" items={bomMaterials.other} />
             </div>
           )}
         </CardContent>
       </Card>
+
     </div>
   );
 }
 
-
-function MealCardView({ meal }: { meal: MealCard }) {
+function MealCardView({
+  meal, onSelect,
+}: {
+  meal: MealCard;
+  onSelect: (code: string) => void;
+}) {
   return (
     <Card>
       <CardContent className="pt-5 space-y-4">
@@ -660,15 +1100,28 @@ function MealCardView({ meal }: { meal: MealCard }) {
                 <span className="text-xs font-semibold text-primary">{c.label}</span>
                 <span className="text-[11px] text-muted-foreground">{c.percentage}%</span>
               </div>
-              <ul className="space-y-1">
-                {c.items.map((item, i) => (
-                  <li key={i} className="text-xs flex items-center justify-between gap-2">
-                    <span className="text-foreground">{item.name}</span>
-                    <span className="text-muted-foreground tabular-nums shrink-0">
-                      {item.weight}g · {item.calories} kcal
-                    </span>
-                  </li>
-                ))}
+              <ul className="space-y-2">
+                {c.items.map((item, i) => {
+                  const code = `MP-${slugifyItem(item.name)}`;
+                  return (
+                    <li key={i} className="text-xs flex items-center gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-foreground truncate">{item.name}</div>
+                        <div className="text-[10px] text-muted-foreground">
+                          {item.weight}g · {item.calories} kcal
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-[11px] shrink-0"
+                        onClick={() => onSelect(code)}
+                      >
+                        Select →
+                      </Button>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ))}
@@ -682,18 +1135,34 @@ function MealCardView({ meal }: { meal: MealCard }) {
             <div className="space-y-2">
               {meal.specialMeals.filter((s) => s.enabled).map((s) => (
                 <div key={s.type} className="rounded-md border border-border p-2.5">
-                  <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-semibold text-foreground">{s.type}</span>
                     <span className="text-[11px] text-muted-foreground">
                       {typeof s.portions === "number" ? `${s.portions} portions` : s.portions}
                     </span>
                   </div>
-                  <ul className="space-y-0.5">
-                    {s.items.map((item, i) => (
-                      <li key={i} className="text-[11px] text-muted-foreground">
-                        {item.name} <span className="text-foreground/60">({item.weight}g · {item.calories} kcal)</span>
-                      </li>
-                    ))}
+                  <ul className="space-y-1.5">
+                    {s.items.map((item, i) => {
+                      const code = `MP-${slugifyItem(item.name)}`;
+                      return (
+                        <li key={i} className="text-[11px] flex items-center gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-foreground truncate">{item.name}</div>
+                            <div className="text-[10px] text-muted-foreground">
+                              {item.weight}g · {item.calories} kcal
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-[11px] shrink-0"
+                            onClick={() => onSelect(code)}
+                          >
+                            Select →
+                          </Button>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               ))}
@@ -716,10 +1185,27 @@ function MealCardView({ meal }: { meal: MealCard }) {
 }
 
 function MealPlanningDetailsDialog({
-  open, onOpenChange,
-}: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  open, onOpenChange, onSelectItem,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onSelectItem: (item: MealPlanPickItem) => void;
+}) {
+  const navigate = useNavigate();
   const requirements = useMemo(() => computeOrderRequirements(seedFlightOrders), []);
   const orderDays = useMemo(() => new Set(requirements.map((r) => r.day)), [requirements]);
+
+  const itemByCode = useMemo(() => {
+    const m = new Map<string, MealPlanPickItem>();
+    for (const it of MEAL_PLAN_ITEMS) m.set(it.code, it);
+    return m;
+  }, []);
+
+  const handleSelect = (code: string) => {
+    const item = itemByCode.get(code);
+    if (!item) return;
+    onSelectItem(item);
+  };
 
   const byDay = useMemo(() => {
     const groups = new Map<string, MealCard[]>();
@@ -742,9 +1228,22 @@ function MealPlanningDetailsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0">
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
-          <DialogTitle>
-            Meal Planning Details — New Meal Order for {gmOrderSummary.date}
-          </DialogTitle>
+          <div className="flex items-start justify-between gap-4">
+            <DialogTitle>
+              Meal Planning Details — New Meal Order for {gmOrderSummary.date}
+            </DialogTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={() => {
+                onOpenChange(false);
+                navigate({ to: "/meal-planning" });
+              }}
+            >
+              <UtensilsCrossed className="h-4 w-4 mr-1" /> Open in Meal Planner
+            </Button>
+          </div>
           <div className="mt-3 grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
             <SummaryStat label="Flights"        value={seedFlightOrders.length.toString()} />
             <SummaryStat label="Passengers"     value={totalPax.toLocaleString()} />
@@ -778,7 +1277,16 @@ function MealPlanningDetailsDialog({
 
           <TabsContent value="meals" className="flex-1 overflow-hidden flex flex-col mt-0">
             <div className="flex-1 overflow-y-auto">
-              <div className="px-6 pt-5 pb-4">
+              <div className="px-6 pt-5 pb-3">
+                <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-foreground flex items-center gap-2">
+                  <UtensilsCrossed className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <span>
+                    Click <span className="font-semibold">Select</span> beside any meal item to start a new
+                    production entry for that item. Materials will auto-load on the entry page.
+                  </span>
+                </div>
+              </div>
+              <div className="px-6 pb-4">
                 <RequirementsSummary requirements={requirements} />
               </div>
 
@@ -806,7 +1314,13 @@ function MealPlanningDetailsDialog({
                           </span>
                         </div>
                         <div className="space-y-3">
-                          {meals.map((m) => <MealCardView key={m.id} meal={m} />)}
+                          {meals.map((m) => (
+                            <MealCardView
+                              key={m.id}
+                              meal={m}
+                              onSelect={handleSelect}
+                            />
+                          ))}
                         </div>
                       </div>
                     ))}

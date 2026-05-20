@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useWorkflow, type WfDemandRequest, type WfDemandItem, type WfTransferNote } from "@/lib/workflow-store";
 import { useRole } from "@/lib/roles";
+import { LocationPicker, LocationFilter, LocationCell } from "@/components/common/LocationPicker";
 
 export const Route = createFileRoute("/demand-orders")({
   head: () => ({ meta: [{ title: "Demand Requests" }] }),
@@ -27,6 +28,20 @@ export const Route = createFileRoute("/demand-orders")({
 });
 
 const KITCHEN_SECTIONS = ["Hot Kitchen", "Cold Kitchen", "Veg Section", "Special Meal", "Bakery", "Packaging"];
+
+const REQUESTERS = [
+  "S. Ahmed",
+  "M. Hossain",
+  "F. Begum",
+  "A. Khan",
+  "N. Hasan",
+  "M. Karim",
+  "R. Islam",
+  "T. Rahman",
+];
+
+const selectCls =
+  "w-full mt-1 h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
 function DemandOrders() {
   const { role } = useRole();
@@ -42,9 +57,19 @@ function DemandOrders() {
   const [newOpen, setNewOpen] = useState(false);
   const [newBy, setNewBy] = useState("");
   const [newNote, setNewNote] = useState("");
+  const [newOfficeId, setNewOfficeId] = useState("OFF-001");
+  const [newWarehouseId, setNewWarehouseId] = useState("WH-003");
   const [newItems, setNewItems] = useState<WfDemandItem[]>([]);
   const [newItemId, setNewItemId] = useState("");
   const [newItemQty, setNewItemQty] = useState("");
+  const [filterOffice, setFilterOffice] = useState("");
+  const [filterWarehouse, setFilterWarehouse] = useState("");
+
+  const filteredDemands = demands.filter((d) => {
+    if (filterOffice && d.officeId !== filterOffice) return false;
+    if (filterWarehouse && d.warehouseId !== filterWarehouse) return false;
+    return true;
+  });
 
   // Derived counts
   const pending = useMemo(() => demands.filter(r => r.status === "Pending Store Review").length, [demands]);
@@ -54,6 +79,10 @@ function DemandOrders() {
   const requestCols: Column<WfDemandRequest>[] = [
     { key: "id", header: "Request #" },
     { key: "requestedBy", header: "Requested By" },
+    {
+      key: "officeId" as keyof WfDemandRequest, header: "Office / Warehouse",
+      render: (r) => <LocationCell officeId={r.officeId} warehouseId={r.warehouseId} />,
+    },
     { key: "role", header: "From" },
     { key: "date", header: "Date" },
     { key: "status", header: "Status", render: (r) => <StatusBadge status={r.status} /> },
@@ -114,6 +143,8 @@ function DemandOrders() {
 
   const handleNewDemand = () => {
     if (!newBy.trim()) { toast.error("Requested By is required."); return; }
+    if (!newOfficeId) { toast.error("Office is required."); return; }
+    if (!newWarehouseId) { toast.error("Warehouse is required."); return; }
     if (newItems.length === 0) { toast.error("Add at least one item line."); return; }
     const ref = `REQ-${String(Date.now()).slice(-5)}`;
     const req: WfDemandRequest = {
@@ -126,6 +157,8 @@ function DemandOrders() {
       items: newItems,
       note: newNote.trim() || "Internal item requisition raised from store.",
       source: "Store",
+      officeId: newOfficeId,
+      warehouseId: newWarehouseId,
     };
     addDemands([req]);
     setNewOpen(false);
@@ -155,12 +188,19 @@ function DemandOrders() {
       <Card className="mb-6">
         <CardHeader><CardTitle>Demand Requests — Store Review</CardTitle></CardHeader>
         <CardContent>
+          <div className="mb-4">
+            <LocationFilter
+              officeId={filterOffice}
+              warehouseId={filterWarehouse}
+              onChange={(n) => { setFilterOffice(n.officeId); setFilterWarehouse(n.warehouseId); }}
+            />
+          </div>
           <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-6">
             {/* Table */}
             <div>
               <DataTable
                 title="demand-requests"
-                data={demands}
+                data={filteredDemands}
                 columns={requestCols}
                 searchKeys={["id", "reference", "requestedBy", "role", "status"]}
                 actions={(row) => (
@@ -369,11 +409,21 @@ function DemandOrders() {
           <div className="grid gap-5">
             <div>
               <Label>Requested By <span className="text-destructive">*</span></Label>
-              <Input
+              <select
                 value={newBy}
                 onChange={(e) => setNewBy(e.target.value)}
-                placeholder="Name"
-                className="mt-1"
+                className={selectCls}
+              >
+                <option value="">Select requester…</option>
+                {REQUESTERS.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <LocationPicker
+                officeId={newOfficeId}
+                warehouseId={newWarehouseId}
+                onChange={(n) => { setNewOfficeId(n.officeId); setNewWarehouseId(n.warehouseId); }}
               />
             </div>
 

@@ -226,14 +226,187 @@ export const cookingTempLogs = [
   { id: "CT-8806", batch: "PRD-9006", item: "Heavy Snack Box", cookingTime: "20 min", standardTemp: "≥70°C", standardTempMin: 70, measuredTemp: 72, cookedBy: "Chef N. Hasan", sensoryPass: true, checkedBy: "A. Khan" },
 ];
 
-export const billOfMaterials = [
-  { id: "BOM-001", name: "Chicken Biryani",        components: 9,  version: "v3.2", yield: "100 portions", lastUpdated: "2025-10-22", status: "Active" },
-  { id: "BOM-002", name: "Veg Pulao",              components: 7,  version: "v2.1", yield: "100 portions", lastUpdated: "2025-09-15", status: "Active" },
-  { id: "BOM-003", name: "Continental Breakfast",  components: 11, version: "v1.4", yield: "Set",          lastUpdated: "2025-10-30", status: "Active" },
-  { id: "BOM-004", name: "Grilled Salmon",         components: 8,  version: "v1.0", yield: "100 portions", lastUpdated: "2025-11-01", status: "Draft"  },
-  { id: "BOM-005", name: "Hindu Meal Special",     components: 10, version: "v2.0", yield: "50 portions",  lastUpdated: "2025-10-12", status: "Active" },
-  { id: "BOM-006", name: "Crew Combo Meal",        components: 6,  version: "v1.2", yield: "Set",          lastUpdated: "2025-08-28", status: "Active" },
+export type BomProductionItem = {
+  item: string;
+  itemType: string;
+  netWeight: number;
+  quantity: number;
+  costPct: number;
+};
+
+export type BomInputMaterial = {
+  material: string;
+  type: string;
+  excludeScrap: "Yes" | "No";
+  altQty: number;
+  altUom?: string;
+  quantity: number;
+  uom: string;
+  wastagePct: number;
+  totalQty: number;
+  avgRate: number;
+  total: number;
+};
+
+export type BillOfMaterial = {
+  id: string;
+  name: string;
+  components: number;
+  version: string;
+  yield: string;
+  lastUpdated: string;
+  status: string;
+  date: string;
+  itemCode: string;
+  itemName: string;
+  department: string;
+  section: string;
+  uom: string;
+  altUom?: string;
+  lotSize: number;
+  bomValue: number;
+  createdBy: string;
+  bomType: "Single Output" | "Multi Output";
+  productionItems: BomProductionItem[];
+  inputMaterials: BomInputMaterial[];
+  officeId?: string;
+  warehouseId?: string;
+};
+
+const _billOfMaterialsRaw: BillOfMaterial[] = [
+  {
+    id: "BOM-001", name: "Chicken Biryani", components: 9, version: "v3.2",
+    yield: "100 portions", lastUpdated: "2025-10-22", status: "Active",
+    date: "2026-05-20", itemCode: "FG-27041", itemName: "Chicken Biryani",
+    department: "Hot Kitchen", section: "Main Course", uom: "PCS", altUom: "",
+    lotSize: 1, bomValue: 40.00, createdBy: "Md. Mubin Khan",
+    bomType: "Single Output",
+    productionItems: [
+      { item: "FG-27041 - Chicken Biryani (PCS)", itemType: "Finished/Trading Goods", netWeight: 0, quantity: 1, costPct: 100 },
+    ],
+    inputMaterials: [
+      { material: "RM-27042 - Basmati Rice (KG)", type: "Raw Material", excludeScrap: "No", altQty: 0, quantity: 2, uom: "KG", wastagePct: 0, totalQty: 2, avgRate: 10, total: 20 },
+      { material: "RM-27043 - Chicken (KG)",      type: "Raw Material", excludeScrap: "No", altQty: 0, quantity: 1, uom: "KG", wastagePct: 0, totalQty: 1, avgRate: 20, total: 20 },
+    ],
+  },
+  {
+    id: "BOM-002", name: "Veg Pulao", components: 7, version: "v2.1",
+    yield: "100 portions", lastUpdated: "2025-09-15", status: "Active",
+    date: "2026-05-10", itemCode: "FG-27036", itemName: "Veg Pulao",
+    department: "Hot Kitchen", section: "Main Course", uom: "pieces", altUom: "",
+    lotSize: 1, bomValue: 21.50, createdBy: "Raisa Zarin",
+    bomType: "Single Output",
+    productionItems: [
+      { item: "FG-27036 - Veg Pulao (pieces)", itemType: "Finished/Trading Goods", netWeight: 0, quantity: 1, costPct: 100 },
+    ],
+    inputMaterials: [
+      { material: "RM-27044 - Rice (KG)",  type: "Raw Material", excludeScrap: "No", altQty: 0, quantity: 1.5, uom: "KG", wastagePct: 0,  totalQty: 1.5, avgRate: 9,  total: 13.50 },
+      { material: "RM-27045 - Mixed Veg (KG)", type: "Raw Material", excludeScrap: "No", altQty: 0, quantity: 0.8, uom: "KG", wastagePct: 0, totalQty: 0.8, avgRate: 10, total: 8.00 },
+    ],
+  },
+  {
+    id: "BOM-003", name: "Continental Breakfast", components: 11, version: "v1.4",
+    yield: "Set", lastUpdated: "2025-10-30", status: "Active",
+    date: "2026-05-10", itemCode: "FG-27037", itemName: "Continental Breakfast",
+    department: "Cold Kitchen", section: "Breakfast", uom: "pieces", altUom: "",
+    lotSize: 1, bomValue: 82.18, createdBy: "Shovon Ahmed Rajib",
+    bomType: "Single Output",
+    productionItems: [
+      { item: "FG-27037 - Continental Breakfast (pieces)", itemType: "Finished/Trading Goods", netWeight: 0, quantity: 1, costPct: 100 },
+    ],
+    inputMaterials: [
+      { material: "RM-27050 - Bread (PCS)",   type: "Raw Material", excludeScrap: "No",  altQty: 0, quantity: 2, uom: "PCS", wastagePct: 0, totalQty: 2, avgRate: 5,  total: 10.00 },
+      { material: "RM-27051 - Butter (KG)",   type: "Raw Material", excludeScrap: "No",  altQty: 0, quantity: 0.05, uom: "KG", wastagePct: 0, totalQty: 0.05, avgRate: 950, total: 47.50 },
+      { material: "RM-27052 - Jam (KG)",      type: "Raw Material", excludeScrap: "Yes", altQty: 0, quantity: 0.03, uom: "KG", wastagePct: 0, totalQty: 0.03, avgRate: 820, total: 24.68 },
+    ],
+  },
+  {
+    id: "BOM-004", name: "Grilled Salmon", components: 8, version: "v1.0",
+    yield: "100 portions", lastUpdated: "2025-11-01", status: "Draft",
+    date: "2026-04-30", itemCode: "FG-27021", itemName: "Grilled Salmon",
+    department: "Hot Kitchen", section: "Main Course", uom: "pieces", altUom: "",
+    lotSize: 1, bomValue: 246.80, createdBy: "Md. Saidur Rahman Akash",
+    bomType: "Single Output",
+    productionItems: [
+      { item: "FG-27021 - Grilled Salmon (pieces)", itemType: "Finished/Trading Goods", netWeight: 0, quantity: 1, costPct: 100 },
+    ],
+    inputMaterials: [
+      { material: "RM-27060 - Salmon Fillet (KG)", type: "Raw Material", excludeScrap: "No", altQty: 0, quantity: 0.15, uom: "KG", wastagePct: 5, totalQty: 0.1575, avgRate: 1400, total: 220.50 },
+      { material: "RM-27061 - Olive Oil (Litre)",   type: "Raw Material", excludeScrap: "No", altQty: 0, quantity: 0.02, uom: "Litre", wastagePct: 0, totalQty: 0.02, avgRate: 850, total: 17.00 },
+      { material: "RM-27062 - Lemon (KG)",          type: "Raw Material", excludeScrap: "Yes", altQty: 0, quantity: 0.05, uom: "KG", wastagePct: 0, totalQty: 0.05, avgRate: 186, total: 9.30 },
+    ],
+  },
+  {
+    id: "BOM-005", name: "Hindu Meal Special", components: 10, version: "v2.0",
+    yield: "50 portions", lastUpdated: "2025-10-12", status: "Active",
+    date: "2026-04-23", itemCode: "FG-1010", itemName: "Hindu Meal Special",
+    department: "Special Meal", section: "Religious", uom: "Packet", altUom: "",
+    lotSize: 10, bomValue: 285.00, createdBy: "Md. Saidur Rahman Akash",
+    bomType: "Single Output",
+    productionItems: [
+      { item: "FG-1010 - Hindu Meal Special (Packet)", itemType: "Finished/Trading Goods", netWeight: 0, quantity: 10, costPct: 100 },
+    ],
+    inputMaterials: [
+      { material: "RM-27070 - Paneer (KG)",     type: "Raw Material", excludeScrap: "No",  altQty: 0, quantity: 1,   uom: "KG", wastagePct: 0, totalQty: 1,   avgRate: 180, total: 180.00 },
+      { material: "RM-27071 - Mixed Veg (KG)",  type: "Raw Material", excludeScrap: "No",  altQty: 0, quantity: 0.8, uom: "KG", wastagePct: 0, totalQty: 0.8, avgRate: 90,  total: 72.00 },
+      { material: "RM-27072 - Spice Mix (KG)",  type: "Raw Material", excludeScrap: "Yes", altQty: 0, quantity: 0.1, uom: "KG", wastagePct: 0, totalQty: 0.1, avgRate: 330, total: 33.00 },
+    ],
+  },
+  {
+    id: "BOM-006", name: "Crew Combo Meal", components: 6, version: "v1.2",
+    yield: "Set", lastUpdated: "2025-08-28", status: "Active",
+    date: "2026-04-21", itemCode: "FG-27013", itemName: "Crew Combo Meal",
+    department: "Hot Kitchen", section: "Crew", uom: "PCS", altUom: "",
+    lotSize: 1, bomValue: 28.37, createdBy: "Md. Saidur Rahman Akash",
+    bomType: "Single Output",
+    productionItems: [
+      { item: "FG-27013 - Crew Combo Meal (PCS)", itemType: "Finished/Trading Goods", netWeight: 0, quantity: 1, costPct: 100 },
+    ],
+    inputMaterials: [
+      { material: "RM-27080 - Rice (KG)",      type: "Raw Material", excludeScrap: "No", altQty: 0, quantity: 0.4, uom: "KG", wastagePct: 0, totalQty: 0.4, avgRate: 12, total: 4.80 },
+      { material: "RM-27081 - Chicken (KG)",   type: "Raw Material", excludeScrap: "No", altQty: 0, quantity: 0.15, uom: "KG", wastagePct: 0, totalQty: 0.15, avgRate: 90, total: 13.50 },
+      { material: "RM-27082 - Vegetables (KG)",type: "Raw Material", excludeScrap: "No", altQty: 0, quantity: 0.2, uom: "KG", wastagePct: 0, totalQty: 0.2, avgRate: 50, total: 10.07 },
+    ],
+  },
+  {
+    id: "BOM-007", name: "Mum 250 ml water", components: 1, version: "v1.0",
+    yield: "1 PCS", lastUpdated: "2026-04-21", status: "Active",
+    date: "2026-04-21", itemCode: "FG-27013", itemName: "Mum 250 ml water",
+    department: "Beverage", section: "Water", uom: "PCS", altUom: "",
+    lotSize: 1, bomValue: 28.37, createdBy: "Md. Saidur Rahman Akash",
+    bomType: "Single Output",
+    productionItems: [
+      { item: "FG-27013 - Mum 250 ml water (PCS)", itemType: "Finished/Trading Goods", netWeight: 0, quantity: 1, costPct: 100 },
+    ],
+    inputMaterials: [
+      { material: "RM-27090 - Bottle 250ml (PCS)", type: "Packaging", excludeScrap: "No", altQty: 0, quantity: 1, uom: "PCS", wastagePct: 0, totalQty: 1, avgRate: 18, total: 18.00 },
+      { material: "RM-27091 - Cap (PCS)",          type: "Packaging", excludeScrap: "No", altQty: 0, quantity: 1, uom: "PCS", wastagePct: 0, totalQty: 1, avgRate: 4,  total: 4.00 },
+      { material: "RM-27092 - Label (PCS)",        type: "Packaging", excludeScrap: "No", altQty: 0, quantity: 1, uom: "PCS", wastagePct: 0, totalQty: 1, avgRate: 6.37, total: 6.37 },
+    ],
+  },
+  {
+    id: "BOM-008", name: "10w40 Lubricant", components: 1, version: "v1.0",
+    yield: "1 Litre", lastUpdated: "2026-04-21", status: "Active",
+    date: "2026-04-21", itemCode: "343", itemName: "Lubricant",
+    department: "Maintenance", section: "Workshop", uom: "Liter", altUom: "",
+    lotSize: 1, bomValue: 2311.30, createdBy: "Md. Saidur Rahman Akash",
+    bomType: "Single Output",
+    productionItems: [
+      { item: "343 - Lubricant (Liter)", itemType: "Finished/Trading Goods", netWeight: 0, quantity: 1, costPct: 100 },
+    ],
+    inputMaterials: [
+      { material: "RM-2701 - Base Oil (Litre)",  type: "Raw Material", excludeScrap: "No", altQty: 0, quantity: 0.95, uom: "Litre", wastagePct: 0, totalQty: 0.95, avgRate: 2400, total: 2280.00 },
+      { material: "RM-2702 - Additives (Litre)", type: "Raw Material", excludeScrap: "No", altQty: 0, quantity: 0.05, uom: "Litre", wastagePct: 0, totalQty: 0.05, avgRate: 626, total: 31.30 },
+    ],
+  },
 ];
+
+// Backfill defaults so existing BOMs report under Head Office Dhaka · Hot Kitchen
+export const billOfMaterials: BillOfMaterial[] = _billOfMaterialsRaw.map((b) => ({
+  ...b,
+  officeId: b.officeId ?? "OFF-001",
+  warehouseId: b.warehouseId ?? "WH-003",
+}));
 
 const bomAt = (i: number) => billOfMaterials[i % billOfMaterials.length].name;
 
@@ -255,12 +428,482 @@ export const seedProductionEntries = [
 
 export type ProductionEntryRow = (typeof seedProductionEntries)[number];
 
-export const seedFlightOrders = [
-  { id: "ORD-3411", flight: "BG-401", airline: "Air Astra",  sector: "DAC → DXB", date: "2026-05-20", etd: "10:30", pax: 186, crew: 14, specialMeals: 12, status: "Dispatched" },
-  { id: "ORD-3412", flight: "BG-522", airline: "Air Astra",  sector: "DAC → LHR", date: "2026-05-20", etd: "14:45", pax: 214, crew: 18, specialMeals: 18, status: "Production" },
-  { id: "ORD-3413", flight: "VQ-901", airline: "US-Bangla",  sector: "DAC → KUL", date: "2026-05-20", etd: "16:20", pax: 162, crew: 12, specialMeals: 8,  status: "Production" },
-  { id: "ORD-3414", flight: "BS-203", airline: "US-Bangla",  sector: "DAC → DOH", date: "2026-05-21", etd: "18:10", pax: 168, crew: 14, specialMeals: 10, status: "Pending"    },
-  { id: "ORD-3415", flight: "BS-307", airline: "US-Bangla",  sector: "DAC → BKK", date: "2026-05-21", etd: "20:00", pax: 282, crew: 16, specialMeals: 22, status: "Pending"    },
+export type FlightDirection = "Outbound" | "Return";
+
+export type FlightOrderStatus =
+  | "Pending"
+  | "Approved"
+  | "Production"
+  | "Dispatched"
+  | "Completed";
+
+/**
+ * Status workflow for flight orders, in order. Use `nextFlightStatus` to
+ * advance a row through the pipeline.
+ */
+export const FLIGHT_ORDER_STATUS_FLOW: FlightOrderStatus[] = [
+  "Pending",
+  "Approved",
+  "Production",
+  "Dispatched",
+  "Completed",
 ];
 
-export type FlightOrderRow = (typeof seedFlightOrders)[number];
+export function nextFlightStatus(s: FlightOrderStatus): FlightOrderStatus | null {
+  const i = FLIGHT_ORDER_STATUS_FLOW.indexOf(s);
+  if (i < 0 || i >= FLIGHT_ORDER_STATUS_FLOW.length - 1) return null;
+  return FLIGHT_ORDER_STATUS_FLOW[i + 1];
+}
+
+// ── Crew-meal slot helpers ──────────────────────────────────────────────────
+
+export type MealSlot = "Breakfast" | "Heavy Snacks" | "Lunch" | "Dinner";
+
+export const MEAL_SLOTS: { name: MealSlot; range: string; from: number; to: number }[] = [
+  { name: "Breakfast",    range: "06:00 - 11:00", from: 6,  to: 11 },
+  { name: "Heavy Snacks", range: "11:00 - 15:00", from: 11, to: 15 },
+  { name: "Lunch",        range: "15:00 - 19:00", from: 15, to: 19 },
+  { name: "Dinner",       range: "19:00 - 00:00", from: 19, to: 24 },
+];
+
+export function getMealSlot(etd: string): MealSlot {
+  const m = etd.match(/^(\d{1,2}):/);
+  const h = m ? Number(m[1]) : 0;
+  if (h >= 6 && h < 11) return "Breakfast";
+  if (h >= 11 && h < 15) return "Heavy Snacks";
+  if (h >= 15 && h < 19) return "Lunch";
+  return "Dinner";
+}
+
+const DOMESTIC_AIRPORTS = new Set(["DAC", "CGP", "CXB", "ZYL", "JSR", "RJH", "BZL"]);
+
+export function isDomesticSector(sector: string): boolean {
+  const [from, to] = sector.split(" → ").map((s) => s.trim());
+  return DOMESTIC_AIRPORTS.has(from) && DOMESTIC_AIRPORTS.has(to);
+}
+
+// ── Special meals (IATA codes) ──────────────────────────────────────────────
+// Master list of special meal codes used by airlines worldwide. Same data is
+// surfaced on the Create form (DDL) and the Details dialog (per-type chips).
+
+export type SpecialMealCategory = "Religious" | "Medical" | "Vegetarian" | "Other";
+
+export const SPECIAL_MEAL_CODES: { code: string; name: string; category: SpecialMealCategory }[] = [
+  { code: "AVML", name: "Asian Vegetarian Meal",      category: "Vegetarian" },
+  { code: "BBML", name: "Baby Meal",                   category: "Other"      },
+  { code: "BLML", name: "Bland Meal",                  category: "Medical"    },
+  { code: "CHML", name: "Child Meal",                  category: "Other"      },
+  { code: "DBML", name: "Diabetes Meal",               category: "Medical"    },
+  { code: "FPML", name: "Fruit Platter Meal",          category: "Vegetarian" },
+  { code: "GFML", name: "Gluten Free Meal",            category: "Medical"    },
+  { code: "VGML", name: "Vegetarian Meal",             category: "Vegetarian" },
+  { code: "LCML", name: "Low Calorie Meal",            category: "Medical"    },
+  { code: "HNML", name: "Hindu Meal",                  category: "Religious"  },
+  { code: "KSML", name: "Kosher Meal",                 category: "Religious"  },
+  { code: "LSML", name: "Low Salt Meal",               category: "Medical"    },
+  { code: "MOML", name: "Muslim Meal",                 category: "Religious"  },
+  { code: "LFML", name: "Low Fat Meal",                category: "Medical"    },
+  { code: "VLML", name: "Vegetarian Lacto Ovo Meal",   category: "Vegetarian" },
+  { code: "VJML", name: "Vegetarian Jain Meal",        category: "Religious"  },
+  { code: "NLML", name: "No Lactose Meal",             category: "Medical"    },
+  { code: "SFML", name: "Seafood Meal",                category: "Other"      },
+  { code: "RVML", name: "Raw Vegetarian Meal",         category: "Vegetarian" },
+  { code: "VOML", name: "Vegan Meal",                  category: "Vegetarian" },
+];
+
+export const SPECIAL_MEAL_BY_CODE: Record<string, { name: string; category: SpecialMealCategory }> =
+  Object.fromEntries(SPECIAL_MEAL_CODES.map((m) => [m.code, { name: m.name, category: m.category }]));
+
+export type SpecialMealEntry = {
+  id: string;
+  pnr: string;
+  passengerName: string;
+  seat: string;
+  mealCode: string; // matches SPECIAL_MEAL_CODES.code
+};
+
+// Each row is ONE flight. Multiple rows can share an `orderNo` — that's how
+// a single Order # becomes a multi-leg order. `id` stays unique per row for
+// stable React keys / cross-references. `direction` marks each leg as the
+// outbound or the return flight of the rotation.
+// `specialMealRoster` is the per-passenger manifest of special meals — when
+// present it's the source of truth and `specialMeals` should equal its length.
+export type FlightOrderRow = {
+  id: string;
+  orderNo: string;
+  flight: string;
+  airline: string;
+  sector: string;
+  date: string;
+  etd: string;
+  pax: number;
+  crew: number;
+  specialMeals: number;
+  status: FlightOrderStatus;
+  direction: FlightDirection;
+  specialMealRoster?: SpecialMealEntry[];
+};
+
+const ROSTER_FO_001: SpecialMealEntry[] = [
+  { id: "SM-001", pnr: "09QIBQ", passengerName: "NILAVRO SARKAR DIP",     seat: "21A", mealCode: "AVML" },
+  { id: "SM-002", pnr: "09QIBQ", passengerName: "DIPAK SARKAR",            seat: "21B", mealCode: "AVML" },
+  { id: "SM-003", pnr: "09QI6J1",passengerName: "MD SHOJIB",               seat: "22A", mealCode: "FPML" },
+  { id: "SM-004", pnr: "09MC89", passengerName: "MONIR AHAMMAD",           seat: "21A", mealCode: "FPML" },
+  { id: "SM-005", pnr: "09A88B", passengerName: "RAMIN HAQUE",             seat: "22A", mealCode: "BBML" },
+  { id: "SM-006", pnr: "09ORUB", passengerName: "RATAN KUMAR AGARWALA",    seat: "22C", mealCode: "VJML" },
+  { id: "SM-007", pnr: "09PVR6", passengerName: "DIPAK KANTI BARUA",       seat: "49A", mealCode: "VGML" },
+  { id: "SM-008", pnr: "091SWT", passengerName: "RUBEL HOSEN",             seat: "19C", mealCode: "AVML" },
+  { id: "SM-009", pnr: "09IA4Q", passengerName: "TAFAJJALL HOSSAIN",       seat: "49A", mealCode: "AVML" },
+  { id: "SM-010", pnr: "09DH35", passengerName: "MD MIZANUR RAHMAN",       seat: "49A", mealCode: "MOML" },
+  { id: "SM-011", pnr: "09QWDB", passengerName: "MD ANWAR HOSSAIN",        seat: "49B", mealCode: "BLML" },
+  { id: "SM-012", pnr: "09QL8W", passengerName: "ROMANA TASNIM",           seat: "49J", mealCode: "MOML" },
+];
+
+const ROSTER_FO_003: SpecialMealEntry[] = [
+  { id: "SM-101", pnr: "09KDA8", passengerName: "MOHAMMAD SAIFUL ISLAM",   seat: "21A", mealCode: "MOML" },
+  { id: "SM-102", pnr: "09LPQ2", passengerName: "REBECCA AHMED",           seat: "12C", mealCode: "GFML" },
+  { id: "SM-103", pnr: "09LPQ2", passengerName: "DAVID AHMED",             seat: "12D", mealCode: "GFML" },
+  { id: "SM-104", pnr: "09FT3K", passengerName: "PRIYA SINGH",             seat: "8B",  mealCode: "VLML" },
+  { id: "SM-105", pnr: "09FT3K", passengerName: "ROHAN SINGH",             seat: "8C",  mealCode: "VLML" },
+  { id: "SM-106", pnr: "09WX1V", passengerName: "SARA KHAN",               seat: "33F", mealCode: "DBML" },
+  { id: "SM-107", pnr: "09BLM9", passengerName: "JAMES O'CONNOR",          seat: "5A",  mealCode: "LFML" },
+  { id: "SM-108", pnr: "09BLM9", passengerName: "EMILY O'CONNOR",          seat: "5B",  mealCode: "CHML" },
+  { id: "SM-109", pnr: "09GH7T", passengerName: "FARIDA BEGUM",            seat: "27D", mealCode: "DBML" },
+  { id: "SM-110", pnr: "09NM4P", passengerName: "RAJESH PATEL",            seat: "14A", mealCode: "VGML" },
+  { id: "SM-111", pnr: "09NM4P", passengerName: "MEERA PATEL",             seat: "14B", mealCode: "VGML" },
+  { id: "SM-112", pnr: "09NM4P", passengerName: "ARJUN PATEL",             seat: "14C", mealCode: "CHML" },
+  { id: "SM-113", pnr: "09TR8Q", passengerName: "HASNA MOLLAH",            seat: "41F", mealCode: "MOML" },
+  { id: "SM-114", pnr: "09XB2W", passengerName: "DEBORAH GOLDSTEIN",       seat: "3A",  mealCode: "KSML" },
+  { id: "SM-115", pnr: "09XB2W", passengerName: "AARON GOLDSTEIN",         seat: "3B",  mealCode: "KSML" },
+  { id: "SM-116", pnr: "09CP5N", passengerName: "ALICE NGUYEN",            seat: "29A", mealCode: "LSML" },
+  { id: "SM-117", pnr: "09VK0L", passengerName: "ZAREEN HUSSAIN",          seat: "16C", mealCode: "MOML" },
+  { id: "SM-118", pnr: "09ZN3H", passengerName: "ANIKA RAHMAN",            seat: "22F", mealCode: "BBML" },
+];
+
+const ROSTER_FO_007: SpecialMealEntry[] = [
+  { id: "SM-201", pnr: "09DOH1", passengerName: "ABDUR RAHMAN",            seat: "15A", mealCode: "MOML" },
+  { id: "SM-202", pnr: "09DOH2", passengerName: "FATIMA AKHTAR",           seat: "15B", mealCode: "MOML" },
+  { id: "SM-203", pnr: "09DOH3", passengerName: "KARIM AHMED",             seat: "23C", mealCode: "MOML" },
+  { id: "SM-204", pnr: "09DOH4", passengerName: "NUSRAT JAHAN",            seat: "23D", mealCode: "VGML" },
+  { id: "SM-205", pnr: "09DOH5", passengerName: "IMRAN HOSSAIN",           seat: "31A", mealCode: "DBML" },
+  { id: "SM-206", pnr: "09DOH6", passengerName: "LEILA AHMED",             seat: "8E",  mealCode: "BBML" },
+  { id: "SM-207", pnr: "09DOH7", passengerName: "TANVIR MAHMUD",           seat: "12A", mealCode: "BLML" },
+  { id: "SM-208", pnr: "09DOH8", passengerName: "SADIA RAHMAN",            seat: "12B", mealCode: "CHML" },
+  { id: "SM-209", pnr: "09DOH9", passengerName: "JAHID KHAN",              seat: "19F", mealCode: "GFML" },
+  { id: "SM-210", pnr: "09DOHA", passengerName: "RUMANA AKTER",            seat: "26D", mealCode: "AVML" },
+];
+
+export const seedFlightOrders: FlightOrderRow[] = [
+  // ORD-3411 — completed rotation
+  { id: "FO-001", orderNo: "ORD-3411", flight: "BG-401", airline: "Air Astra", sector: "DAC → DXB", date: "2026-05-20", etd: "10:30", pax: 186, crew: 14, specialMeals: 12, status: "Completed",  direction: "Outbound", specialMealRoster: ROSTER_FO_001 },
+  { id: "FO-002", orderNo: "ORD-3411", flight: "BG-402", airline: "Air Astra", sector: "DXB → DAC", date: "2026-05-20", etd: "23:45", pax: 174, crew: 14, specialMeals: 8,  status: "Dispatched", direction: "Return"   },
+
+  // ORD-3412 — currently in production
+  { id: "FO-003", orderNo: "ORD-3412", flight: "BG-522", airline: "Air Astra", sector: "DAC → LHR", date: "2026-05-20", etd: "14:45", pax: 214, crew: 18, specialMeals: 18, status: "Production", direction: "Outbound", specialMealRoster: ROSTER_FO_003 },
+
+  // ORD-3413 — full rotation, all legs in production
+  { id: "FO-004", orderNo: "ORD-3413", flight: "VQ-901", airline: "US-Bangla", sector: "DAC → KUL", date: "2026-05-20", etd: "16:20", pax: 162, crew: 12, specialMeals: 8,  status: "Production", direction: "Outbound" },
+  { id: "FO-005", orderNo: "ORD-3413", flight: "VQ-902", airline: "US-Bangla", sector: "KUL → SIN", date: "2026-05-20", etd: "20:40", pax: 158, crew: 12, specialMeals: 10, status: "Production", direction: "Outbound" },
+  { id: "FO-006", orderNo: "ORD-3413", flight: "VQ-903", airline: "US-Bangla", sector: "SIN → DAC", date: "2026-05-20", etd: "23:55", pax: 144, crew: 12, specialMeals: 6,  status: "Approved",   direction: "Return"   },
+
+  // ORD-3414 / ORD-3415 — pending approval / approved
+  { id: "FO-007", orderNo: "ORD-3414", flight: "BS-203", airline: "US-Bangla", sector: "DAC → DOH", date: "2026-05-21", etd: "18:10", pax: 168, crew: 14, specialMeals: 10, status: "Approved",   direction: "Outbound", specialMealRoster: ROSTER_FO_007 },
+  { id: "FO-008", orderNo: "ORD-3415", flight: "BS-307", airline: "US-Bangla", sector: "DAC → BKK", date: "2026-05-21", etd: "20:00", pax: 282, crew: 16, specialMeals: 22, status: "Pending",    direction: "Outbound" },
+
+  // ── Domestic short-haul (Breakfast slot 06:00-11:00)
+  { id: "FO-009", orderNo: "ORD-3416", flight: "BS-141", airline: "US-Bangla", sector: "DAC → CGP", date: "2026-05-20", etd: "06:30", pax: 68,  crew: 4,  specialMeals: 2, status: "Production", direction: "Outbound" },
+  { id: "FO-010", orderNo: "ORD-3416", flight: "BS-142", airline: "US-Bangla", sector: "CGP → DAC", date: "2026-05-20", etd: "08:30", pax: 64,  crew: 4,  specialMeals: 1, status: "Production", direction: "Return"   },
+  { id: "FO-011", orderNo: "ORD-3417", flight: "BS-105", airline: "US-Bangla", sector: "DAC → CXB", date: "2026-05-20", etd: "07:15", pax: 72,  crew: 4,  specialMeals: 2, status: "Approved",   direction: "Outbound" },
+  { id: "FO-012", orderNo: "ORD-3418", flight: "BS-151", airline: "US-Bangla", sector: "DAC → ZYL", date: "2026-05-20", etd: "09:45", pax: 65,  crew: 4,  specialMeals: 1, status: "Pending",    direction: "Outbound" },
+
+  // ── Domestic (Heavy Snacks 11:00-15:00)
+  { id: "FO-013", orderNo: "ORD-3419", flight: "BS-195", airline: "US-Bangla", sector: "DAC → JSR", date: "2026-05-20", etd: "11:30", pax: 60,  crew: 4,  specialMeals: 2, status: "Production", direction: "Outbound" },
+  { id: "FO-014", orderNo: "ORD-3420", flight: "BS-165", airline: "US-Bangla", sector: "DAC → CXB", date: "2026-05-20", etd: "13:20", pax: 72,  crew: 4,  specialMeals: 3, status: "Approved",   direction: "Outbound" },
+
+  // ── Domestic (Lunch 15:00-19:00)
+  { id: "FO-015", orderNo: "ORD-3421", flight: "BS-147", airline: "US-Bangla", sector: "DAC → CGP", date: "2026-05-20", etd: "15:40", pax: 68,  crew: 4,  specialMeals: 2, status: "Production", direction: "Outbound" },
+  { id: "FO-016", orderNo: "ORD-3422", flight: "BS-149", airline: "US-Bangla", sector: "DAC → ZYL", date: "2026-05-20", etd: "17:20", pax: 64,  crew: 4,  specialMeals: 1, status: "Approved",   direction: "Outbound" },
+
+  // ── Domestic (Dinner 19:00-24:00)
+  { id: "FO-017", orderNo: "ORD-3423", flight: "BS-115", airline: "US-Bangla", sector: "DAC → CXB", date: "2026-05-20", etd: "19:30", pax: 72,  crew: 4,  specialMeals: 2, status: "Pending",    direction: "Outbound" },
+  { id: "FO-018", orderNo: "ORD-3424", flight: "BS-159", airline: "US-Bangla", sector: "DAC → JSR", date: "2026-05-20", etd: "21:00", pax: 60,  crew: 4,  specialMeals: 1, status: "Pending",    direction: "Outbound" },
+];
+
+// ── Master Item Profile ──────────────────────────────────────────────────────
+// Single source of truth for items used by all modules (BOM, PR, Transfer,
+// Demand, Item Issue, Inventory, etc). Categories/UoMs etc are intentionally
+// exported alongside the data so any UI dropdown can stay in sync.
+
+export type ItemMaster = {
+  id: string;
+  code: string;
+  name: string;
+  itemType: "Raw Material" | "Packaging" | "Consumable" | "Finished Good" | "Semi-Finished Good";
+  category: string;
+  subCategory: string;
+  uom: string;
+  status: "Active" | "Inactive";
+  currentStock?: number;
+  reorderLevel?: number;
+  thresholdPct?: number;
+  batchNo?: string;
+  expiryDate?: string;
+  storage?: "Dry" | "Cold" | "Frozen";
+};
+
+export const ITEM_TYPES = [
+  "Raw Material", "Packaging", "Consumable", "Finished Good", "Semi-Finished Good",
+] as const;
+
+export const ITEM_CATEGORIES = [
+  "Grains", "Protein", "Vegetable", "Spices", "Oil", "Dairy", "Beverage",
+  "Bakery", "Meal", "Packaging", "Other",
+] as const;
+
+export const ITEM_SUB_CATEGORIES = ["Fresh", "Frozen", "Dry", "Liquid"] as const;
+export const ITEM_UOMS = ["Kg", "Gm", "Litre", "ML", "Piece", "Pack", "Bottle"] as const;
+export const ITEM_STORAGE_OPTIONS = ["Dry", "Cold", "Frozen"] as const;
+
+const RAW_ITEMS: Array<Omit<ItemMaster, "id">> = [
+  // ── Raw Material · Grains
+  { code: "RM-RICE-BSMT", name: "Basmati Rice",          itemType: "Raw Material", category: "Grains",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
+  { code: "RM-RICE-BRWN", name: "Brown Rice",            itemType: "Raw Material", category: "Grains",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
+  { code: "RM-RICE-PARB", name: "Parboiled Rice",        itemType: "Raw Material", category: "Grains",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
+  { code: "RM-FLR-WHT",   name: "Wheat Flour",           itemType: "Raw Material", category: "Grains",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
+  { code: "RM-FLR-APRP",  name: "All-Purpose Flour",     itemType: "Raw Material", category: "Grains",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
+  { code: "RM-FLR-CORN",  name: "Cornflour",             itemType: "Raw Material", category: "Grains",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
+  { code: "RM-FLR-RICE",  name: "Rice Flour",            itemType: "Raw Material", category: "Grains",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
+  { code: "RM-FLR-SMLA",  name: "Semolina",              itemType: "Raw Material", category: "Grains",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
+  { code: "RM-GRN-OATS",  name: "Rolled Oats",           itemType: "Raw Material", category: "Grains",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
+  { code: "RM-PST-SPAG",  name: "Spaghetti Pasta",       itemType: "Raw Material", category: "Grains",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
+
+  // ── Raw Material · Protein
+  { code: "RM-CHK-BRST",  name: "Chicken Breast",        itemType: "Raw Material", category: "Protein",  subCategory: "Frozen", uom: "Kg",    status: "Active" },
+  { code: "RM-CHK-THGH",  name: "Chicken Thigh",         itemType: "Raw Material", category: "Protein",  subCategory: "Frozen", uom: "Kg",    status: "Active" },
+  { code: "RM-CHK-WHLE",  name: "Whole Chicken",         itemType: "Raw Material", category: "Protein",  subCategory: "Frozen", uom: "Kg",    status: "Active" },
+  { code: "RM-BEEF-TLN",  name: "Beef Tenderloin",       itemType: "Raw Material", category: "Protein",  subCategory: "Frozen", uom: "Kg",    status: "Active" },
+  { code: "RM-BEEF-MNC",  name: "Beef Mince",            itemType: "Raw Material", category: "Protein",  subCategory: "Frozen", uom: "Kg",    status: "Active" },
+  { code: "RM-MUT-LEG",   name: "Mutton Leg",            itemType: "Raw Material", category: "Protein",  subCategory: "Frozen", uom: "Kg",    status: "Active" },
+  { code: "RM-FSH-SLMN",  name: "Salmon Fillet",         itemType: "Raw Material", category: "Protein",  subCategory: "Frozen", uom: "Kg",    status: "Active" },
+  { code: "RM-FSH-TUNA",  name: "Tuna Steak",            itemType: "Raw Material", category: "Protein",  subCategory: "Frozen", uom: "Kg",    status: "Active" },
+  { code: "RM-PRWN-LRG",  name: "Prawn (Large)",         itemType: "Raw Material", category: "Protein",  subCategory: "Frozen", uom: "Kg",    status: "Active" },
+  { code: "RM-EGG-CHK",   name: "Chicken Egg",           itemType: "Raw Material", category: "Protein",  subCategory: "Fresh",  uom: "Piece", status: "Active" },
+
+  // ── Raw Material · Vegetable
+  { code: "RM-VEG-TOM",   name: "Tomato",                itemType: "Raw Material", category: "Vegetable",subCategory: "Fresh",  uom: "Kg",    status: "Active" },
+  { code: "RM-VEG-ONN",   name: "Onion",                 itemType: "Raw Material", category: "Vegetable",subCategory: "Fresh",  uom: "Kg",    status: "Active" },
+  { code: "RM-VEG-POT",   name: "Potato",                itemType: "Raw Material", category: "Vegetable",subCategory: "Fresh",  uom: "Kg",    status: "Active" },
+  { code: "RM-VEG-CAR",   name: "Carrot",                itemType: "Raw Material", category: "Vegetable",subCategory: "Fresh",  uom: "Kg",    status: "Active" },
+  { code: "RM-VEG-CUC",   name: "Cucumber",              itemType: "Raw Material", category: "Vegetable",subCategory: "Fresh",  uom: "Kg",    status: "Active" },
+  { code: "RM-VEG-LMN",   name: "Lemon",                 itemType: "Raw Material", category: "Vegetable",subCategory: "Fresh",  uom: "Kg",    status: "Active" },
+  { code: "RM-VEG-LET",   name: "Lettuce",               itemType: "Raw Material", category: "Vegetable",subCategory: "Fresh",  uom: "Kg",    status: "Active" },
+  { code: "RM-VEG-BPR",   name: "Bell Pepper",           itemType: "Raw Material", category: "Vegetable",subCategory: "Fresh",  uom: "Kg",    status: "Active" },
+  { code: "RM-VEG-GRL",   name: "Garlic",                itemType: "Raw Material", category: "Vegetable",subCategory: "Fresh",  uom: "Kg",    status: "Active" },
+  { code: "RM-VEG-GNG",   name: "Ginger",                itemType: "Raw Material", category: "Vegetable",subCategory: "Fresh",  uom: "Kg",    status: "Active" },
+  { code: "RM-VEG-MSH",   name: "Mushroom",              itemType: "Raw Material", category: "Vegetable",subCategory: "Fresh",  uom: "Kg",    status: "Active" },
+  { code: "RM-VEG-SPN",   name: "Spinach",               itemType: "Raw Material", category: "Vegetable",subCategory: "Fresh",  uom: "Kg",    status: "Active" },
+  { code: "RM-VEG-CBG",   name: "Cabbage",               itemType: "Raw Material", category: "Vegetable",subCategory: "Fresh",  uom: "Kg",    status: "Active" },
+  { code: "RM-VEG-CFL",   name: "Cauliflower",           itemType: "Raw Material", category: "Vegetable",subCategory: "Fresh",  uom: "Kg",    status: "Active" },
+
+  // ── Raw Material · Spices
+  { code: "RM-SPC-CMN",   name: "Cumin Powder",          itemType: "Raw Material", category: "Spices",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
+  { code: "RM-SPC-TRM",   name: "Turmeric Powder",       itemType: "Raw Material", category: "Spices",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
+  { code: "RM-SPC-CHL",   name: "Chili Powder",          itemType: "Raw Material", category: "Spices",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
+  { code: "RM-SPC-GMS",   name: "Garam Masala",          itemType: "Raw Material", category: "Spices",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
+  { code: "RM-SPC-BPP",   name: "Black Pepper",          itemType: "Raw Material", category: "Spices",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
+  { code: "RM-SPC-CRD",   name: "Cardamom",              itemType: "Raw Material", category: "Spices",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
+  { code: "RM-SPC-CIN",   name: "Cinnamon Stick",        itemType: "Raw Material", category: "Spices",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
+  { code: "RM-SPC-BYL",   name: "Bay Leaf",              itemType: "Raw Material", category: "Spices",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
+
+  // ── Raw Material · Oil & Fats
+  { code: "RM-OIL-SOY",   name: "Soyabean Cooking Oil",  itemType: "Raw Material", category: "Oil",      subCategory: "Liquid", uom: "Litre", status: "Active" },
+  { code: "RM-OIL-OLV",   name: "Olive Oil",             itemType: "Raw Material", category: "Oil",      subCategory: "Liquid", uom: "Litre", status: "Active" },
+  { code: "RM-OIL-SUN",   name: "Sunflower Oil",         itemType: "Raw Material", category: "Oil",      subCategory: "Liquid", uom: "Litre", status: "Active" },
+  { code: "RM-OIL-MST",   name: "Mustard Oil",           itemType: "Raw Material", category: "Oil",      subCategory: "Liquid", uom: "Litre", status: "Active" },
+  { code: "RM-OIL-GHE",   name: "Ghee",                  itemType: "Raw Material", category: "Oil",      subCategory: "Dry",    uom: "Kg",    status: "Active" },
+
+  // ── Raw Material · Dairy
+  { code: "RM-DRY-BTRS",  name: "Butter (Salted)",       itemType: "Raw Material", category: "Dairy",    subCategory: "Fresh",  uom: "Kg",    status: "Active" },
+  { code: "RM-DRY-BTRU",  name: "Butter (Unsalted)",     itemType: "Raw Material", category: "Dairy",    subCategory: "Fresh",  uom: "Kg",    status: "Active" },
+  { code: "RM-DRY-CHED",  name: "Cheese (Cheddar)",      itemType: "Raw Material", category: "Dairy",    subCategory: "Fresh",  uom: "Kg",    status: "Active" },
+  { code: "RM-DRY-MOZZ",  name: "Cheese (Mozzarella)",   itemType: "Raw Material", category: "Dairy",    subCategory: "Fresh",  uom: "Kg",    status: "Active" },
+  { code: "RM-DRY-MLK",   name: "Milk (Full Cream)",     itemType: "Raw Material", category: "Dairy",    subCategory: "Liquid", uom: "Litre", status: "Active" },
+  { code: "RM-DRY-YGT",   name: "Yogurt",                itemType: "Raw Material", category: "Dairy",    subCategory: "Fresh",  uom: "Kg",    status: "Active" },
+  { code: "RM-DRY-CRM",   name: "Heavy Cream",           itemType: "Raw Material", category: "Dairy",    subCategory: "Liquid", uom: "Litre", status: "Active" },
+
+  // ── Raw Material · Beverage / Sundry
+  { code: "RM-BV-WTR250", name: "Mineral Water 250ml",   itemType: "Raw Material", category: "Beverage", subCategory: "Liquid", uom: "Bottle",status: "Active" },
+  { code: "RM-BV-WTR500", name: "Mineral Water 500ml",   itemType: "Raw Material", category: "Beverage", subCategory: "Liquid", uom: "Bottle",status: "Active" },
+  { code: "RM-BV-TEA",    name: "Tea Leaves",            itemType: "Raw Material", category: "Beverage", subCategory: "Dry",    uom: "Kg",    status: "Active" },
+  { code: "RM-BV-COF",    name: "Coffee Beans",          itemType: "Raw Material", category: "Beverage", subCategory: "Dry",    uom: "Kg",    status: "Active" },
+  { code: "RM-OTH-SUG",   name: "Sugar (White)",         itemType: "Raw Material", category: "Other",    subCategory: "Dry",    uom: "Kg",    status: "Active" },
+  { code: "RM-OTH-SLT",   name: "Salt (Iodized)",        itemType: "Raw Material", category: "Other",    subCategory: "Dry",    uom: "Kg",    status: "Active" },
+  { code: "RM-OTH-HNY",   name: "Honey",                 itemType: "Raw Material", category: "Other",    subCategory: "Liquid", uom: "Kg",    status: "Active" },
+  { code: "RM-OTH-YST",   name: "Yeast (Active Dry)",    itemType: "Raw Material", category: "Bakery",   subCategory: "Dry",    uom: "Pack",  status: "Active" },
+  { code: "RM-OTH-BKP",   name: "Baking Powder",         itemType: "Raw Material", category: "Bakery",   subCategory: "Dry",    uom: "Pack",  status: "Active" },
+  { code: "RM-OTH-CHOC",  name: "Chocolate (Dark)",      itemType: "Raw Material", category: "Bakery",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
+
+  // ── Packaging
+  { code: "PK-BOX-MEAL",  name: "Meal Box (Paper)",      itemType: "Packaging",    category: "Packaging",subCategory: "Dry",    uom: "Piece", status: "Active" },
+  { code: "PK-TRY-ALU",   name: "Aluminum Foil Tray",    itemType: "Packaging",    category: "Packaging",subCategory: "Dry",    uom: "Piece", status: "Active" },
+  { code: "PK-FIL-ALU",   name: "Aluminum Foil Roll",    itemType: "Packaging",    category: "Packaging",subCategory: "Dry",    uom: "Pack",  status: "Active" },
+  { code: "PK-FIL-CLG",   name: "Cling Film",            itemType: "Packaging",    category: "Packaging",subCategory: "Dry",    uom: "Pack",  status: "Active" },
+  { code: "PK-CNT-PLA",   name: "Plastic Container 250g",itemType: "Packaging",    category: "Packaging",subCategory: "Dry",    uom: "Piece", status: "Active" },
+  { code: "PK-CUP-8OZ",   name: "Disposable Cup 8oz",    itemType: "Packaging",    category: "Packaging",subCategory: "Dry",    uom: "Pack",  status: "Active" },
+  { code: "PK-CUP-12OZ",  name: "Disposable Cup 12oz",   itemType: "Packaging",    category: "Packaging",subCategory: "Dry",    uom: "Pack",  status: "Active" },
+  { code: "PK-STR-PLA",   name: "Plastic Straw",         itemType: "Packaging",    category: "Packaging",subCategory: "Dry",    uom: "Pack",  status: "Active" },
+  { code: "PK-NPK-PPR",   name: "Paper Napkin",          itemType: "Packaging",    category: "Packaging",subCategory: "Dry",    uom: "Pack",  status: "Active" },
+  { code: "PK-CTL-SET",   name: "Cutlery Set (Plastic)", itemType: "Packaging",    category: "Packaging",subCategory: "Dry",    uom: "Pack",  status: "Active" },
+  { code: "PK-BTL-250",   name: "Bottle 250ml (Empty)",  itemType: "Packaging",    category: "Packaging",subCategory: "Dry",    uom: "Piece", status: "Active" },
+  { code: "PK-BTL-500",   name: "Bottle 500ml (Empty)",  itemType: "Packaging",    category: "Packaging",subCategory: "Dry",    uom: "Piece", status: "Active" },
+  { code: "PK-CAP-PET",   name: "Bottle Cap (PET)",      itemType: "Packaging",    category: "Packaging",subCategory: "Dry",    uom: "Piece", status: "Active" },
+  { code: "PK-LBL-USB",   name: "Label (US-Bangla)",     itemType: "Packaging",    category: "Packaging",subCategory: "Dry",    uom: "Piece", status: "Active" },
+  { code: "PK-LBL-MUM",   name: "Label (Mum Water)",     itemType: "Packaging",    category: "Packaging",subCategory: "Dry",    uom: "Piece", status: "Active" },
+  { code: "PK-BAG-VAC",   name: "Vacuum Seal Bag",       itemType: "Packaging",    category: "Packaging",subCategory: "Dry",    uom: "Piece", status: "Active" },
+  { code: "PK-WRP-SHR",   name: "Shrink Wrap",           itemType: "Packaging",    category: "Packaging",subCategory: "Dry",    uom: "Pack",  status: "Active" },
+  { code: "PK-BOX-CTN",   name: "Carton Box (Medium)",   itemType: "Packaging",    category: "Packaging",subCategory: "Dry",    uom: "Piece", status: "Active" },
+  { code: "PK-TPE-SCH",   name: "Sealing Tape",          itemType: "Packaging",    category: "Packaging",subCategory: "Dry",    uom: "Piece", status: "Active" },
+
+  // ── Semi-Finished Goods
+  { code: "SF-CHK-MRN",   name: "Marinated Chicken",     itemType: "Semi-Finished Good", category: "Protein",   subCategory: "Frozen", uom: "Kg",    status: "Active" },
+  { code: "SF-RCE-BLD",   name: "Boiled Rice (Plain)",   itemType: "Semi-Finished Good", category: "Grains",    subCategory: "Fresh",  uom: "Kg",    status: "Active" },
+  { code: "SF-VEG-CHP",   name: "Chopped Vegetable Mix", itemType: "Semi-Finished Good", category: "Vegetable", subCategory: "Fresh",  uom: "Kg",    status: "Active" },
+  { code: "SF-TOM-PUR",   name: "Tomato Puree",          itemType: "Semi-Finished Good", category: "Vegetable", subCategory: "Liquid", uom: "Kg",    status: "Active" },
+  { code: "SF-PST-ONN",   name: "Onion Paste",           itemType: "Semi-Finished Good", category: "Vegetable", subCategory: "Liquid", uom: "Kg",    status: "Active" },
+  { code: "SF-PST-GG",    name: "Garlic-Ginger Paste",   itemType: "Semi-Finished Good", category: "Spices",    subCategory: "Liquid", uom: "Kg",    status: "Active" },
+  { code: "SF-DGH-BRD",   name: "Bread Dough",           itemType: "Semi-Finished Good", category: "Bakery",    subCategory: "Fresh",  uom: "Kg",    status: "Active" },
+  { code: "SF-PTY-CRM",   name: "Pastry Cream",          itemType: "Semi-Finished Good", category: "Bakery",    subCategory: "Fresh",  uom: "Kg",    status: "Active" },
+  { code: "SF-BSE-PZA",   name: "Pizza Base",            itemType: "Semi-Finished Good", category: "Bakery",    subCategory: "Frozen", uom: "Piece",status: "Active" },
+  { code: "SF-BSE-CAK",   name: "Sponge Cake Base",      itemType: "Semi-Finished Good", category: "Bakery",    subCategory: "Fresh",  uom: "Piece",status: "Active" },
+  { code: "SF-STK-CHK",   name: "Chicken Stock",         itemType: "Semi-Finished Good", category: "Protein",   subCategory: "Liquid", uom: "Litre",status: "Active" },
+
+  // ── Finished Goods · Meals
+  { code: "FG-MEAL-CBR",  name: "Chicken Biryani",       itemType: "Finished Good", category: "Meal",      subCategory: "Frozen", uom: "Piece", status: "Active" },
+  { code: "FG-MEAL-BCR",  name: "Beef Curry",            itemType: "Finished Good", category: "Meal",      subCategory: "Frozen", uom: "Piece", status: "Active" },
+  { code: "FG-MEAL-VPL",  name: "Veg Pulao",             itemType: "Finished Good", category: "Meal",      subCategory: "Frozen", uom: "Piece", status: "Active" },
+  { code: "FG-MEAL-MCR",  name: "Mutton Curry",          itemType: "Finished Good", category: "Meal",      subCategory: "Frozen", uom: "Piece", status: "Active" },
+  { code: "FG-MEAL-GSL",  name: "Grilled Salmon",        itemType: "Finished Good", category: "Meal",      subCategory: "Frozen", uom: "Piece", status: "Active" },
+  { code: "FG-MEAL-FCR",  name: "Fish Curry",            itemType: "Finished Good", category: "Meal",      subCategory: "Frozen", uom: "Piece", status: "Active" },
+  { code: "FG-MEAL-CBF",  name: "Continental Breakfast", itemType: "Finished Good", category: "Meal",      subCategory: "Fresh",  uom: "Piece", status: "Active" },
+  { code: "FG-MEAL-HMS",  name: "Hindu Meal Special",    itemType: "Finished Good", category: "Meal",      subCategory: "Frozen", uom: "Piece", status: "Active" },
+  { code: "FG-MEAL-CCM",  name: "Crew Combo Meal",       itemType: "Finished Good", category: "Meal",      subCategory: "Frozen", uom: "Piece", status: "Active" },
+  { code: "FG-MEAL-VML",  name: "Vegetarian Meal",       itemType: "Finished Good", category: "Meal",      subCategory: "Frozen", uom: "Piece", status: "Active" },
+  { code: "FG-MEAL-KSH",  name: "Kosher Meal",           itemType: "Finished Good", category: "Meal",      subCategory: "Frozen", uom: "Piece", status: "Active" },
+
+  // ── Finished Goods · Bakery & Snacks
+  { code: "FG-BK-CROIS",  name: "Croissant",             itemType: "Finished Good", category: "Bakery",    subCategory: "Fresh",  uom: "Piece", status: "Active" },
+  { code: "FG-BK-DANSH",  name: "Danish Pastry",         itemType: "Finished Good", category: "Bakery",    subCategory: "Fresh",  uom: "Piece", status: "Active" },
+  { code: "FG-BK-MUFF",   name: "Muffin",                itemType: "Finished Good", category: "Bakery",    subCategory: "Fresh",  uom: "Piece", status: "Active" },
+  { code: "FG-BK-DONUT",  name: "Donut",                 itemType: "Finished Good", category: "Bakery",    subCategory: "Fresh",  uom: "Piece", status: "Active" },
+  { code: "FG-BK-CAKE",   name: "Cake Slice",            itemType: "Finished Good", category: "Bakery",    subCategory: "Fresh",  uom: "Piece", status: "Active" },
+  { code: "FG-BK-BANC",   name: "Banana Cake",           itemType: "Finished Good", category: "Bakery",    subCategory: "Fresh",  uom: "Piece", status: "Active" },
+  { code: "FG-BK-COOK",   name: "Cookies Pack",          itemType: "Finished Good", category: "Bakery",    subCategory: "Dry",    uom: "Pack",  status: "Active" },
+  { code: "FG-SD-CHK",    name: "Sandwich (Chicken)",    itemType: "Finished Good", category: "Bakery",    subCategory: "Fresh",  uom: "Piece", status: "Active" },
+  { code: "FG-SD-VEG",    name: "Sandwich (Veg)",        itemType: "Finished Good", category: "Bakery",    subCategory: "Fresh",  uom: "Piece", status: "Active" },
+  { code: "FG-BR-CHK",    name: "Chicken Burger",        itemType: "Finished Good", category: "Meal",      subCategory: "Fresh",  uom: "Piece", status: "Active" },
+  { code: "FG-BR-BEEF",   name: "Beef Burger",           itemType: "Finished Good", category: "Meal",      subCategory: "Fresh",  uom: "Piece", status: "Active" },
+  { code: "FG-SN-ENB",    name: "Energy Bar",            itemType: "Finished Good", category: "Bakery",    subCategory: "Dry",    uom: "Piece", status: "Active" },
+  { code: "FG-DS-MMS",    name: "Mango Mousse",          itemType: "Finished Good", category: "Bakery",    subCategory: "Fresh",  uom: "Piece", status: "Active" },
+  { code: "FG-DS-FRS",    name: "Fruit Salad Cup",       itemType: "Finished Good", category: "Bakery",    subCategory: "Fresh",  uom: "Piece", status: "Active" },
+
+  // ── Finished Goods · Beverages
+  { code: "FG-BV-MUM250", name: "Mum Water 250ml",       itemType: "Finished Good", category: "Beverage",  subCategory: "Liquid", uom: "Bottle",status: "Active" },
+  { code: "FG-BV-MUM500", name: "Mum Water 500ml",       itemType: "Finished Good", category: "Beverage",  subCategory: "Liquid", uom: "Bottle",status: "Active" },
+  { code: "FG-BV-ORJ",    name: "Orange Juice (1L)",     itemType: "Finished Good", category: "Beverage",  subCategory: "Liquid", uom: "Bottle",status: "Active" },
+  { code: "FG-BV-APJ",    name: "Apple Juice (1L)",      itemType: "Finished Good", category: "Beverage",  subCategory: "Liquid", uom: "Bottle",status: "Active" },
+  { code: "FG-BV-COLA",   name: "Soft Drink (Cola)",     itemType: "Finished Good", category: "Beverage",  subCategory: "Liquid", uom: "Bottle",status: "Active" },
+  { code: "FG-BV-COFB",   name: "Coffee (Black)",        itemType: "Finished Good", category: "Beverage",  subCategory: "Liquid", uom: "Piece", status: "Active" },
+  { code: "FG-BV-TEAM",   name: "Tea (Milk)",            itemType: "Finished Good", category: "Beverage",  subCategory: "Liquid", uom: "Piece", status: "Active" },
+];
+
+export const items: ItemMaster[] = RAW_ITEMS.map((row, i) => ({
+  id: `ITM-${String(i + 1).padStart(3, "0")}`,
+  ...row,
+}));
+
+/** Active master items only (use this in pickers/DDLs by default) */
+export const activeItems: ItemMaster[] = items.filter((i) => i.status === "Active");
+
+/** Filter items by item type (e.g. "Raw Material", "Finished Good") */
+export const itemsByType = (...types: ItemMaster["itemType"][]): ItemMaster[] =>
+  activeItems.filter((i) => types.includes(i.itemType));
+
+// ── Org hierarchy: Company → Office → Warehouse ─────────────────────────────
+
+export type Company = {
+  id: string;
+  code: string;
+  name: string;
+  status: "Active" | "Inactive";
+};
+
+export type Office = {
+  id: string;
+  code: string;
+  name: string;
+  companyId: string;
+  address: string;
+  city: string;
+  manager: string;
+  phone: string;
+  status: "Active" | "Inactive";
+};
+
+export type WarehouseType = "Warehouse" | "Cold Store" | "Kitchen";
+
+export type Warehouse = {
+  id: string;
+  code: string;
+  name: string;
+  officeId: string;
+  type: WarehouseType;
+  address: string;
+  city: string;
+  manager: string;
+  phone: string;
+  status: "Active" | "Inactive";
+};
+
+export const companies: Company[] = [
+  { id: "CMP-001", code: "USB-CAT", name: "US-Bangla Catering",   status: "Active" },
+  { id: "CMP-002", code: "USB-AIR", name: "US-Bangla Airlines Ltd.", status: "Active" },
+];
+
+export const offices: Office[] = [
+  { id: "OFF-001", code: "HQ-DAC",  name: "Head Office Dhaka",         companyId: "CMP-001", address: "Madina Bhaban, Turag",   city: "Dhaka",       manager: "R. Hossain", phone: "+880 1700-000001", status: "Active" },
+  { id: "OFF-002", code: "REG-CGP", name: "Chittagong Regional Office", companyId: "CMP-001", address: "GEC Circle, Chattogram", city: "Chittagong",  manager: "A. Khan",    phone: "+880 1700-000010", status: "Active" },
+  { id: "OFF-003", code: "REG-CXB", name: "Cox's Bazar Station Office", companyId: "CMP-001", address: "Cox's Bazar Airport",    city: "Cox's Bazar", manager: "—",         phone: "—",                status: "Inactive" },
+];
+
+export const warehouses: Warehouse[] = [
+  { id: "WH-001", code: "WH-DAC-01", name: "Central Warehouse",         officeId: "OFF-001", type: "Warehouse",  address: "Hazrat Shahjalal Cargo",  city: "Dhaka",       manager: "S. Ahmed",  phone: "+880 1700-000002", status: "Active" },
+  { id: "WH-002", code: "CS-DAC-01", name: "Cold Storage 1",            officeId: "OFF-001", type: "Cold Store", address: "Catering Block B Annex",  city: "Dhaka",       manager: "M. Karim",  phone: "+880 1700-000005", status: "Active" },
+  { id: "WH-003", code: "KIT-HOT",   name: "Hot Kitchen",                officeId: "OFF-001", type: "Kitchen",    address: "Catering Block A",        city: "Dhaka",       manager: "F. Begum",  phone: "+880 1700-000003", status: "Active" },
+  { id: "WH-004", code: "KIT-COLD",  name: "Cold Kitchen",               officeId: "OFF-001", type: "Kitchen",    address: "Catering Block B",        city: "Dhaka",       manager: "T. Islam",  phone: "+880 1700-000004", status: "Active" },
+  { id: "WH-005", code: "WH-CXB-01", name: "Regional Warehouse CXB",     officeId: "OFF-003", type: "Warehouse",  address: "Cox's Bazar Airport",     city: "Cox's Bazar", manager: "—",         phone: "—",                status: "Inactive" },
+];
+
+// ── Airlines (customers we cater for) ────────────────────────────────────────
+// Separate from Office — Office is OUR location, Airline is who we serve.
+export type Airline = {
+  id: string;
+  code: string;        // short code (e.g. USB, ASTRA)
+  iata: string;        // 2-char IATA flight prefix (e.g. BS, 2A)
+  name: string;
+  country: string;
+  status: "Active" | "Inactive";
+};
+
+export const airlines: Airline[] = [
+  { id: "AIR-001", code: "USB",   iata: "BS", name: "US-Bangla Airlines", country: "Bangladesh", status: "Active" },
+  { id: "AIR-002", code: "ASTRA", iata: "2A", name: "Air Astra",          country: "Bangladesh", status: "Active" },
+];
+
+export const activeAirlines = airlines.filter((a) => a.status === "Active");
+export const activeOffices   = offices.filter((o) => o.status === "Active");
+export const activeWarehouses = warehouses.filter((w) => w.status === "Active");
+
+export const warehousesByOffice = (officeId: string) =>
+  warehouses.filter((w) => w.officeId === officeId);
+export const activeWarehousesByOffice = (officeId: string) =>
+  activeWarehouses.filter((w) => w.officeId === officeId);

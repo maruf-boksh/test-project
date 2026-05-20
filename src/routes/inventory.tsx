@@ -6,11 +6,12 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Boxes, AlertTriangle, Snowflake } from "lucide-react";
+import { Plus, Boxes, AlertTriangle, Snowflake, Eye, Pencil, FilePlus2 } from "lucide-react";
 import { toast } from "sonner";
 import { inventory } from "@/lib/sample-data";
 import { KpiCard } from "@/components/common/KpiCard";
 import { useRole } from "@/lib/roles";
+import { LocationPicker, LocationFilter, LocationCell } from "@/components/common/LocationPicker";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -26,6 +27,8 @@ type Item = BaseItem & {
   lastEditedBy?: string;
   lastEditedDate?: string;
   lastEditedTime?: string;
+  officeId?: string;
+  warehouseId?: string;
 };
 
 const CATEGORIES = ["Grains", "Protein", "Beverage", "Dairy", "Vegetable", "Oil", "Misc"];
@@ -48,6 +51,8 @@ type FormState = {
   batch: string;
   expiry: string;
   storage: string;
+  officeId: string;
+  warehouseId: string;
 };
 
 const emptyForm: FormState = {
@@ -60,18 +65,25 @@ const emptyForm: FormState = {
   batch: "",
   expiry: "",
   storage: "Dry",
+  officeId: "OFF-001",
+  warehouseId: "WH-001",
 };
 
 const SELECT_CLS = "w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm";
 
 function Inventory() {
   const { role } = useRole();
-  const [items, setItems] = useState<Item[]>(inventory);
+  // Backfill existing inventory rows with default Office + Central Warehouse
+  const [items, setItems] = useState<Item[]>(
+    inventory.map((i) => ({ ...i, officeId: "OFF-001", warehouseId: "WH-001" })),
+  );
   const [newItemOpen, setNewItemOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const [selected, setSelected] = useState<Item | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [filterOffice, setFilterOffice] = useState("");
+  const [filterWarehouse, setFilterWarehouse] = useState("");
 
   const f = (field: keyof FormState, value: string) =>
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -83,6 +95,8 @@ function Inventory() {
 
   const saveNew = () => {
     if (!form.name.trim()) { toast.error("Item name is required."); return; }
+    if (!form.officeId) { toast.error("Office is required."); return; }
+    if (!form.warehouseId) { toast.error("Warehouse is required."); return; }
     const stock = Number(form.stock) || 0;
     const reorder = Number(form.reorder) || 0;
     const threshold = Math.max(0, Number(form.threshold) || 20);
@@ -98,6 +112,8 @@ function Inventory() {
       expiry: form.expiry || "—",
       storage: form.storage,
       status: computeStatus(stock, reorder, threshold),
+      officeId: form.officeId,
+      warehouseId: form.warehouseId,
     };
     setItems((prev) => [newItem, ...prev]);
     setNewItemOpen(false);
@@ -116,6 +132,8 @@ function Inventory() {
       batch: item.batch,
       expiry: item.expiry === "—" ? "" : item.expiry,
       storage: item.storage,
+      officeId: item.officeId ?? "OFF-001",
+      warehouseId: item.warehouseId ?? "WH-001",
     });
     setEditOpen(true);
   };
@@ -144,6 +162,8 @@ function Inventory() {
               expiry: form.expiry || "—",
               storage: form.storage,
               status: computeStatus(stock, reorder, threshold),
+              officeId: form.officeId,
+              warehouseId: form.warehouseId,
               lastEditedBy: role,
               lastEditedDate: date,
               lastEditedTime: time,
@@ -160,17 +180,16 @@ function Inventory() {
     setViewOpen(true);
   };
 
-  const deleteItem = (item: Item) => {
-    setItems((prev) => prev.filter((i) => i.id !== item.id));
-    toast.success(`${item.name} removed from inventory.`);
-  };
-
   const lowStockCount = items.filter((i) => i.status === "Low").length;
   const criticalCount = items.filter((i) => i.status === "Critical").length;
 
   const cols: Column<Item>[] = [
     { key: "id", header: "Code" },
     { key: "name", header: "Item" },
+    {
+      key: "officeId" as keyof Item, header: "Office / Warehouse",
+      render: (r) => <LocationCell officeId={r.officeId} warehouseId={r.warehouseId} />,
+    },
     { key: "category", header: "Category" },
     { key: "uom", header: "UOM" },
     {
@@ -185,6 +204,12 @@ function Inventory() {
     { key: "storage", header: "Storage" },
     { key: "status", header: "Status", render: (r) => <StatusBadge status={r.status} /> },
   ];
+
+  const filteredItems = items.filter((i) => {
+    if (filterOffice && i.officeId !== filterOffice) return false;
+    if (filterWarehouse && i.warehouseId !== filterWarehouse) return false;
+    return true;
+  });
 
   return (
     <>
@@ -213,19 +238,53 @@ function Inventory() {
         <KpiCard label="Cold Storage" value="62%" sub="Capacity used" icon={Snowflake} tone="success" />
       </div>
 
+      <div className="mb-4">
+        <LocationFilter
+          officeId={filterOffice}
+          warehouseId={filterWarehouse}
+          onChange={(n) => { setFilterOffice(n.officeId); setFilterWarehouse(n.warehouseId); }}
+        />
+      </div>
+
       <DataTable
         title="inventory"
-        data={items}
+        data={filteredItems}
         columns={cols}
         searchKeys={["name", "category", "batch", "status"]}
         actions={(row) => (
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <Button size="sm" className="bg-slate-600 hover:bg-slate-700 text-white h-7 px-2.5 text-xs" onClick={() => openView(row)}>View</Button>
-            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white h-7 px-2.5 text-xs" onClick={() => openEdit(row)}>Edit</Button>
+          <div className="flex items-center gap-1">
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              onClick={() => openView(row)}
+              aria-label={`View ${row.name}`}
+              title="View"
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8 text-muted-foreground hover:text-primary"
+              onClick={() => openEdit(row)}
+              aria-label={`Edit ${row.name}`}
+              title="Edit"
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
             {(row.status === "Low" || row.status === "Critical") && (
-              <Button size="sm" className="bg-amber-500 hover:bg-amber-600 text-white h-7 px-2.5 text-xs" onClick={() => toast.success(`Demand request created for ${row.name}.`)}>Create Demand</Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 text-warning-foreground hover:text-warning-foreground hover:bg-warning/15"
+                onClick={() => toast.success(`Demand request created for ${row.name}.`)}
+                aria-label={`Create demand for ${row.name}`}
+                title="Create Demand"
+              >
+                <FilePlus2 className="h-4 w-4" />
+              </Button>
             )}
-            <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white h-7 px-2.5 text-xs" onClick={() => deleteItem(row)}>Delete</Button>
           </div>
         )}
       />
@@ -286,6 +345,11 @@ function Inventory() {
                 {STORAGE_OPTIONS.map((s) => <option key={s}>{s}</option>)}
               </select>
             </div>
+            <LocationPicker
+              officeId={form.officeId}
+              warehouseId={form.warehouseId}
+              onChange={(n) => setForm((p) => ({ ...p, officeId: n.officeId, warehouseId: n.warehouseId }))}
+            />
           </div>
           <DialogFooter className="mt-2">
             <Button variant="outline" onClick={() => setNewItemOpen(false)}>Cancel</Button>
@@ -339,6 +403,11 @@ function Inventory() {
                 {STORAGE_OPTIONS.map((s) => <option key={s}>{s}</option>)}
               </select>
             </div>
+            <LocationPicker
+              officeId={form.officeId}
+              warehouseId={form.warehouseId}
+              onChange={(n) => setForm((p) => ({ ...p, officeId: n.officeId, warehouseId: n.warehouseId }))}
+            />
 
             {selected?.lastEditedBy && (
               <div className="col-span-2 border-t pt-3">

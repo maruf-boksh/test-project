@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -305,6 +305,7 @@ function getSampleMeals(): MealCard[] {
 }
 
 function MealPlanning() {
+  const navigate = useNavigate();
   const [meals, setMeals] = useState<MealCard[]>(getSampleMeals());
   const [selectedDay, setSelectedDay] = useState(DAYS[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1]);
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -481,7 +482,8 @@ function MealPlanning() {
     setForwardedTime(timestamp);
     setIsForwarded(true);
     setForwardConfirmOpen(false);
-    toast.success("Meal plan forwarded to Production successfully");
+    toast.success("Meal plan forwarded to Production — opening Production Entry");
+    navigate({ to: "/production-entry" });
   };
 
   const formatDateDDMMMYYYY = (dateStr: string) => {
@@ -1359,7 +1361,8 @@ function MealPlanning() {
                 setForwardedAt(now);
                 setOrderHistory((prev) => [...prev, { mealsOrdered: gmOrderData.totalMealsToday, orderedBy: "Current User", designation: "Meal Planner", date: todayFormatted, time: timeFormatted, period: "24-hour cycle" }]);
                 setDaySelectionOpen(false);
-                toast.success("Meal plan tagged and forwarded to Production");
+                toast.success("Meal plan tagged and forwarded to Production — opening Production Entry");
+                navigate({ to: "/production-entry" });
               }}
             >
               Forward to Production

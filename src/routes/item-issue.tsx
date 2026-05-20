@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import {
   Plus, PackageCheck, Clock, CheckCircle2, Send, Search, Trash2,
 } from "lucide-react";
@@ -18,6 +20,7 @@ import { toast } from "sonner";
 import { inventory } from "@/lib/sample-data";
 import { useWorkflow, type WfTransferNote, type WfDemandRequest } from "@/lib/workflow-store";
 import { useRole } from "@/lib/roles";
+import { LocationPicker, LocationFilter, LocationCell } from "@/components/common/LocationPicker";
 
 export const Route = createFileRoute("/item-issue")({
   head: () => ({ meta: [{ title: "Item Issue" }] }),
@@ -42,6 +45,8 @@ function ItemIssuePage() {
   const [selected, setSelected] = useState<WfTransferNote | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [preselectedDemand, setPreselectedDemand] = useState("");
+  const [filterOffice, setFilterOffice] = useState("");
+  const [filterWarehouse, setFilterWarehouse] = useState("");
 
   // Auto-open the create dialog when arriving with ?demand=<id>
   const consumedParam = useRef(false);
@@ -76,14 +81,10 @@ function ItemIssuePage() {
   };
 
   const totalCount = transferNotes.length;
-  const pendingCount = useMemo(
-    () => transferNotes.filter(t => t.status === "Pending").length,
-    [transferNotes],
-  );
-  const ackCount = totalCount - pendingCount;
+  const pendingCount = pendingDemands.length;
+  const ackCount = transferNotes.filter((t) => t.status === "Issued").length;
 
   const cols: Column<WfTransferNote>[] = [
-    { key: "id", header: "TN #" },
     {
       key: "demandRef", header: "Demand Ref",
       render: (t) => {
@@ -97,6 +98,10 @@ function ItemIssuePage() {
         );
       },
     },
+    {
+      key: "officeId" as keyof WfTransferNote, header: "Office / Warehouse",
+      render: (t) => <LocationCell officeId={t.officeId} warehouseId={t.warehouseId} />,
+    },
     { key: "from", header: "From" },
     { key: "to",   header: "To" },
     {
@@ -108,6 +113,12 @@ function ItemIssuePage() {
     { key: "status",   header: "Status", render: (t) => <StatusBadge status={t.status} /> },
   ];
 
+  const filteredIssued = transferNotes.filter((t) => {
+    if (filterOffice && t.officeId !== filterOffice) return false;
+    if (filterWarehouse && t.warehouseId !== filterWarehouse) return false;
+    return true;
+  });
+
   const handleAcknowledge = (id: string) => {
     acknowledgeTransfer(id);
     setSelected(prev => prev && prev.id === id ? { ...prev, status: "Issued" } : prev);
@@ -118,6 +129,8 @@ function ItemIssuePage() {
     toSection: string;
     issuedBy: string;
     demandRef: string;
+    officeId: string;
+    warehouseId: string;
     items: IssueItem[];
   }) => {
     const tn: WfTransferNote = {
@@ -129,7 +142,9 @@ function ItemIssuePage() {
       to: data.toSection,
       issuedBy: data.issuedBy.trim(),
       date: new Date().toLocaleString(),
-      status: "Pending",
+      status: "Issued",
+      officeId: data.officeId,
+      warehouseId: data.warehouseId,
     };
     addTransferNote(tn);
 
@@ -179,79 +194,133 @@ function ItemIssuePage() {
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <KpiCard label="Total Issues"           value={totalCount}   icon={PackageCheck} tone="navy"    />
-        <KpiCard label="Pending" value={pendingCount} icon={Clock}        tone="warning" />
-        <KpiCard label="Issued"  value={ackCount}     icon={CheckCircle2} tone="success" />
+        <KpiCard label="Total Issues"    value={totalCount}   icon={PackageCheck} tone="navy"    />
+        <KpiCard label="Pending Demands" value={pendingCount} icon={Clock}        tone="warning" />
+        <KpiCard label="Issued"          value={ackCount}     icon={CheckCircle2} tone="success" />
       </div>
 
-      {pendingDemands.length > 0 && (
-        <Card className="mb-6">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">
-              Pending Demands{" "}
-              <span className="ml-1 text-xs font-normal text-muted-foreground">
-                ({pendingDemands.length} awaiting issuance)
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="border border-border rounded-md overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/40">
-                  <tr>
-                    <th className="text-left px-3 py-2 text-[10px] uppercase tracking-wider">Demand #</th>
-                    <th className="text-left px-3 py-2 text-[10px] uppercase tracking-wider">Date</th>
-                    <th className="text-left px-3 py-2 text-[10px] uppercase tracking-wider">Requested By</th>
-                    <th className="text-left px-3 py-2 text-[10px] uppercase tracking-wider">From</th>
-                    <th className="text-right px-3 py-2 text-[10px] uppercase tracking-wider">Items</th>
-                    <th className="text-left px-3 py-2 text-[10px] uppercase tracking-wider">Status</th>
-                    <th className="px-3 py-2 w-32" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {pendingDemands.map((d) => (
-                    <tr key={d.id} className="border-t border-border hover:bg-muted/20">
-                      <td className="px-3 py-2 font-medium font-mono text-xs">{d.id}</td>
-                      <td className="px-3 py-2">{d.date}</td>
-                      <td className="px-3 py-2">{d.requestedBy}</td>
-                      <td className="px-3 py-2 text-muted-foreground">{d.role}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{d.items.length}</td>
-                      <td className="px-3 py-2"><StatusBadge status={d.status} /></td>
-                      <td className="px-3 py-2 text-right">
-                        <Button
-                          size="sm"
-                          onClick={() => openIssueForDemand(d.id)}
-                          className="h-7 px-3 text-xs"
-                        >
-                          <Send className="h-3 w-3 mr-1" /> Issue Items
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <DataTable
-        title="item-issue"
-        data={transferNotes}
-        columns={cols}
-        searchKeys={["id", "demandRef", "to", "issuedBy", "status"]}
-        selectable={false}
-        actions={(t) => (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 px-2.5 text-xs"
-            onClick={() => setSelected(t)}
+      <Tabs defaultValue={pendingDemands.length > 0 ? "pending" : "issued"} className="space-y-4">
+        <TabsList className="h-auto bg-transparent p-0 border-b border-border w-full justify-start rounded-none">
+          <TabsTrigger
+            value="pending"
+            className="text-xs uppercase tracking-wider rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none px-4 pb-3 gap-2"
           >
-            View
-          </Button>
-        )}
-      />
+            Pending Demands
+            {pendingDemands.length > 0 && (
+              <Badge
+                variant="outline"
+                className="h-5 px-1.5 text-[10px] tabular-nums border-warning/40 bg-warning/10 text-warning"
+              >
+                {pendingDemands.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger
+            value="issued"
+            className="text-xs uppercase tracking-wider rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none px-4 pb-3 gap-2"
+          >
+            Issued Items
+            {transferNotes.length > 0 && (
+              <Badge
+                variant="outline"
+                className="h-5 px-1.5 text-[10px] tabular-nums border-border bg-muted/40 text-muted-foreground"
+              >
+                {transferNotes.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="pending" className="mt-0">
+          {pendingDemands.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <PackageCheck className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
+                <div className="text-sm font-medium text-foreground">No pending demands</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  All demand requests have been fully issued.
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">
+                  Pending Demands{" "}
+                  <span className="ml-1 text-xs font-normal text-muted-foreground">
+                    ({pendingDemands.length} awaiting issuance)
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="border border-border rounded-md overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/40">
+                      <tr>
+                        <th className="text-left px-3 py-2 text-[10px] uppercase tracking-wider">Demand #</th>
+                        <th className="text-left px-3 py-2 text-[10px] uppercase tracking-wider">Date</th>
+                        <th className="text-left px-3 py-2 text-[10px] uppercase tracking-wider">Requested By</th>
+                        <th className="text-left px-3 py-2 text-[10px] uppercase tracking-wider">From</th>
+                        <th className="text-right px-3 py-2 text-[10px] uppercase tracking-wider">Items</th>
+                        <th className="text-left px-3 py-2 text-[10px] uppercase tracking-wider">Status</th>
+                        <th className="px-3 py-2 w-32" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingDemands.map((d) => (
+                        <tr key={d.id} className="border-t border-border hover:bg-muted/20">
+                          <td className="px-3 py-2 font-medium font-mono text-xs">{d.id}</td>
+                          <td className="px-3 py-2">{d.date}</td>
+                          <td className="px-3 py-2">{d.requestedBy}</td>
+                          <td className="px-3 py-2 text-muted-foreground">{d.role}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{d.items.length}</td>
+                          <td className="px-3 py-2"><StatusBadge status={d.status} /></td>
+                          <td className="px-3 py-2 text-right">
+                            <Button
+                              size="sm"
+                              onClick={() => openIssueForDemand(d.id)}
+                              className="h-7 px-3 text-xs"
+                            >
+                              <Send className="h-3 w-3 mr-1" /> Issue Items
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="issued" className="mt-0">
+          <div className="mb-4">
+            <LocationFilter
+              officeId={filterOffice}
+              warehouseId={filterWarehouse}
+              onChange={(n) => { setFilterOffice(n.officeId); setFilterWarehouse(n.warehouseId); }}
+            />
+          </div>
+          <DataTable
+            title="item-issue"
+            data={filteredIssued}
+            columns={cols}
+            searchKeys={["id", "demandRef", "to", "issuedBy", "status"]}
+            selectable={false}
+            actions={(t) => (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2.5 text-xs"
+                onClick={() => setSelected(t)}
+              >
+                View
+              </Button>
+            )}
+          />
+        </TabsContent>
+      </Tabs>
 
       <IssueDetailsDialog
         note={selected}
@@ -359,12 +428,16 @@ function CreateIssueDialog({
     toSection: string;
     issuedBy: string;
     demandRef: string;
+    officeId: string;
+    warehouseId: string;
     items: IssueItem[];
   }) => void;
 }) {
   const [toSection, setToSection] = useState<string>(KITCHEN_SECTIONS[0]);
   const [issuedBy, setIssuedBy] = useState<string>(defaultIssuedBy);
   const [demandId, setDemandId] = useState(defaultDemandId);
+  const [officeId, setOfficeId] = useState("OFF-001");
+  const [warehouseId, setWarehouseId] = useState("WH-001");
   const [search, setSearch] = useState("");
   const [issuedMap, setIssuedMap] = useState<Record<string, string>>({});
 
@@ -472,6 +545,8 @@ function CreateIssueDialog({
 
   const handleSubmit = () => {
     if (!issuedBy.trim()) { toast.error("Issued By is required."); return; }
+    if (!officeId) { toast.error("Office is required."); return; }
+    if (!warehouseId) { toast.error("Warehouse is required."); return; }
     const idsInScope = selectedDemand
       ? selectedDemand.items.map((i) => i.id)
       : manualIds;
@@ -488,7 +563,7 @@ function CreateIssueDialog({
       );
       return;
     }
-    onCreate({ toSection, issuedBy, demandRef: demandId, items });
+    onCreate({ toSection, issuedBy, demandRef: demandId, officeId, warehouseId, items });
   };
 
   return (
@@ -515,9 +590,11 @@ function CreateIssueDialog({
               <Label>Issued By <span className="text-destructive">*</span></Label>
               <Input
                 value={issuedBy}
-                onChange={(e) => setIssuedBy(e.target.value)}
-                placeholder="Name"
-                className="mt-1"
+                readOnly
+                tabIndex={-1}
+                aria-readonly
+                title="Auto-filled from your logged-in role"
+                className="mt-1 bg-muted/60 cursor-not-allowed text-muted-foreground"
               />
             </div>
 
@@ -538,6 +615,11 @@ function CreateIssueDialog({
                   ))}
               </select>
             </div>
+            <LocationPicker
+              officeId={officeId}
+              warehouseId={warehouseId}
+              onChange={(n) => { setOfficeId(n.officeId); setWarehouseId(n.warehouseId); }}
+            />
           </div>
         </div>
 

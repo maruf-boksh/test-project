@@ -4,6 +4,8 @@ import {
   Package, Boxes, ShoppingCart, ShieldCheck, Wrench, BarChart3, Users, ScrollText,
   ChevronDown, Factory, Truck, Pill, ThermometerSun, ClipboardCheck,
   Layers, FileText, SlidersHorizontal, Wallet, Receipt, BadgeCheck, PieChart, Send,
+  Settings, Tag, Building2, Warehouse, BadgeDollarSign, GitBranch, Plane,
+  ArrowLeftRight, MoveRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRole, ROLE_PERMS } from "@/lib/roles";
@@ -25,9 +27,6 @@ const NAV: Entry[] = [
       { key: "inventory-bom", to: "/bom", label: "Bill of Materials", icon: Layers },
       { key: "production-entry", to: "/production-entry", label: "Production Entry", icon: ClipboardCheck },
       { key: "production-reports", to: "/production-reports", label: "Production Reports", icon: BarChart3 },
-      { key: "production-kitchen", to: "/kitchen", label: "Flight Kitchen", icon: ChefHat },
-      { key: "production-bakery", to: "/bakery", label: "Bakery", icon: Croissant },
-      { key: "production-amenities", to: "/amenities", label: "Amenities", icon: Pill },
     ],
   },
   {
@@ -37,6 +36,8 @@ const NAV: Entry[] = [
     items: [
       { key: "inventory-demand", to: "/demand-orders", label: "Demand Requests", icon: FileText },
       { key: "inventory-issue", to: "/item-issue", label: "Item Issue", icon: Send },
+      { key: "inventory-transfer-request", to: "/transfer-request", label: "Transfer Request", icon: ArrowLeftRight },
+      { key: "inventory-transfer", to: "/transfer", label: "Transfer", icon: MoveRight },
       { key: "inventory-stock", to: "/inventory", label: "Stock Overview", icon: Package },
       { key: "inventory-adjustment", to: "/stock-adjustment", label: "Stock Adjustment", icon: SlidersHorizontal },
     ],
@@ -76,6 +77,22 @@ const NAV: Entry[] = [
   { key: "reports", to: "/reports", label: "Reports", icon: BarChart3 },
   { key: "users", to: "/users", label: "User Management", icon: Users },
   { key: "audit", to: "/audit", label: "Audit Logs", icon: ScrollText },
+  { key: "approval-management", to: "/approval-management", label: "Approval Management", icon: BadgeCheck },
+  {
+    key: "config",
+    label: "Configuration",
+    icon: Settings,
+    items: [
+      { key: "config-item",      to: "/config-item",      label: "Item Profile",         icon: Tag },
+      { key: "config-supplier",  to: "/config-supplier",  label: "Supplier Profile",     icon: Truck },
+      { key: "config-company",   to: "/config-company",   label: "Company Profile",      icon: Building2 },
+      { key: "config-airline",   to: "/config-airline",   label: "Airline",              icon: Plane },
+      { key: "config-office",    to: "/config-office",    label: "Office",               icon: Building2 },
+      { key: "config-warehouse", to: "/config-warehouse", label: "Warehouse",            icon: Warehouse },
+      { key: "config-price",     to: "/config-price",     label: "Price Setup",          icon: BadgeDollarSign },
+      { key: "config-approval",  to: "/config-approval",  label: "Approval Setup",       icon: GitBranch },
+    ],
+  },
 ];
 
 function isGroup(e: Entry): e is Group {

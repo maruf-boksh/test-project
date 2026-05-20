@@ -38,6 +38,8 @@ export type WfDemandRequest = {
   note: string;
   source: string;           // "Kitchen" | "Store"
   grnRef?: string;          // set when a GRN fulfils this demand
+  officeId?: string;
+  warehouseId?: string;
 };
 
 export type WfRequisition = {
@@ -51,6 +53,8 @@ export type WfRequisition = {
   note: string;
   demandRef: string;        // WfDemandRequest.id
   demandItems?: WfDemandItem[];
+  officeId?: string;
+  warehouseId?: string;
 };
 
 export type WfPOLineItem = {
@@ -74,6 +78,8 @@ export type WfPurchaseOrder = {
   issuedToVendor?: boolean;
   lineItems?: WfPOLineItem[];
   rejectionReason?: string;
+  officeId?: string;
+  warehouseId?: string;
 };
 
 export type WfTransferNote = {
@@ -86,6 +92,8 @@ export type WfTransferNote = {
   issuedBy: string;
   date: string;
   status: WfTransferStatus;
+  officeId?: string;
+  warehouseId?: string;
 };
 
 export type WfGRNLine = {
@@ -106,9 +114,36 @@ export type WfGRN = {
   date: string;
   lines: WfGRNLine[];
   linkedDemandRef?: string;
+  officeId?: string;
+  warehouseId?: string;
 };
 
 export type StockDelta = { itemId: string; delta: number };
+
+// ── Production Entry workflow ─────────────────────────────────────────────────
+export type WfProductionEntryStatus =
+  | "Pending"
+  | "Approved"
+  | "In Preparation"
+  | "Ready for QC"
+  | "Completed";
+
+export type WfProductionEntry = {
+  id: string;
+  date: string;
+  bom: string;
+  outputItemName?: string;
+  outputItemCode?: string;
+  producedQty: number;
+  status: WfProductionEntryStatus;
+  qcLogId?: string;
+  qcPassedAt?: string;
+  qcCheckedBy?: string;
+  completedAt?: string;
+  inventoryAdded?: boolean;
+  officeId?: string;
+  warehouseId?: string;
+};
 
 // ── Context type ───────────────────────────────────────────────────────────────
 type WorkflowCtx = {
@@ -137,6 +172,14 @@ type WorkflowCtx = {
   prdStatuses: Record<string, string>;
   prdProgress: Record<string, number>;
   setPRDStatus: (id: string, status: string, progress: number) => void;
+
+  productionEntries: WfProductionEntry[];
+  addProductionEntry: (entry: WfProductionEntry) => void;
+  updateProductionEntryStatus: (
+    id: string,
+    status: WfProductionEntryStatus,
+    extra?: Partial<WfProductionEntry>,
+  ) => void;
 };
 
 const WorkflowContext = createContext<WorkflowCtx>({
@@ -147,6 +190,7 @@ const WorkflowContext = createContext<WorkflowCtx>({
   transferNotes: [], addTransferNote: () => {}, acknowledgeTransfer: () => {},
   stockDeltas: [], applyStockDeltas: () => {},
   prdStatuses: {}, prdProgress: {}, setPRDStatus: () => {},
+  productionEntries: [], addProductionEntry: () => {}, updateProductionEntryStatus: () => {},
 });
 
 // ── Provider ───────────────────────────────────────────────────────────────────
@@ -162,6 +206,8 @@ export function WorkflowProvider({ children }: { children: ReactNode }) {
       items: d.items.map(i => ({ ...i })),
       note: d.note,
       source: "Kitchen",
+      officeId: "OFF-001",
+      warehouseId: "WH-003",
     }))
   );
 
@@ -176,6 +222,8 @@ export function WorkflowProvider({ children }: { children: ReactNode }) {
       items: r.items,
       note: r.note,
       demandRef: r.reference,
+      officeId: "OFF-001",
+      warehouseId: "WH-001",
     }))
   );
 
@@ -188,6 +236,8 @@ export function WorkflowProvider({ children }: { children: ReactNode }) {
       date: p.date,
       status: p.status as WfPOStatus,
       requisitionRef: "",
+      officeId: "OFF-001",
+      warehouseId: "WH-001",
     }))
   );
 
@@ -206,6 +256,8 @@ export function WorkflowProvider({ children }: { children: ReactNode }) {
       issuedBy: "S. Ahmed",
       date: "2026-05-18 14:30",
       status: "Issued",
+      officeId: "OFF-001",
+      warehouseId: "WH-003",
     },
     {
       id: "TN-50002",
@@ -219,7 +271,9 @@ export function WorkflowProvider({ children }: { children: ReactNode }) {
       to: "Cold Kitchen",
       issuedBy: "M. Hossain",
       date: "2026-05-19 09:15",
-      status: "Pending",
+      status: "Issued",
+      officeId: "OFF-001",
+      warehouseId: "WH-004",
     },
     {
       id: "TN-50003",
@@ -232,12 +286,24 @@ export function WorkflowProvider({ children }: { children: ReactNode }) {
       to: "Bakery",
       issuedBy: "F. Begum",
       date: "2026-05-19 11:40",
-      status: "Pending",
+      status: "Issued",
+      officeId: "OFF-001",
+      warehouseId: "WH-001",
     },
   ]);
   const [stockDeltas, setStockDeltas] = useState<StockDelta[]>([]);
   const [prdStatuses, setPrdStatuses] = useState<Record<string, string>>({});
   const [prdProgress, setPrdProgress] = useState<Record<string, number>>({});
+  const [productionEntries, setProductionEntries] = useState<WfProductionEntry[]>([
+    { id: "PE-2026-000031", date: "2026-05-19", bom: "Chicken Biryani",       outputItemName: "Chicken Biryani",      producedQty: 280, status: "In Preparation", officeId: "OFF-001", warehouseId: "WH-003" },
+    { id: "PE-2026-000030", date: "2026-05-18", bom: "Continental Breakfast", outputItemName: "Continental Breakfast", producedQty: 150, status: "Ready for QC",   officeId: "OFF-001", warehouseId: "WH-003" },
+    { id: "PE-2026-000029", date: "2026-05-17", bom: "Veg Pulao",             outputItemName: "Veg Pulao",            producedQty: 320, status: "Approved",        officeId: "OFF-001", warehouseId: "WH-003" },
+    { id: "PE-2026-000028", date: "2026-05-12", bom: "Chicken Biryani",       outputItemName: "Chicken Biryani",      producedQty: 250, status: "Completed",      qcCheckedBy: "Hygiene Lead", qcPassedAt: "2026-05-12 16:20", completedAt: "2026-05-12 16:22", inventoryAdded: true, officeId: "OFF-001", warehouseId: "WH-003" },
+    { id: "PE-2026-000025", date: "2026-05-10", bom: "Veg Pulao",             outputItemName: "Veg Pulao",            producedQty: 180, status: "Completed",      qcCheckedBy: "F. Begum",     qcPassedAt: "2026-05-10 14:05", completedAt: "2026-05-10 14:07", inventoryAdded: true, officeId: "OFF-001", warehouseId: "WH-004" },
+    { id: "PE-2026-000022", date: "2026-05-08", bom: "Continental Breakfast", outputItemName: "Continental Breakfast", producedQty: 220, status: "Completed",      qcCheckedBy: "T. Islam",     qcPassedAt: "2026-05-08 09:40", completedAt: "2026-05-08 09:42", inventoryAdded: true, officeId: "OFF-001", warehouseId: "WH-003" },
+    { id: "PE-2026-000019", date: "2026-05-05", bom: "Grilled Salmon",        outputItemName: "Grilled Salmon",       producedQty: 130, status: "Completed",      qcCheckedBy: "Hygiene Lead", qcPassedAt: "2026-05-05 12:30", completedAt: "2026-05-05 12:31", inventoryAdded: true, officeId: "OFF-001", warehouseId: "WH-004" },
+    { id: "PE-2026-000016", date: "2026-05-02", bom: "Hindu Meal Special",    outputItemName: "Hindu Meal Special",   producedQty:  80, status: "Pending",         officeId: "OFF-001", warehouseId: "WH-003" },
+  ]);
 
   return (
     <WorkflowContext.Provider value={{
@@ -266,6 +332,11 @@ export function WorkflowProvider({ children }: { children: ReactNode }) {
 
       stockDeltas,
       applyStockDeltas: (deltas) => setStockDeltas(prev => [...prev, ...deltas]),
+
+      productionEntries,
+      addProductionEntry: (entry) => setProductionEntries(prev => [entry, ...prev]),
+      updateProductionEntryStatus: (id, status, extra) =>
+        setProductionEntries(prev => prev.map(e => e.id === id ? { ...e, status, ...extra } : e)),
 
       prdStatuses, prdProgress,
       setPRDStatus: (id, status, progress) => {

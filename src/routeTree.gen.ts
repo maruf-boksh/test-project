@@ -10,6 +10,8 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UsersRouteImport } from './routes/users'
+import { Route as TransferRequestRouteImport } from './routes/transfer-request'
+import { Route as TransferRouteImport } from './routes/transfer'
 import { Route as StockAdjustmentRouteImport } from './routes/stock-adjustment'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as ReceiveItemRouteImport } from './routes/receive-item'
@@ -28,9 +30,18 @@ import { Route as DispatchMonitoringRouteImport } from './routes/dispatch-monito
 import { Route as DispatchRouteImport } from './routes/dispatch'
 import { Route as DemandOrdersRouteImport } from './routes/demand-orders'
 import { Route as CookingTempRouteImport } from './routes/cooking-temp'
+import { Route as ConfigWarehouseRouteImport } from './routes/config-warehouse'
+import { Route as ConfigSupplierRouteImport } from './routes/config-supplier'
+import { Route as ConfigPriceRouteImport } from './routes/config-price'
+import { Route as ConfigOfficeRouteImport } from './routes/config-office'
+import { Route as ConfigItemRouteImport } from './routes/config-item'
+import { Route as ConfigCompanyRouteImport } from './routes/config-company'
+import { Route as ConfigApprovalRouteImport } from './routes/config-approval'
+import { Route as ConfigAirlineRouteImport } from './routes/config-airline'
 import { Route as BomRouteImport } from './routes/bom'
 import { Route as BakeryRouteImport } from './routes/bakery'
 import { Route as AuditRouteImport } from './routes/audit'
+import { Route as ApprovalManagementRouteImport } from './routes/approval-management'
 import { Route as AmenitiesRouteImport } from './routes/amenities'
 import { Route as AccountsInvoicesRouteImport } from './routes/accounts-invoices'
 import { Route as AccountsExpensesRouteImport } from './routes/accounts-expenses'
@@ -41,6 +52,16 @@ import { Route as IndexRouteImport } from './routes/index'
 const UsersRoute = UsersRouteImport.update({
   id: '/users',
   path: '/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TransferRequestRoute = TransferRequestRouteImport.update({
+  id: '/transfer-request',
+  path: '/transfer-request',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TransferRoute = TransferRouteImport.update({
+  id: '/transfer',
+  path: '/transfer',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StockAdjustmentRoute = StockAdjustmentRouteImport.update({
@@ -133,6 +154,46 @@ const CookingTempRoute = CookingTempRouteImport.update({
   path: '/cooking-temp',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ConfigWarehouseRoute = ConfigWarehouseRouteImport.update({
+  id: '/config-warehouse',
+  path: '/config-warehouse',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfigSupplierRoute = ConfigSupplierRouteImport.update({
+  id: '/config-supplier',
+  path: '/config-supplier',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfigPriceRoute = ConfigPriceRouteImport.update({
+  id: '/config-price',
+  path: '/config-price',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfigOfficeRoute = ConfigOfficeRouteImport.update({
+  id: '/config-office',
+  path: '/config-office',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfigItemRoute = ConfigItemRouteImport.update({
+  id: '/config-item',
+  path: '/config-item',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfigCompanyRoute = ConfigCompanyRouteImport.update({
+  id: '/config-company',
+  path: '/config-company',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfigApprovalRoute = ConfigApprovalRouteImport.update({
+  id: '/config-approval',
+  path: '/config-approval',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfigAirlineRoute = ConfigAirlineRouteImport.update({
+  id: '/config-airline',
+  path: '/config-airline',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BomRoute = BomRouteImport.update({
   id: '/bom',
   path: '/bom',
@@ -146,6 +207,11 @@ const BakeryRoute = BakeryRouteImport.update({
 const AuditRoute = AuditRouteImport.update({
   id: '/audit',
   path: '/audit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApprovalManagementRoute = ApprovalManagementRouteImport.update({
+  id: '/approval-management',
+  path: '/approval-management',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AmenitiesRoute = AmenitiesRouteImport.update({
@@ -186,9 +252,18 @@ export interface FileRoutesByFullPath {
   '/accounts-expenses': typeof AccountsExpensesRoute
   '/accounts-invoices': typeof AccountsInvoicesRoute
   '/amenities': typeof AmenitiesRoute
+  '/approval-management': typeof ApprovalManagementRoute
   '/audit': typeof AuditRoute
   '/bakery': typeof BakeryRoute
   '/bom': typeof BomRoute
+  '/config-airline': typeof ConfigAirlineRoute
+  '/config-approval': typeof ConfigApprovalRoute
+  '/config-company': typeof ConfigCompanyRoute
+  '/config-item': typeof ConfigItemRoute
+  '/config-office': typeof ConfigOfficeRoute
+  '/config-price': typeof ConfigPriceRoute
+  '/config-supplier': typeof ConfigSupplierRoute
+  '/config-warehouse': typeof ConfigWarehouseRoute
   '/cooking-temp': typeof CookingTempRoute
   '/demand-orders': typeof DemandOrdersRoute
   '/dispatch': typeof DispatchRoute
@@ -207,6 +282,8 @@ export interface FileRoutesByFullPath {
   '/receive-item': typeof ReceiveItemRoute
   '/reports': typeof ReportsRoute
   '/stock-adjustment': typeof StockAdjustmentRoute
+  '/transfer': typeof TransferRoute
+  '/transfer-request': typeof TransferRequestRoute
   '/users': typeof UsersRoute
 }
 export interface FileRoutesByTo {
@@ -216,9 +293,18 @@ export interface FileRoutesByTo {
   '/accounts-expenses': typeof AccountsExpensesRoute
   '/accounts-invoices': typeof AccountsInvoicesRoute
   '/amenities': typeof AmenitiesRoute
+  '/approval-management': typeof ApprovalManagementRoute
   '/audit': typeof AuditRoute
   '/bakery': typeof BakeryRoute
   '/bom': typeof BomRoute
+  '/config-airline': typeof ConfigAirlineRoute
+  '/config-approval': typeof ConfigApprovalRoute
+  '/config-company': typeof ConfigCompanyRoute
+  '/config-item': typeof ConfigItemRoute
+  '/config-office': typeof ConfigOfficeRoute
+  '/config-price': typeof ConfigPriceRoute
+  '/config-supplier': typeof ConfigSupplierRoute
+  '/config-warehouse': typeof ConfigWarehouseRoute
   '/cooking-temp': typeof CookingTempRoute
   '/demand-orders': typeof DemandOrdersRoute
   '/dispatch': typeof DispatchRoute
@@ -237,6 +323,8 @@ export interface FileRoutesByTo {
   '/receive-item': typeof ReceiveItemRoute
   '/reports': typeof ReportsRoute
   '/stock-adjustment': typeof StockAdjustmentRoute
+  '/transfer': typeof TransferRoute
+  '/transfer-request': typeof TransferRequestRoute
   '/users': typeof UsersRoute
 }
 export interface FileRoutesById {
@@ -247,9 +335,18 @@ export interface FileRoutesById {
   '/accounts-expenses': typeof AccountsExpensesRoute
   '/accounts-invoices': typeof AccountsInvoicesRoute
   '/amenities': typeof AmenitiesRoute
+  '/approval-management': typeof ApprovalManagementRoute
   '/audit': typeof AuditRoute
   '/bakery': typeof BakeryRoute
   '/bom': typeof BomRoute
+  '/config-airline': typeof ConfigAirlineRoute
+  '/config-approval': typeof ConfigApprovalRoute
+  '/config-company': typeof ConfigCompanyRoute
+  '/config-item': typeof ConfigItemRoute
+  '/config-office': typeof ConfigOfficeRoute
+  '/config-price': typeof ConfigPriceRoute
+  '/config-supplier': typeof ConfigSupplierRoute
+  '/config-warehouse': typeof ConfigWarehouseRoute
   '/cooking-temp': typeof CookingTempRoute
   '/demand-orders': typeof DemandOrdersRoute
   '/dispatch': typeof DispatchRoute
@@ -268,6 +365,8 @@ export interface FileRoutesById {
   '/receive-item': typeof ReceiveItemRoute
   '/reports': typeof ReportsRoute
   '/stock-adjustment': typeof StockAdjustmentRoute
+  '/transfer': typeof TransferRoute
+  '/transfer-request': typeof TransferRequestRoute
   '/users': typeof UsersRoute
 }
 export interface FileRouteTypes {
@@ -279,9 +378,18 @@ export interface FileRouteTypes {
     | '/accounts-expenses'
     | '/accounts-invoices'
     | '/amenities'
+    | '/approval-management'
     | '/audit'
     | '/bakery'
     | '/bom'
+    | '/config-airline'
+    | '/config-approval'
+    | '/config-company'
+    | '/config-item'
+    | '/config-office'
+    | '/config-price'
+    | '/config-supplier'
+    | '/config-warehouse'
     | '/cooking-temp'
     | '/demand-orders'
     | '/dispatch'
@@ -300,6 +408,8 @@ export interface FileRouteTypes {
     | '/receive-item'
     | '/reports'
     | '/stock-adjustment'
+    | '/transfer'
+    | '/transfer-request'
     | '/users'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -309,9 +419,18 @@ export interface FileRouteTypes {
     | '/accounts-expenses'
     | '/accounts-invoices'
     | '/amenities'
+    | '/approval-management'
     | '/audit'
     | '/bakery'
     | '/bom'
+    | '/config-airline'
+    | '/config-approval'
+    | '/config-company'
+    | '/config-item'
+    | '/config-office'
+    | '/config-price'
+    | '/config-supplier'
+    | '/config-warehouse'
     | '/cooking-temp'
     | '/demand-orders'
     | '/dispatch'
@@ -330,6 +449,8 @@ export interface FileRouteTypes {
     | '/receive-item'
     | '/reports'
     | '/stock-adjustment'
+    | '/transfer'
+    | '/transfer-request'
     | '/users'
   id:
     | '__root__'
@@ -339,9 +460,18 @@ export interface FileRouteTypes {
     | '/accounts-expenses'
     | '/accounts-invoices'
     | '/amenities'
+    | '/approval-management'
     | '/audit'
     | '/bakery'
     | '/bom'
+    | '/config-airline'
+    | '/config-approval'
+    | '/config-company'
+    | '/config-item'
+    | '/config-office'
+    | '/config-price'
+    | '/config-supplier'
+    | '/config-warehouse'
     | '/cooking-temp'
     | '/demand-orders'
     | '/dispatch'
@@ -360,6 +490,8 @@ export interface FileRouteTypes {
     | '/receive-item'
     | '/reports'
     | '/stock-adjustment'
+    | '/transfer'
+    | '/transfer-request'
     | '/users'
   fileRoutesById: FileRoutesById
 }
@@ -370,9 +502,18 @@ export interface RootRouteChildren {
   AccountsExpensesRoute: typeof AccountsExpensesRoute
   AccountsInvoicesRoute: typeof AccountsInvoicesRoute
   AmenitiesRoute: typeof AmenitiesRoute
+  ApprovalManagementRoute: typeof ApprovalManagementRoute
   AuditRoute: typeof AuditRoute
   BakeryRoute: typeof BakeryRoute
   BomRoute: typeof BomRoute
+  ConfigAirlineRoute: typeof ConfigAirlineRoute
+  ConfigApprovalRoute: typeof ConfigApprovalRoute
+  ConfigCompanyRoute: typeof ConfigCompanyRoute
+  ConfigItemRoute: typeof ConfigItemRoute
+  ConfigOfficeRoute: typeof ConfigOfficeRoute
+  ConfigPriceRoute: typeof ConfigPriceRoute
+  ConfigSupplierRoute: typeof ConfigSupplierRoute
+  ConfigWarehouseRoute: typeof ConfigWarehouseRoute
   CookingTempRoute: typeof CookingTempRoute
   DemandOrdersRoute: typeof DemandOrdersRoute
   DispatchRoute: typeof DispatchRoute
@@ -391,6 +532,8 @@ export interface RootRouteChildren {
   ReceiveItemRoute: typeof ReceiveItemRoute
   ReportsRoute: typeof ReportsRoute
   StockAdjustmentRoute: typeof StockAdjustmentRoute
+  TransferRoute: typeof TransferRoute
+  TransferRequestRoute: typeof TransferRequestRoute
   UsersRoute: typeof UsersRoute
 }
 
@@ -401,6 +544,20 @@ declare module '@tanstack/react-router' {
       path: '/users'
       fullPath: '/users'
       preLoaderRoute: typeof UsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/transfer-request': {
+      id: '/transfer-request'
+      path: '/transfer-request'
+      fullPath: '/transfer-request'
+      preLoaderRoute: typeof TransferRequestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/transfer': {
+      id: '/transfer'
+      path: '/transfer'
+      fullPath: '/transfer'
+      preLoaderRoute: typeof TransferRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/stock-adjustment': {
@@ -529,6 +686,62 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CookingTempRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/config-warehouse': {
+      id: '/config-warehouse'
+      path: '/config-warehouse'
+      fullPath: '/config-warehouse'
+      preLoaderRoute: typeof ConfigWarehouseRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/config-supplier': {
+      id: '/config-supplier'
+      path: '/config-supplier'
+      fullPath: '/config-supplier'
+      preLoaderRoute: typeof ConfigSupplierRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/config-price': {
+      id: '/config-price'
+      path: '/config-price'
+      fullPath: '/config-price'
+      preLoaderRoute: typeof ConfigPriceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/config-office': {
+      id: '/config-office'
+      path: '/config-office'
+      fullPath: '/config-office'
+      preLoaderRoute: typeof ConfigOfficeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/config-item': {
+      id: '/config-item'
+      path: '/config-item'
+      fullPath: '/config-item'
+      preLoaderRoute: typeof ConfigItemRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/config-company': {
+      id: '/config-company'
+      path: '/config-company'
+      fullPath: '/config-company'
+      preLoaderRoute: typeof ConfigCompanyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/config-approval': {
+      id: '/config-approval'
+      path: '/config-approval'
+      fullPath: '/config-approval'
+      preLoaderRoute: typeof ConfigApprovalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/config-airline': {
+      id: '/config-airline'
+      path: '/config-airline'
+      fullPath: '/config-airline'
+      preLoaderRoute: typeof ConfigAirlineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/bom': {
       id: '/bom'
       path: '/bom'
@@ -548,6 +761,13 @@ declare module '@tanstack/react-router' {
       path: '/audit'
       fullPath: '/audit'
       preLoaderRoute: typeof AuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/approval-management': {
+      id: '/approval-management'
+      path: '/approval-management'
+      fullPath: '/approval-management'
+      preLoaderRoute: typeof ApprovalManagementRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/amenities': {
@@ -602,9 +822,18 @@ const rootRouteChildren: RootRouteChildren = {
   AccountsExpensesRoute: AccountsExpensesRoute,
   AccountsInvoicesRoute: AccountsInvoicesRoute,
   AmenitiesRoute: AmenitiesRoute,
+  ApprovalManagementRoute: ApprovalManagementRoute,
   AuditRoute: AuditRoute,
   BakeryRoute: BakeryRoute,
   BomRoute: BomRoute,
+  ConfigAirlineRoute: ConfigAirlineRoute,
+  ConfigApprovalRoute: ConfigApprovalRoute,
+  ConfigCompanyRoute: ConfigCompanyRoute,
+  ConfigItemRoute: ConfigItemRoute,
+  ConfigOfficeRoute: ConfigOfficeRoute,
+  ConfigPriceRoute: ConfigPriceRoute,
+  ConfigSupplierRoute: ConfigSupplierRoute,
+  ConfigWarehouseRoute: ConfigWarehouseRoute,
   CookingTempRoute: CookingTempRoute,
   DemandOrdersRoute: DemandOrdersRoute,
   DispatchRoute: DispatchRoute,
@@ -623,6 +852,8 @@ const rootRouteChildren: RootRouteChildren = {
   ReceiveItemRoute: ReceiveItemRoute,
   ReportsRoute: ReportsRoute,
   StockAdjustmentRoute: StockAdjustmentRoute,
+  TransferRoute: TransferRoute,
+  TransferRequestRoute: TransferRequestRoute,
   UsersRoute: UsersRoute,
 }
 export const routeTree = rootRouteImport

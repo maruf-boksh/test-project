@@ -86,7 +86,7 @@ function Bakery() {
         data={bakeryOrders}
         columns={cols}
         searchKeys={["id", "item", "oven", "status"]}
-        actions={(r) => <RowActions row={r} actions={["view", "edit", "approve", "delete"]} />}
+        actions={(r) => <RowActions row={r} actions={["view", "edit", "delete"]} />}
       />
 
       {/* Bakery Items Detail / Inventory Modal */}
