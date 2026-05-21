@@ -381,6 +381,17 @@ function MealPlanning() {
   const [daySelectionOpen, setDaySelectionOpen] = useState(false);
   const [pendingDay, setPendingDay] = useState(selectedDay);
   const [tagLog, setTagLog] = useState<{ name: string; date: string; time: string } | null>(null);
+  const [orderEditMode, setOrderEditMode] = useState(false);
+  const [orderEditLog, setOrderEditLog] = useState<{ name: string; date: string; time: string } | null>(null);
+  const [editableSummary, setEditableSummary] = useState({
+    importDate: gmMealSummary.importDate,
+    intl: { depMeal: gmMealSummary.intl.depMeal, depChml: gmMealSummary.intl.depChml, retMeal: gmMealSummary.intl.retMeal, retChml: gmMealSummary.intl.retChml, retVgml: gmMealSummary.intl.retVgml },
+    dom: {
+      usba: { ...gmMealSummary.dom.usba },
+      aaa: { ...gmMealSummary.dom.aaa },
+      crew: { ...gmMealSummary.dom.crew },
+    },
+  });
 
   const currentDayMeals = useMemo(() => meals.filter((m) => m.day === selectedDay), [meals, selectedDay]);
   const selectedMealType = createData.mealTypes[0] ?? "";
@@ -1031,14 +1042,14 @@ function MealPlanning() {
               Tag & Forward to Production
             </Button>
 
-            <Dialog open={orderDetailsOpen} onOpenChange={setOrderDetailsOpen}>
+            <Dialog open={orderDetailsOpen} onOpenChange={(o) => { setOrderDetailsOpen(o); if (!o) setOrderEditMode(false); }}>
               <DialogContent className="max-w-3xl">
                 <DialogHeader>
                   <DialogTitle>GM Order Details — {selectedDay}</DialogTitle>
                 </DialogHeader>
                 <h3 className="text-sm font-semibold tracking-wider uppercase text-foreground">
                   Meal Order Summary — Next 24 Hours
-                  <span className="ml-2 text-xs font-normal normal-case tracking-normal text-muted-foreground">{gmMealSummary.importDate}</span>
+                  <span className="ml-2 text-xs font-normal normal-case tracking-normal text-muted-foreground">{editableSummary.importDate}</span>
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* International column */}
@@ -1046,41 +1057,61 @@ function MealPlanning() {
                     <h4 className="text-xs font-semibold uppercase tracking-wider text-navy">International</h4>
                     <div className="space-y-1.5">
                       <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Departure</div>
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between text-sm items-center">
                         <span className="text-muted-foreground">Total Departure Meal</span>
-                        <span className="font-medium tabular-nums">{gmMealSummary.intl.depMeal}</span>
+                        {orderEditMode ? (
+                          <Input type="number" min={0} value={editableSummary.intl.depMeal}
+                            onChange={(e) => setEditableSummary((p) => ({ ...p, intl: { ...p.intl, depMeal: Number(e.target.value) } }))}
+                            className="h-7 w-20 text-sm text-right" />
+                        ) : <span className="font-medium tabular-nums">{editableSummary.intl.depMeal}</span>}
                       </div>
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between text-sm items-center">
                         <span className="text-muted-foreground">Departure CHML</span>
-                        <span className="font-medium tabular-nums">{gmMealSummary.intl.depChml}</span>
+                        {orderEditMode ? (
+                          <Input type="number" min={0} value={editableSummary.intl.depChml}
+                            onChange={(e) => setEditableSummary((p) => ({ ...p, intl: { ...p.intl, depChml: Number(e.target.value) } }))}
+                            className="h-7 w-20 text-sm text-right" />
+                        ) : <span className="font-medium tabular-nums">{editableSummary.intl.depChml}</span>}
                       </div>
                       <div className="flex justify-between text-sm font-semibold border-t border-navy/20 pt-1">
                         <span>Departure Total</span>
-                        <span className="tabular-nums">{gmMealSummary.intl.depTotal}</span>
+                        <span className="tabular-nums">{editableSummary.intl.depMeal + editableSummary.intl.depChml}</span>
                       </div>
                     </div>
                     <div className="space-y-1.5">
                       <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Return</div>
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between text-sm items-center">
                         <span className="text-muted-foreground">Total Return Meal</span>
-                        <span className="font-medium tabular-nums">{gmMealSummary.intl.retMeal}</span>
+                        {orderEditMode ? (
+                          <Input type="number" min={0} value={editableSummary.intl.retMeal}
+                            onChange={(e) => setEditableSummary((p) => ({ ...p, intl: { ...p.intl, retMeal: Number(e.target.value) } }))}
+                            className="h-7 w-20 text-sm text-right" />
+                        ) : <span className="font-medium tabular-nums">{editableSummary.intl.retMeal}</span>}
                       </div>
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between text-sm items-center">
                         <span className="text-muted-foreground">Return CHML</span>
-                        <span className="font-medium tabular-nums">{gmMealSummary.intl.retChml}</span>
+                        {orderEditMode ? (
+                          <Input type="number" min={0} value={editableSummary.intl.retChml}
+                            onChange={(e) => setEditableSummary((p) => ({ ...p, intl: { ...p.intl, retChml: Number(e.target.value) } }))}
+                            className="h-7 w-20 text-sm text-right" />
+                        ) : <span className="font-medium tabular-nums">{editableSummary.intl.retChml}</span>}
                       </div>
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between text-sm items-center">
                         <span className="text-muted-foreground">Return VGML</span>
-                        <span className="font-medium tabular-nums">{gmMealSummary.intl.retVgml}</span>
+                        {orderEditMode ? (
+                          <Input type="number" min={0} value={editableSummary.intl.retVgml}
+                            onChange={(e) => setEditableSummary((p) => ({ ...p, intl: { ...p.intl, retVgml: Number(e.target.value) } }))}
+                            className="h-7 w-20 text-sm text-right" />
+                        ) : <span className="font-medium tabular-nums">{editableSummary.intl.retVgml}</span>}
                       </div>
                       <div className="flex justify-between text-sm font-semibold border-t border-navy/20 pt-1">
                         <span>Return Total</span>
-                        <span className="tabular-nums">{gmMealSummary.intl.retTotal}</span>
+                        <span className="tabular-nums">{editableSummary.intl.retMeal + editableSummary.intl.retChml + editableSummary.intl.retVgml}</span>
                       </div>
                     </div>
                     <div className="flex justify-between text-sm font-bold border-t-2 border-navy/30 pt-2 mt-1">
                       <span>Total Meal (Departure+Return)</span>
-                      <span className="tabular-nums">{gmMealSummary.intl.grandTotal}</span>
+                      <span className="tabular-nums">{editableSummary.intl.depMeal + editableSummary.intl.depChml + editableSummary.intl.retMeal + editableSummary.intl.retChml + editableSummary.intl.retVgml}</span>
                     </div>
                   </div>
                   {/* Domestic column */}
@@ -1088,77 +1119,117 @@ function MealPlanning() {
                     <h4 className="text-xs font-semibold uppercase tracking-wider text-primary">Domestic</h4>
                     <div className="space-y-1.5">
                       <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">US-Bangla</div>
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between text-sm items-center">
                         <span className="text-muted-foreground">Zenith Load</span>
-                        <span className="font-medium tabular-nums">{gmMealSummary.dom.usba.zenith}</span>
+                        {orderEditMode ? (
+                          <Input type="number" min={0} value={editableSummary.dom.usba.zenith}
+                            onChange={(e) => setEditableSummary((p) => ({ ...p, dom: { ...p.dom, usba: { ...p.dom.usba, zenith: Number(e.target.value) } } }))}
+                            className="h-7 w-20 text-sm text-right" />
+                        ) : <span className="font-medium tabular-nums">{editableSummary.dom.usba.zenith}</span>}
                       </div>
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between text-sm items-center">
                         <span className="text-muted-foreground">Pax Load</span>
-                        <span className="font-medium tabular-nums">{gmMealSummary.dom.usba.pax}</span>
+                        {orderEditMode ? (
+                          <Input type="number" min={0} value={editableSummary.dom.usba.pax}
+                            onChange={(e) => setEditableSummary((p) => ({ ...p, dom: { ...p.dom, usba: { ...p.dom.usba, pax: Number(e.target.value) } } }))}
+                            className="h-7 w-20 text-sm text-right" />
+                        ) : <span className="font-medium tabular-nums">{editableSummary.dom.usba.pax}</span>}
                       </div>
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between text-sm items-center">
                         <span className="text-muted-foreground">Breakfast (JBR + CKN Buggati)</span>
-                        <span className="font-medium tabular-nums">{gmMealSummary.dom.usba.breakfast}</span>
+                        {orderEditMode ? (
+                          <Input type="number" min={0} value={editableSummary.dom.usba.breakfast}
+                            onChange={(e) => setEditableSummary((p) => ({ ...p, dom: { ...p.dom, usba: { ...p.dom.usba, breakfast: Number(e.target.value) } } }))}
+                            className="h-7 w-20 text-sm text-right" />
+                        ) : <span className="font-medium tabular-nums">{editableSummary.dom.usba.breakfast}</span>}
                       </div>
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between text-sm items-center">
                         <span className="text-muted-foreground">Lunch</span>
-                        <span className="font-medium tabular-nums">{gmMealSummary.dom.usba.lunch}</span>
+                        {orderEditMode ? (
+                          <Input type="number" min={0} value={editableSummary.dom.usba.lunch}
+                            onChange={(e) => setEditableSummary((p) => ({ ...p, dom: { ...p.dom, usba: { ...p.dom.usba, lunch: Number(e.target.value) } } }))}
+                            className="h-7 w-20 text-sm text-right" />
+                        ) : <span className="font-medium tabular-nums">{editableSummary.dom.usba.lunch}</span>}
                       </div>
                     </div>
                     <div className="space-y-1.5">
                       <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Air Astra</div>
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between text-sm items-center">
                         <span className="text-muted-foreground">Zenith Load</span>
-                        <span className="font-medium tabular-nums">{gmMealSummary.dom.aaa.zenith}</span>
+                        {orderEditMode ? (
+                          <Input type="number" min={0} value={editableSummary.dom.aaa.zenith}
+                            onChange={(e) => setEditableSummary((p) => ({ ...p, dom: { ...p.dom, aaa: { ...p.dom.aaa, zenith: Number(e.target.value) } } }))}
+                            className="h-7 w-20 text-sm text-right" />
+                        ) : <span className="font-medium tabular-nums">{editableSummary.dom.aaa.zenith}</span>}
                       </div>
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between text-sm items-center">
                         <span className="text-muted-foreground">Pax Load</span>
-                        <span className="font-medium tabular-nums">{gmMealSummary.dom.aaa.pax}</span>
+                        {orderEditMode ? (
+                          <Input type="number" min={0} value={editableSummary.dom.aaa.pax}
+                            onChange={(e) => setEditableSummary((p) => ({ ...p, dom: { ...p.dom, aaa: { ...p.dom.aaa, pax: Number(e.target.value) } } }))}
+                            className="h-7 w-20 text-sm text-right" />
+                        ) : <span className="font-medium tabular-nums">{editableSummary.dom.aaa.pax}</span>}
                       </div>
                     </div>
                     <div className="space-y-1.5">
                       <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Crew Meals</div>
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between text-sm items-center">
                         <span className="text-muted-foreground">H. Snacks</span>
-                        <span className="font-medium tabular-nums">{gmMealSummary.dom.crew.hSnacks}</span>
+                        {orderEditMode ? (
+                          <Input type="number" min={0} value={editableSummary.dom.crew.hSnacks}
+                            onChange={(e) => setEditableSummary((p) => ({ ...p, dom: { ...p.dom, crew: { ...p.dom.crew, hSnacks: Number(e.target.value) } } }))}
+                            className="h-7 w-20 text-sm text-right" />
+                        ) : <span className="font-medium tabular-nums">{editableSummary.dom.crew.hSnacks}</span>}
                       </div>
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between text-sm items-center">
                         <span className="text-muted-foreground">Lunch</span>
-                        <span className="font-medium tabular-nums">{gmMealSummary.dom.crew.lunch}</span>
+                        {orderEditMode ? (
+                          <Input type="number" min={0} value={editableSummary.dom.crew.lunch}
+                            onChange={(e) => setEditableSummary((p) => ({ ...p, dom: { ...p.dom, crew: { ...p.dom.crew, lunch: Number(e.target.value) } } }))}
+                            className="h-7 w-20 text-sm text-right" />
+                        ) : <span className="font-medium tabular-nums">{editableSummary.dom.crew.lunch}</span>}
                       </div>
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between text-sm items-center">
                         <span className="text-muted-foreground">Dinner</span>
-                        <span className="font-medium tabular-nums">{gmMealSummary.dom.crew.dinner}</span>
+                        {orderEditMode ? (
+                          <Input type="number" min={0} value={editableSummary.dom.crew.dinner}
+                            onChange={(e) => setEditableSummary((p) => ({ ...p, dom: { ...p.dom, crew: { ...p.dom.crew, dinner: Number(e.target.value) } } }))}
+                            className="h-7 w-20 text-sm text-right" />
+                        ) : <span className="font-medium tabular-nums">{editableSummary.dom.crew.dinner}</span>}
                       </div>
                     </div>
                     <div className="flex justify-between text-sm font-semibold border-t border-primary/20 pt-2">
                       <span>Total Zenith (USBA + Air Astra)</span>
-                      <span className="tabular-nums">{gmMealSummary.dom.totalZenith}</span>
+                      <span className="tabular-nums">{editableSummary.dom.usba.zenith + editableSummary.dom.aaa.zenith}</span>
                     </div>
                   </div>
                 </div>
+                {orderEditLog && (
+                  <div className="mt-1 text-xs text-muted-foreground border-t pt-2">
+                    Meal Order edited by {orderEditLog.name}, {orderEditLog.date}, {orderEditLog.time}
+                  </div>
+                )}
                 <DialogFooter>
-                  <Button
-                    variant="outline"
-                    onClick={() => setOrderDetailsOpen(false)}
-                  >
-                    Close
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => { setOrderDetailsOpen(false); toast.info("Edit order to make changes."); }}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      setOrderDetailsOpen(false);
-                      setDaySelectionOpen(true);
-                      setPendingDay(selectedDay);
-                    }}
-                  >
-                    Tag Meal
-                  </Button>
+                  <Button variant="outline" onClick={() => { setOrderDetailsOpen(false); setOrderEditMode(false); }}>Close</Button>
+                  {orderEditMode ? (
+                    <>
+                      <Button variant="outline" onClick={() => setOrderEditMode(false)}>Cancel</Button>
+                      <Button onClick={() => {
+                        const now = new Date();
+                        const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+                        const dateStr = `${String(now.getDate()).padStart(2,"0")} ${months[now.getMonth()]} ${now.getFullYear()}`;
+                        const timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+                        setOrderEditLog({ name: "Current User", date: dateStr, time: timeStr });
+                        setOrderEditMode(false);
+                        toast.success("Meal order updated.");
+                      }}>Save Changes</Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button variant="outline" onClick={() => setOrderEditMode(true)}>Edit</Button>
+                      <Button onClick={() => { setOrderDetailsOpen(false); setDaySelectionOpen(true); setPendingDay(selectedDay); }}>Tag Meal</Button>
+                    </>
+                  )}
                 </DialogFooter>
               </DialogContent>
             </Dialog>
