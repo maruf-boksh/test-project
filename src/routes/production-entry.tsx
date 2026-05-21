@@ -51,6 +51,17 @@ const TOTAL_MEALS_FROM_ORDERS = seedFlightOrders.reduce(
   0,
 );
 
+// One forwarded entry per distinct order date, sorted ascending.
+const FORWARDED_ORDERS: { date: string; totalMeals: number }[] = (() => {
+  const byDate = new Map<string, number>();
+  for (const o of seedFlightOrders) {
+    byDate.set(o.date, (byDate.get(o.date) ?? 0) + o.pax + o.crew + o.specialMeals);
+  }
+  return Array.from(byDate.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, totalMeals]) => ({ date, totalMeals }));
+})();
+
 const DOMESTIC_AIRPORTS = new Set(["DAC", "CXB", "CGP", "ZYL", "JSR"]);
 
 function getFlightTypeFromSector(sector: string): FlightType {
@@ -153,10 +164,6 @@ function computeOrderRequirements(orders: FlightOrderRow[]): OrderRequirement[] 
   });
 }
 
-const FORWARDED_ORDER = {
-  date: gmOrderSummary.date,
-  totalMeals: TOTAL_MEALS_FROM_ORDERS,
-};
 
 const DEPARTMENTS = ["Hot Kitchen", "Cold Kitchen", "Bakery", "Beverage", "Special Meal"];
 
@@ -238,6 +245,9 @@ function ProductionEntryRowMenu({
 function ProductionEntryPage() {
   const { productionEntries, addProductionEntry, updateProductionEntryStatus, mrpRuns } = useWorkflow();
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [selectedForwardedDate, setSelectedForwardedDate] = useState(
+    FORWARDED_ORDERS[0]?.date ?? "",
+  );
   const [view, setView] = useState<"list" | "create">("list");
   const [pendingItem, setPendingItem] = useState<OutputLine | undefined>(undefined);
   const [createKey, setCreateKey] = useState(0);
@@ -245,6 +255,15 @@ function ProductionEntryPage() {
   const [filterWarehouse, setFilterWarehouse] = useState("");
   const [mrpOpen, setMrpOpen] = useState(false);
   const lastMrpRun = mrpRuns[0];  // newest first in store
+
+  // Allow other modules to open MRP directly by navigating with `#mrp`.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.location.hash === "#mrp") {
+      setMrpOpen(true);
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+  }, []);
 
   const entries = productionEntries.filter((e) => {
     if (filterOffice && e.officeId !== filterOffice) return false;
@@ -393,17 +412,27 @@ function ProductionEntryPage() {
                 <div className="text-xs font-semibold uppercase tracking-wider text-success">
                   Forwarded from Order Management
                 </div>
-                <div className="mt-1 text-base font-bold text-foreground">
-                  New Meal Order for {FORWARDED_ORDER.date}
-                </div>
-                <div className="mt-0.5 text-sm text-muted-foreground">
-                  Total Meals:{" "}
+                <div className="mt-1 text-sm text-foreground">
+                  <span className="font-bold">{FORWARDED_ORDERS.length}</span>{" "}
+                  date{FORWARDED_ORDERS.length === 1 ? "" : "s"} pending ·{" "}
                   <span className="font-bold text-success">
-                    {FORWARDED_ORDER.totalMeals.toLocaleString()}
-                  </span>
+                    {TOTAL_MEALS_FROM_ORDERS.toLocaleString()}
+                  </span>{" "}
+                  meals
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={selectedForwardedDate}
+                  onChange={(e) => setSelectedForwardedDate(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  {FORWARDED_ORDERS.map((f) => (
+                    <option key={f.date} value={f.date}>
+                      {f.date} — {f.totalMeals.toLocaleString()} meals
+                    </option>
+                  ))}
+                </select>
                 <Button
                   className="bg-success text-success-foreground hover:bg-success/90"
                   onClick={() => setDetailsOpen(true)}
@@ -483,6 +512,7 @@ function ProductionEntryPage() {
         open={detailsOpen}
         onOpenChange={setDetailsOpen}
         onSelectItem={startFromMealPlan}
+        date={selectedForwardedDate}
       />
 
       <MaterialRequirementPlanningDialog
@@ -1386,14 +1416,19 @@ function MealCardView({
 }
 
 function MealPlanningDetailsDialog({
-  open, onOpenChange, onSelectItem,
+  open, onOpenChange, onSelectItem, date,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSelectItem: (item: MealPlanPickItem) => void;
+  date: string;
 }) {
   const navigate = useNavigate();
-  const requirements = useMemo(() => computeOrderRequirements(seedFlightOrders), []);
+  const ordersForDate = useMemo(
+    () => (date ? seedFlightOrders.filter((o) => o.date === date) : seedFlightOrders),
+    [date],
+  );
+  const requirements = useMemo(() => computeOrderRequirements(ordersForDate), [ordersForDate]);
   const orderDays = useMemo(() => new Set(requirements.map((r) => r.day)), [requirements]);
 
   const itemByCode = useMemo(() => {
@@ -1420,9 +1455,9 @@ function MealPlanningDetailsDialog({
     );
   }, [orderDays]);
 
-  const totalPax = seedFlightOrders.reduce((s, o) => s + o.pax, 0);
-  const totalCrew = seedFlightOrders.reduce((s, o) => s + o.crew, 0);
-  const totalSpecial = seedFlightOrders.reduce((s, o) => s + o.specialMeals, 0);
+  const totalPax = ordersForDate.reduce((s, o) => s + o.pax, 0);
+  const totalCrew = ordersForDate.reduce((s, o) => s + o.crew, 0);
+  const totalSpecial = ordersForDate.reduce((s, o) => s + o.specialMeals, 0);
   const totalMeals = totalPax + totalCrew + totalSpecial;
 
   return (
@@ -1431,7 +1466,7 @@ function MealPlanningDetailsDialog({
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
           <div className="flex items-start justify-between gap-4">
             <DialogTitle>
-              Meal Planning Details — New Meal Order for {gmOrderSummary.date}
+              Meal Planning Details — New Meal Order for {date || gmOrderSummary.date}
             </DialogTitle>
             <Button
               variant="outline"
@@ -1446,7 +1481,7 @@ function MealPlanningDetailsDialog({
             </Button>
           </div>
           <div className="mt-3 grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
-            <SummaryStat label="Flights"        value={seedFlightOrders.length.toString()} />
+            <SummaryStat label="Flights"        value={ordersForDate.length.toString()} />
             <SummaryStat label="Passengers"     value={totalPax.toLocaleString()} />
             <SummaryStat label="Crew"           value={totalCrew.toString()} />
             <SummaryStat label="Special Meals"  value={totalSpecial.toString()} />
@@ -1461,13 +1496,13 @@ function MealPlanningDetailsDialog({
                 value="orders"
                 className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none px-1 pb-3 text-xs uppercase tracking-wider font-semibold"
               >
-                Flight Orders ({seedFlightOrders.length})
+                Flight Orders ({ordersForDate.length})
               </TabsTrigger>
               <TabsTrigger
                 value="crew"
                 className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none px-1 pb-3 text-xs uppercase tracking-wider font-semibold"
               >
-                Crew Meals ({seedFlightOrders.reduce((s, o) => s + o.crew, 0)})
+                Crew Meals ({totalCrew})
               </TabsTrigger>
               <TabsTrigger
                 value="meals"
@@ -1479,11 +1514,11 @@ function MealPlanningDetailsDialog({
           </div>
 
           <TabsContent value="orders" className="flex-1 overflow-y-auto px-6 py-5 mt-0">
-            <FlightOrdersTabContent orders={seedFlightOrders} />
+            <FlightOrdersTabContent orders={ordersForDate} />
           </TabsContent>
 
           <TabsContent value="crew" className="flex-1 overflow-y-auto px-6 py-5 mt-0">
-            <CrewMealsTabContent orders={seedFlightOrders} />
+            <CrewMealsTabContent orders={ordersForDate} />
           </TabsContent>
 
           <TabsContent value="meals" className="flex-1 overflow-hidden flex flex-col mt-0">
@@ -1954,13 +1989,13 @@ function downloadMrpCsv(run: WfMrpRun) {
     "MRP Run", "Date", "Run By", "Basis",
     "Bucket", "Item Code", "Item Name", "UoM",
     "Required Qty", "On Hand", "Shortfall",
-    "Rate (BDT)", "Total Cost (BDT)", "Supplier",
+    "Rate (BDT)", "Total Cost (BDT)",
   ];
   const rows = run.materials.map((m) => [
     run.id, run.date, run.runBy, run.basis,
     m.bucket, m.itemCode, m.itemName, m.uom,
     m.reqQty.toFixed(3), m.onHand.toString(), m.shortfall.toFixed(3),
-    m.rate.toString(), m.totalCost.toFixed(2), m.supplier ?? "",
+    m.rate.toString(), m.totalCost.toFixed(2),
   ]);
   const csv = [header, ...rows]
     .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
@@ -2598,14 +2633,13 @@ function MrpMaterialTable({
               <TableHead className="text-[10px] uppercase tracking-wider text-right w-24">Req. Qty</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider text-right w-20">On Hand</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider text-right w-24">Shortfall</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider w-32">Supplier</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider text-right w-24">Total (৳)</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center text-xs text-muted-foreground py-6">
+                <TableCell colSpan={8} className="text-center text-xs text-muted-foreground py-6">
                   No {title.toLowerCase()} required for the selected orders.
                 </TableCell>
               </TableRow>
@@ -2632,13 +2666,6 @@ function MrpMaterialTable({
                       isShort ? "text-destructive" : "text-success",
                     )}>
                       {isShort ? m.shortfall.toLocaleString(undefined, { maximumFractionDigits: 3 }) : "—"}
-                    </TableCell>
-                    <TableCell className="text-[11px]">
-                      {isShort ? (
-                        <span className="text-muted-foreground">{m.supplier}</span>
-                      ) : (
-                        <span className="text-success">In stock</span>
-                      )}
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-sm font-semibold">
                       ৳ {m.totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}

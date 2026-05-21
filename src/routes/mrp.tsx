@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { KpiCard } from "@/components/common/KpiCard";
@@ -30,13 +30,13 @@ function downloadCsv(run: WfMrpRun) {
     "MRP Run", "Date", "Run By", "Basis",
     "Bucket", "Item Code", "Item Name", "UoM",
     "Required Qty", "On Hand", "Shortfall",
-    "Rate (BDT)", "Total Cost (BDT)", "Supplier",
+    "Rate (BDT)", "Total Cost (BDT)",
   ];
   const rows = run.materials.map((m) => [
     run.id, run.date, run.runBy, run.basis,
     m.bucket, m.itemCode, m.itemName, m.uom,
     m.reqQty.toFixed(3), m.onHand.toString(), m.shortfall.toFixed(3),
-    m.rate.toString(), m.totalCost.toFixed(2), m.supplier ?? "",
+    m.rate.toString(), m.totalCost.toFixed(2),
   ]);
   const csv = [header, ...rows]
     .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
@@ -52,6 +52,7 @@ function downloadCsv(run: WfMrpRun) {
 
 function MrpPage() {
   const { mrpRuns } = useWorkflow();
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -78,6 +79,15 @@ function MrpPage() {
       <PageHeader
         title="Material Requirement Planning"
         subtitle="History of MRP runs — each row links to the auto-generated Purchase Requisitions and Internal Transfers"
+        actions={
+          <Button
+            onClick={() => navigate({ to: "/production-entry", hash: "mrp" })}
+            className="gap-1.5"
+          >
+            <Calculator className="h-4 w-4" />
+            Run MRP
+          </Button>
+        }
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
@@ -443,7 +453,6 @@ function MaterialBucket({
               <TableHead className="text-[10px] uppercase tracking-wider text-right w-24">Req. Qty</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider text-right w-20">On Hand</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider text-right w-24">Shortfall</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider">Supplier</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider text-right w-24">Total (৳)</TableHead>
             </TableRow>
           </TableHeader>
@@ -467,13 +476,6 @@ function MaterialBucket({
                     isShort ? "text-destructive" : "text-success",
                   )}>
                     {isShort ? m.shortfall.toLocaleString(undefined, { maximumFractionDigits: 3 }) : "—"}
-                  </TableCell>
-                  <TableCell className="text-[11px]">
-                    {isShort ? (
-                      <span className="text-muted-foreground">{m.supplier}</span>
-                    ) : (
-                      <span className="text-success">In stock</span>
-                    )}
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-sm font-semibold">
                     ৳ {m.totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
