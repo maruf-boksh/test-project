@@ -3,40 +3,48 @@ import type { LucideIcon } from "lucide-react";
 
 const TONE = {
   navy: {
-    iconBg: "bg-navy/15",
-    iconText: "text-navy",
-    accent: "bg-navy",
-    bg: "bg-gradient-to-br from-navy/[0.06] via-card to-card",
-    border: "border-navy/20",
-    valueText: "text-navy",
-    blob: "bg-navy/10",
+    bg: "bg-[#EEF2FF]",
+    border: "border-[#C7D2FE]",
+    accent: "bg-[#4F6EF7]",
+    labelText: "text-[#3B5BDB]",
+    valueText: "text-[#1e3a8a]",
+    iconBg: "bg-[#4F6EF7]",
+    iconRing: "ring-white/30",
+    iconText: "text-white",
+    blob: "bg-[#4F6EF7]/10",
   },
   red: {
-    iconBg: "bg-brand/15",
-    iconText: "text-brand",
-    accent: "bg-brand",
-    bg: "bg-gradient-to-br from-brand/[0.07] via-card to-card",
-    border: "border-brand/20",
-    valueText: "text-brand",
-    blob: "bg-brand/10",
+    bg: "bg-[#FEF2F2]",
+    border: "border-[#FECACA]",
+    accent: "bg-[#EF4444]",
+    labelText: "text-[#DC2626]",
+    valueText: "text-[#7f1d1d]",
+    iconBg: "bg-[#EF4444]",
+    iconRing: "ring-white/30",
+    iconText: "text-white",
+    blob: "bg-[#EF4444]/10",
   },
   success: {
-    iconBg: "bg-success/15",
-    iconText: "text-success",
-    accent: "bg-success",
-    bg: "bg-gradient-to-br from-success/[0.07] via-card to-card",
-    border: "border-success/20",
-    valueText: "text-success",
-    blob: "bg-success/10",
+    bg: "bg-[#ECFDF5]",
+    border: "border-[#A7F3D0]",
+    accent: "bg-[#22C55E]",
+    labelText: "text-[#059669]",
+    valueText: "text-[#14532d]",
+    iconBg: "bg-[#22C55E]",
+    iconRing: "ring-white/30",
+    iconText: "text-white",
+    blob: "bg-[#22C55E]/10",
   },
   warning: {
-    iconBg: "bg-warning/20",
-    iconText: "text-warning",
-    accent: "bg-warning",
-    bg: "bg-gradient-to-br from-warning/[0.08] via-card to-card",
-    border: "border-warning/25",
-    valueText: "text-warning",
-    blob: "bg-warning/15",
+    bg: "bg-[#FFFBEB]",
+    border: "border-[#FDE68A]",
+    accent: "bg-[#F59E0B]",
+    labelText: "text-[#D97706]",
+    valueText: "text-[#78350f]",
+    iconBg: "bg-[#F59E0B]",
+    iconRing: "ring-white/30",
+    iconText: "text-white",
+    blob: "bg-[#F59E0B]/10",
   },
 } as const;
 
@@ -65,11 +73,11 @@ export function KpiCard({
       />
       <div className="relative flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
+          <div className={cn("text-[11px] font-semibold uppercase tracking-wider", t.labelText)}>{label}</div>
           <div className={cn("mt-1.5 text-2xl font-bold tabular-nums", t.valueText)}>{value}</div>
-          {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
+          {sub && <div className="mt-1 text-xs text-[#6b7280]">{sub}</div>}
         </div>
-        <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-md ring-1 ring-inset ring-white/40", t.iconBg)}>
+        <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-md ring-1 ring-inset", t.iconBg, t.iconRing)}>
           <Icon className={cn("h-5 w-5", t.iconText)} />
         </div>
       </div>

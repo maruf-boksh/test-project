@@ -309,7 +309,9 @@ function Amenities() {
               <div className="text-xs font-semibold text-blue-600 uppercase tracking-wide">96-Hour Prior Flight Passengers</div>
               <div className="text-3xl font-bold text-blue-800 mt-0.5">{PAX_96H.toLocaleString()}</div>
             </div>
-            <Boxes className="h-8 w-8 text-blue-300" />
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-blue-500">
+              <Boxes className="h-8 w-8 text-white" />
+            </div>
           </div>
           <div>
             <Label className="text-sm font-semibold">Flight Type</Label>
