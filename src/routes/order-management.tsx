@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/table";
 import {
   Plus, Upload, Download, Save, FileSpreadsheet, FileText, FileType,
-  History, CheckCircle2, AlertCircle, Eye, CalendarRange, X, Plane, ArrowLeft,
+  History, CheckCircle2, AlertCircle, Eye, CalendarRange, X, Plane, ArrowLeft, Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -86,20 +86,31 @@ type ParsedRow = {
   pax: number;
   specialMeals: number;
   valid: boolean;
+  type: "Domestic" | "International";
+  zenLoad?: number;
+  totalMeal?: number;
+  specMeal?: number;
+  crewMeal?: number;
+  bcLoad?: number;
+  ecLoad?: number;
+  bcMeal?: number;
+  ecMeal?: number;
+  chml?: number;
+  vgml?: number;
 };
 
-const SAMPLE_PARSED: ParsedRow[] = [
-  { row: 1, id: "ORD-3501", flight: "BS-141", airline: "US-Bangla", sector: "DAC → CXB", etd: "08:15", pax: 72,  specialMeals: 4,  valid: true  },
-  { row: 2, id: "ORD-3502", flight: "BS-225", airline: "US-Bangla", sector: "DAC → SIN", etd: "12:30", pax: 174, specialMeals: 14, valid: true  },
-  { row: 3, id: "ORD-3503", flight: "BG-???", airline: "Air Astra", sector: "DAC → KTM", etd: "15:00", pax: 0,   specialMeals: 0,  valid: false },
-  { row: 4, id: "ORD-3504", flight: "VQ-405", airline: "NovoAir",   sector: "DAC → CCU", etd: "17:45", pax: 96,  specialMeals: 6,  valid: true  },
+const SAMPLE_PARSED_DOM: ParsedRow[] = [
+  { row: 1, id: "ORD-3501", flight: "BS-141", airline: "US-Bangla", sector: "DAC → CXB", etd: "08:15", pax: 72, specialMeals: 4, valid: true,  type: "Domestic", zenLoad: 72, totalMeal: 72, specMeal: 4, crewMeal: 4 },
+  { row: 2, id: "ORD-3502", flight: "BS-203", airline: "US-Bangla", sector: "DAC → CGP", etd: "10:30", pax: 88, specialMeals: 2, valid: true,  type: "Domestic", zenLoad: 88, totalMeal: 88, specMeal: 2, crewMeal: 4 },
+  { row: 3, id: "ORD-3503", flight: "AA-101", airline: "Air Astra", sector: "DAC → ZYL", etd: "13:00", pax: 0,  specialMeals: 0, valid: false, type: "Domestic" },
+  { row: 4, id: "ORD-3504", flight: "AA-202", airline: "Air Astra", sector: "DAC → CXB", etd: "15:45", pax: 66, specialMeals: 3, valid: true,  type: "Domestic", zenLoad: 66, totalMeal: 66, specMeal: 3, crewMeal: 4 },
 ];
 
-const DAY_MEAL_PLAN = [
-  { key: "day1", label: "Day 1 (24h)", date: "2026-05-20", meals: 462 },
-  { key: "day2", label: "Day 2 (24h)", date: "2026-05-21", meals: 520 },
-  { key: "day3", label: "Day 3 (24h)", date: "2026-05-22", meals: 498 },
-  { key: "day4", label: "Day 4 (24h)", date: "2026-05-23", meals: 446 },
+const SAMPLE_PARSED_INTL: ParsedRow[] = [
+  { row: 1, id: "ORD-3601", flight: "BS-225", airline: "US-Bangla", sector: "DAC → DXB", etd: "12:30", pax: 174, specialMeals: 14, valid: true,  type: "International", bcLoad: 12, ecLoad: 162, bcMeal: 12, ecMeal: 162, chml: 8,  vgml: 6 },
+  { row: 2, id: "ORD-3602", flight: "BS-307", airline: "US-Bangla", sector: "DAC → KUL", etd: "23:50", pax: 282, specialMeals: 18, valid: true,  type: "International", bcLoad: 24, ecLoad: 258, bcMeal: 24, ecMeal: 258, chml: 10, vgml: 8 },
+  { row: 3, id: "ORD-3603", flight: "BS-411", airline: "US-Bangla", sector: "CGP → DXB", etd: "18:25", pax: 162, specialMeals: 10, valid: true,  type: "International", bcLoad: 10, ecLoad: 152, bcMeal: 10, ecMeal: 152, chml: 6,  vgml: 4 },
+  { row: 4, id: "ORD-3604", flight: "BS-???", airline: "US-Bangla", sector: "DAC → DOH", etd: "15:00", pax: 0,   specialMeals: 0,  valid: false, type: "International" },
 ];
 
 type MealPlan = Record<string, number>;
@@ -1695,17 +1706,28 @@ function CrewMealCreate({
 }
 
 function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void }) {
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [file, setFile] = useState<File | null>(null);
-  const [progress, setProgress] = useState(0);
-  const [done, setDone] = useState(false);
-  const [parsed, setParsed] = useState<ParsedRow[]>(SAMPLE_PARSED);
-  const [mealOrder, setMealOrder] = useState<MealPlan>({ day1: 0, day2: 0, day3: 0, day4: 0 });
-  const [orderVisible, setOrderVisible] = useState(false);
-  const [forwarded, setForwarded] = useState(false);
+  const domFileRef = useRef<HTMLInputElement>(null);
+  const [domFile, setDomFile] = useState<File | null>(null);
+  const [domProgress, setDomProgress] = useState(0);
+  const [domDone, setDomDone] = useState(false);
+  const [domParsed, setDomParsed] = useState<ParsedRow[]>(SAMPLE_PARSED_DOM);
+
+  const intlFileRef = useRef<HTMLInputElement>(null);
+  const [intlFile, setIntlFile] = useState<File | null>(null);
+  const [intlProgress, setIntlProgress] = useState(0);
+  const [intlDone, setIntlDone] = useState(false);
+  const [intlParsed, setIntlParsed] = useState<ParsedRow[]>(SAMPLE_PARSED_INTL);
+
+  const [importConfirmed, setImportConfirmed] = useState(false);
+  const [importedOrders, setImportedOrders] = useState<FlightOrder[]>([]);
+  const [orderLoading, setOrderLoading] = useState(false);
+  const [orderSent, setOrderSent] = useState(false);
+
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([
     { message: "Bulk upload ready for validation", user: "ops.user", role: "Flight Ops", at: "2026-05-19 06:12" },
   ]);
+
+  const [editRow, setEditRow] = useState<{ source: "dom" | "intl"; data: ParsedRow } | null>(null);
 
   const addLog = (message: string) => {
     const now = new Date();
@@ -1715,20 +1737,20 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
     ]);
   };
 
-  const start = (f: File) => {
-    setFile(f);
-    setDone(false);
-    setForwarded(false);
-    setOrderVisible(false);
-    setParsed(SAMPLE_PARSED);
-    setProgress(0);
+  const bothDone = domDone && intlDone;
+
+  const startDomUpload = (f: File) => {
+    setDomFile(f);
+    setDomDone(false);
+    setDomProgress(0);
+    setDomParsed(SAMPLE_PARSED_DOM);
     const t = setInterval(() => {
-      setProgress((p) => {
+      setDomProgress((p) => {
         if (p >= 100) {
           clearInterval(t);
-          setDone(true);
-          toast.success("File parsed — review and confirm import.");
-          addLog("Bulk orders file parsed and validated");
+          setDomDone(true);
+          toast.success(`Domestic file parsed — ${SAMPLE_PARSED_DOM.filter((r) => r.valid).length}/${SAMPLE_PARSED_DOM.length} rows valid.`);
+          addLog("Domestic orders file parsed and validated");
           return 100;
         }
         return p + 10;
@@ -1736,22 +1758,36 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
     }, 100);
   };
 
-  const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]; if (f) start(f);
-  };
-  const onDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const f = e.dataTransfer.files?.[0]; if (f) start(f);
+  const startIntlUpload = (f: File) => {
+    setIntlFile(f);
+    setIntlDone(false);
+    setIntlProgress(0);
+    setIntlParsed(SAMPLE_PARSED_INTL);
+    const t = setInterval(() => {
+      setIntlProgress((p) => {
+        if (p >= 100) {
+          clearInterval(t);
+          setIntlDone(true);
+          toast.success(`International file parsed — ${SAMPLE_PARSED_INTL.filter((r) => r.valid).length}/${SAMPLE_PARSED_INTL.length} rows valid.`);
+          addLog("International orders file parsed and validated");
+          return 100;
+        }
+        return p + 10;
+      });
+    }, 100);
   };
 
-  const updateParsedField = (rowNum: number, field: keyof ParsedRow, value: string) => {
-    setParsed((prev) =>
-      prev.map((r) => (r.row === rowNum ? { ...r, [field]: value } : r)),
-    );
+  const updateDomField = (rowNum: number, field: keyof ParsedRow, value: string) => {
+    setDomParsed((prev) => prev.map((r) => (r.row === rowNum ? { ...r, [field]: value } : r)));
+  };
+
+  const updateIntlField = (rowNum: number, field: keyof ParsedRow, value: string) => {
+    setIntlParsed((prev) => prev.map((r) => (r.row === rowNum ? { ...r, [field]: value } : r)));
   };
 
   const confirmImport = () => {
-    const valid = parsed.filter((r) => r.valid);
+    const allParsed = [...domParsed, ...intlParsed];
+    const valid = allParsed.filter((r) => r.valid);
     const today = new Date().toISOString().slice(0, 10);
     const orders: FlightOrder[] = valid.map((r, i) => ({
       id: `FO-IMP-${String(Date.now()).slice(-4)}-${i + 1}`,
@@ -1767,13 +1803,56 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
       status: "Pending",
       direction: "Outbound",
     }));
-    onImport(orders);
+    setImportedOrders(orders);
+    setImportConfirmed(true);
     addLog(`Confirmed import of ${orders.length} orders`);
-    toast.success(`${orders.length} orders imported. ${parsed.length - valid.length} skipped.`);
+    toast.success(`${orders.length} orders confirmed. ${allParsed.length - valid.length} skipped.`);
   };
 
-  const validCount = parsed.filter((r) => r.valid).length;
-  const invalidCount = parsed.length - validCount;
+  // Summary values derived from parsed data
+  const validDom = domParsed.filter((r) => r.valid);
+  const validIntl = intlParsed.filter((r) => r.valid);
+  const usbaDom = validDom.filter((r) => r.airline === "US-Bangla");
+  const aaaDom = validDom.filter((r) => r.airline === "Air Astra");
+  const usbaZenith = usbaDom.reduce((s, r) => s + (r.zenLoad ?? 0), 0);
+  const usbaPax = usbaDom.reduce((s, r) => s + r.pax, 0);
+  const usbaBreakfast = usbaDom.filter((r) => r.etd <= "10:30").reduce((s, r) => s + (r.totalMeal ?? 0), 0);
+  const usbaLunch = usbaDom.filter((r) => r.etd > "10:30" && r.etd <= "14:30").reduce((s, r) => s + (r.totalMeal ?? 0), 0);
+  const aaaZenith = aaaDom.reduce((s, r) => s + r.pax, 0);
+  const aaaPax = aaaDom.reduce((s, r) => s + r.pax, 0);
+  const totalZenith = usbaZenith + aaaZenith;
+  const crewHSnacks = validDom.filter((r) => r.etd <= "10:30").reduce((s, r) => s + (r.crewMeal ?? 0), 0);
+  const crewLunch = validDom.filter((r) => r.etd > "10:30" && r.etd <= "14:30").reduce((s, r) => s + (r.crewMeal ?? 0), 0);
+  const crewDinner = validDom.filter((r) => r.etd > "14:30").reduce((s, r) => s + (r.crewMeal ?? 0), 0);
+  const intlDepMeal = validIntl.reduce((s, r) => s + (r.bcMeal ?? 0) + (r.ecMeal ?? 0), 0);
+  const intlDepChml = validIntl.reduce((s, r) => s + (r.chml ?? 0), 0);
+  const intlDepTotal = intlDepMeal + intlDepChml;
+  const intlRetVgml = validIntl.reduce((s, r) => s + (r.vgml ?? 0), 0);
+  const intlRetTotal = intlRetVgml;
+  const intlGrandTotal = intlDepTotal + intlRetTotal;
+  const totalFlights = importedOrders.length;
+  const totalMeals = importedOrders.reduce((s, o) => s + o.pax + o.specialMeals, 0);
+  const importDate = new Date().toISOString().slice(0, 10);
+
+  const handleOrderMeal = () => {
+    setOrderLoading(true);
+    setTimeout(() => {
+      setOrderLoading(false);
+      setOrderSent(true);
+      const refId = `OMR-${Date.now().toString().slice(-6)}`;
+      addLog(
+        `Meal order for next 24 hours has been created and forwarded to Meal Planner — Ref: ${refId} · ${totalFlights} flights · ${totalMeals} meals · Confirmed by system`,
+      );
+      onImport(importedOrders);
+      toast.success("Meal order forwarded to Meal Planner.");
+    }, 1500);
+  };
+
+  const domValidCount = domParsed.filter((r) => r.valid).length;
+  const domInvalidCount = domParsed.length - domValidCount;
+  const intlValidCount = intlParsed.filter((r) => r.valid).length;
+  const intlInvalidCount = intlParsed.length - intlValidCount;
+  const allInvalidCount = domInvalidCount + intlInvalidCount;
 
   const uploadCols: Column<RecentUploadRow>[] = [
     { key: "id", header: "Upload ID" },
@@ -1788,6 +1867,7 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
 
   return (
     <div className="space-y-6">
+      {/* Upload section */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
@@ -1813,225 +1893,504 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
-                <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5" /> Excel
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
-                <FileText className="h-3.5 w-3.5 mr-1.5" /> CSV
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
-                <FileType className="h-3.5 w-3.5 mr-1.5" /> DOC
-              </Button>
             </div>
           </div>
 
           <input
-            ref={fileRef}
+            ref={domFileRef}
             type="file"
             accept=".xlsx,.xls,.csv,.doc,.docx"
             hidden
-            onChange={onPick}
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) startDomUpload(f); }}
+          />
+          <input
+            ref={intlFileRef}
+            type="file"
+            accept=".xlsx,.xls,.csv,.doc,.docx"
+            hidden
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) startIntlUpload(f); }}
           />
 
-          <div
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={onDrop}
-            className="rounded-lg border-2 border-dashed border-primary/30 bg-gradient-to-br from-primary/5 to-transparent py-12 text-center"
-          >
-            <div className="mx-auto h-16 w-16 rounded-full bg-primary/10 grid place-items-center mb-4">
-              <FileSpreadsheet className="h-8 w-8 text-primary" />
-            </div>
-            <h4 className="text-base font-semibold">Drag & Drop Orders File</h4>
-            <p className="text-sm text-muted-foreground mt-1">
-              Supported formats: .xlsx, .xls, .csv, .doc, .docx — Max 50 MB
-            </p>
-            <div className="flex justify-center gap-2 mt-4">
-              <Button onClick={() => fileRef.current?.click()}>
-                <Upload className="h-4 w-4 mr-1" /> Select File
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Domestic upload slot */}
+            <div
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) startDomUpload(f); }}
+              className="rounded-lg border-2 border-dashed border-primary/30 bg-gradient-to-br from-primary/5 to-transparent py-8 text-center"
+            >
+              <div className="mx-auto h-12 w-12 rounded-full bg-primary/10 grid place-items-center mb-3">
+                <FileSpreadsheet className="h-6 w-6 text-primary" />
+              </div>
+              <h4 className="text-sm font-semibold">Domestic Flights</h4>
+              <p className="text-xs text-muted-foreground mt-1">.xlsx, .xls, .csv, .doc, .docx</p>
+              <Button size="sm" className="mt-3" onClick={() => domFileRef.current?.click()}>
+                <Upload className="h-3.5 w-3.5 mr-1" /> Select File
               </Button>
-              <Button variant="outline">View Spec</Button>
+              {domFile && (
+                <div className="mt-4 max-w-xs mx-auto text-left px-4">
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="font-medium truncate">{domFile.name}</span>
+                    <span className="text-muted-foreground">{domProgress}%</span>
+                  </div>
+                  <Progress value={domProgress} />
+                  <div className="mt-1.5 flex items-center gap-1.5 text-xs">
+                    {domDone ? (
+                      <>
+                        <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                        <span className={domInvalidCount > 0 ? "text-warning" : "text-success"}>
+                          {domValidCount}/{domParsed.length} rows valid
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">Parsing…</span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
-            {file && (
-              <div className="mt-6 max-w-md mx-auto text-left">
-                <div className="flex items-center justify-between text-sm mb-2">
-                  <span className="font-medium truncate">{file.name}</span>
-                  <span className="text-muted-foreground">{progress}%</span>
-                </div>
-                <Progress value={progress} />
-                <div className="mt-2 flex items-center gap-2 text-xs">
-                  {done ? (
-                    <>
-                      <CheckCircle2 className="h-4 w-4 text-success" />
-                      Parsed. {validCount}/{parsed.length} rows valid.
-                    </>
-                  ) : (
-                    <>Parsing file, validating fields...</>
-                  )}
-                </div>
+            {/* International upload slot */}
+            <div
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) startIntlUpload(f); }}
+              className="rounded-lg border-2 border-dashed border-navy/30 bg-gradient-to-br from-navy/5 to-transparent py-8 text-center"
+            >
+              <div className="mx-auto h-12 w-12 rounded-full bg-navy/10 grid place-items-center mb-3">
+                <FileSpreadsheet className="h-6 w-6 text-navy" />
               </div>
-            )}
+              <h4 className="text-sm font-semibold">International Flights</h4>
+              <p className="text-xs text-muted-foreground mt-1">.xlsx, .xls, .csv, .doc, .docx</p>
+              <Button size="sm" variant="outline" className="mt-3 border-navy/30 text-navy hover:bg-navy/5" onClick={() => intlFileRef.current?.click()}>
+                <Upload className="h-3.5 w-3.5 mr-1" /> Select File
+              </Button>
+              {intlFile && (
+                <div className="mt-4 max-w-xs mx-auto text-left px-4">
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="font-medium truncate">{intlFile.name}</span>
+                    <span className="text-muted-foreground">{intlProgress}%</span>
+                  </div>
+                  <Progress value={intlProgress} />
+                  <div className="mt-1.5 flex items-center gap-1.5 text-xs">
+                    {intlDone ? (
+                      <>
+                        <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                        <span className={intlInvalidCount > 0 ? "text-warning" : "text-success"}>
+                          {intlValidCount}/{intlParsed.length} rows valid
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">Parsing…</span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
+
+          {!bothDone && (domDone || intlDone) && (
+            <p className="mt-3 text-center text-xs text-muted-foreground">
+              Upload both Domestic and International files to continue
+            </p>
+          )}
         </CardContent>
       </Card>
 
-      {done && (
-        <>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold tracking-wider uppercase text-foreground">
-                  Preview & Validate
-                </h3>
-                {invalidCount > 0 && (
-                  <span className="inline-flex items-center text-xs text-muted-foreground">
-                    <AlertCircle className="h-3.5 w-3.5 text-warning mr-1" />
-                    {invalidCount} invalid row{invalidCount > 1 ? "s" : ""} highlighted
-                  </span>
-                )}
-              </div>
+      {/* Preview & Validate — visible when both slots are done and import not yet confirmed */}
+      {bothDone && !importConfirmed && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold tracking-wider uppercase text-foreground">
+                Preview & Validate
+              </h3>
+              {allInvalidCount > 0 && (
+                <span className="inline-flex items-center text-xs text-muted-foreground">
+                  <AlertCircle className="h-3.5 w-3.5 text-warning mr-1" />
+                  {allInvalidCount} invalid row{allInvalidCount > 1 ? "s" : ""} highlighted
+                </span>
+              )}
+            </div>
 
-              <div className="border border-border rounded-md overflow-hidden">
-                <Table>
-                  <TableHeader className="bg-muted/40">
-                    <TableRow>
-                      <TableHead className="w-12 text-xs uppercase tracking-wider">#</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider">Order #</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider">Flight</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider">Airline</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider">Sector</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider">ETD</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider text-right">PAX</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider text-right">Spec. Meals</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider">Validation</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {parsed.map((r) => (
-                      <TableRow key={r.row} className={!r.valid ? "bg-destructive/10" : ""}>
-                        <TableCell>{r.row}</TableCell>
-                        <TableCell className="font-mono text-xs">{r.id}</TableCell>
-                        <TableCell>
-                          <input
-                            value={r.flight}
-                            onChange={(e) => updateParsedField(r.row, "flight", e.target.value)}
-                            className="bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none w-full text-sm font-medium"
-                          />
-                        </TableCell>
-                        <TableCell>{r.airline}</TableCell>
-                        <TableCell>{r.sector}</TableCell>
-                        <TableCell>{r.etd}</TableCell>
-                        <TableCell className="text-right tabular-nums">{r.pax}</TableCell>
-                        <TableCell className="text-right tabular-nums">{r.specialMeals}</TableCell>
-                        <TableCell>
+            <div className="border border-border rounded-md overflow-hidden overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-muted/40">
+                  <TableRow>
+                    <TableHead className="w-10 text-xs uppercase tracking-wider">#</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider">FLT NO</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider">AIRLINE</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider">SECTOR</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider">DEP TIME</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">ZEN LOAD</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">B/C LOAD</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">E/C LOAD</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">TOTAL MEAL</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">B/C MEAL</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">E/C MEAL</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">CHML</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">VGML</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">SPEC MEAL</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">CREW MEAL</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider">ACTIONS</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow className="bg-primary/5 border-t-2 border-t-primary/40 hover:bg-primary/10">
+                    <TableCell colSpan={16} className="py-2">
+                      <span className="font-semibold text-primary uppercase tracking-wider text-xs">Domestic</span>
+                    </TableCell>
+                  </TableRow>
+                  {domParsed.map((r) => (
+                    <TableRow key={`dom-${r.row}`} className={!r.valid ? "bg-destructive/10" : ""}>
+                      <TableCell className="text-xs tabular-nums">{r.row}</TableCell>
+                      <TableCell>
+                        <input
+                          value={r.flight}
+                          onChange={(e) => updateDomField(r.row, "flight", e.target.value)}
+                          className="bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none w-full text-sm font-medium"
+                        />
+                      </TableCell>
+                      <TableCell className="text-xs">{r.airline}</TableCell>
+                      <TableCell className="text-xs">{r.sector}</TableCell>
+                      <TableCell className="text-xs tabular-nums">{r.etd}</TableCell>
+                      <TableCell className="text-right tabular-nums text-xs">{r.zenLoad ?? "—"}</TableCell>
+                      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+                      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+                      <TableCell className="text-right tabular-nums text-xs">{r.totalMeal ?? "—"}</TableCell>
+                      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+                      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+                      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+                      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+                      <TableCell className="text-right tabular-nums text-xs">{r.specialMeals > 0 ? r.specialMeals : "—"}</TableCell>
+                      <TableCell className="text-right tabular-nums text-xs">{r.crewMeal ?? "—"}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1.5">
                           <StatusBadge status={r.valid ? "OK" : "Failed"} />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                          {!r.valid && (
+                            <Button size="sm" variant="outline" className="h-6 px-2 text-xs"
+                              onClick={() => setEditRow({ source: "dom", data: { ...r } })}>
+                              <Pencil className="h-3 w-3 mr-1" />Edit
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow className="bg-navy/5 border-t-2 border-t-navy/40 hover:bg-navy/10">
+                    <TableCell colSpan={16} className="py-2">
+                      <span className="font-semibold text-navy uppercase tracking-wider text-xs">International</span>
+                    </TableCell>
+                  </TableRow>
+                  {intlParsed.map((r) => (
+                    <TableRow key={`intl-${r.row}`} className={!r.valid ? "bg-destructive/10" : ""}>
+                      <TableCell className="text-xs tabular-nums">{r.row}</TableCell>
+                      <TableCell>
+                        <input
+                          value={r.flight}
+                          onChange={(e) => updateIntlField(r.row, "flight", e.target.value)}
+                          className="bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none w-full text-sm font-medium"
+                        />
+                      </TableCell>
+                      <TableCell className="text-xs">{r.airline}</TableCell>
+                      <TableCell className="text-xs">{r.sector}</TableCell>
+                      <TableCell className="text-xs tabular-nums">{r.etd}</TableCell>
+                      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+                      <TableCell className="text-right tabular-nums text-xs">{r.bcLoad ?? "—"}</TableCell>
+                      <TableCell className="text-right tabular-nums text-xs">{r.ecLoad ?? "—"}</TableCell>
+                      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+                      <TableCell className="text-right tabular-nums text-xs">{r.bcMeal ?? "—"}</TableCell>
+                      <TableCell className="text-right tabular-nums text-xs">{r.ecMeal ?? "—"}</TableCell>
+                      <TableCell className="text-right tabular-nums text-xs">{r.chml ?? "—"}</TableCell>
+                      <TableCell className="text-right tabular-nums text-xs">{r.vgml ?? "—"}</TableCell>
+                      <TableCell className="text-right tabular-nums text-xs">{r.specialMeals > 0 ? r.specialMeals : "—"}</TableCell>
+                      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1.5">
+                          <StatusBadge status={r.valid ? "OK" : "Failed"} />
+                          {!r.valid && (
+                            <Button size="sm" variant="outline" className="h-6 px-2 text-xs"
+                              onClick={() => setEditRow({ source: "intl", data: { ...r } })}>
+                              <Pencil className="h-3 w-3 mr-1" />Edit
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
 
-              <div className="flex justify-end gap-2 mt-4">
-                <Button variant="outline" onClick={() => toast.success("Error report downloaded.")}>
-                  <Download className="h-3.5 w-3.5 mr-1.5" /> Error Report
-                </Button>
-                <Button onClick={confirmImport}>
-                  Confirm Import
-                </Button>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => toast.success("Error report downloaded.")}>
+                <Download className="h-3.5 w-3.5 mr-1.5" /> Error Report
+              </Button>
+              <Button onClick={confirmImport}>Confirm Import</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Edit failed row dialog */}
+      <Dialog open={editRow !== null} onOpenChange={(open) => { if (!open) setEditRow(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Row — {editRow?.data.flight}</DialogTitle>
+          </DialogHeader>
+          {editRow && (
+            <div className="grid grid-cols-2 gap-3 py-2">
+              <div className="col-span-2">
+                <Label className="text-xs">Flight No</Label>
+                <Input className="mt-1 h-8 text-sm" value={editRow.data.flight}
+                  onChange={(e) => setEditRow((prev) => prev && ({ ...prev, data: { ...prev.data, flight: e.target.value } }))} />
               </div>
-            </CardContent>
-          </Card>
+              <div>
+                <Label className="text-xs">Sector</Label>
+                <Input className="mt-1 h-8 text-sm" value={editRow.data.sector}
+                  onChange={(e) => setEditRow((prev) => prev && ({ ...prev, data: { ...prev.data, sector: e.target.value } }))} />
+              </div>
+              <div>
+                <Label className="text-xs">DEP Time</Label>
+                <Input className="mt-1 h-8 text-sm" value={editRow.data.etd}
+                  onChange={(e) => setEditRow((prev) => prev && ({ ...prev, data: { ...prev.data, etd: e.target.value } }))} />
+              </div>
+              {editRow.source === "dom" ? (
+                <>
+                  <div>
+                    <Label className="text-xs">ZEN Load</Label>
+                    <Input type="number" min={0} className="mt-1 h-8 text-sm" value={editRow.data.zenLoad ?? ""}
+                      onChange={(e) => setEditRow((prev) => prev && ({ ...prev, data: { ...prev.data, zenLoad: Number(e.target.value), totalMeal: Number(e.target.value) } }))} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">SPEC MEAL</Label>
+                    <Input type="number" min={0} className="mt-1 h-8 text-sm" value={editRow.data.specMeal ?? ""}
+                      onChange={(e) => setEditRow((prev) => prev && ({ ...prev, data: { ...prev.data, specMeal: Number(e.target.value), specialMeals: Number(e.target.value) } }))} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">CREW MEAL</Label>
+                    <Input type="number" min={0} className="mt-1 h-8 text-sm" value={editRow.data.crewMeal ?? ""}
+                      onChange={(e) => setEditRow((prev) => prev && ({ ...prev, data: { ...prev.data, crewMeal: Number(e.target.value) } }))} />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <Label className="text-xs">B/C Load</Label>
+                    <Input type="number" min={0} className="mt-1 h-8 text-sm" value={editRow.data.bcLoad ?? ""}
+                      onChange={(e) => setEditRow((prev) => prev && ({ ...prev, data: { ...prev.data, bcLoad: Number(e.target.value), bcMeal: Number(e.target.value) } }))} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">E/C Load</Label>
+                    <Input type="number" min={0} className="mt-1 h-8 text-sm" value={editRow.data.ecLoad ?? ""}
+                      onChange={(e) => setEditRow((prev) => prev && ({ ...prev, data: { ...prev.data, ecLoad: Number(e.target.value), ecMeal: Number(e.target.value) } }))} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">CHML</Label>
+                    <Input type="number" min={0} className="mt-1 h-8 text-sm" value={editRow.data.chml ?? ""}
+                      onChange={(e) => setEditRow((prev) => prev && ({ ...prev, data: { ...prev.data, chml: Number(e.target.value) } }))} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">VGML</Label>
+                    <Input type="number" min={0} className="mt-1 h-8 text-sm" value={editRow.data.vgml ?? ""}
+                      onChange={(e) => setEditRow((prev) => prev && ({ ...prev, data: { ...prev.data, vgml: Number(e.target.value) } }))} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">SPEC MEAL</Label>
+                    <Input type="number" min={0} className="mt-1 h-8 text-sm" value={editRow.data.specMeal ?? ""}
+                      onChange={(e) => setEditRow((prev) => prev && ({ ...prev, data: { ...prev.data, specMeal: Number(e.target.value), specialMeals: Number(e.target.value) } }))} />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditRow(null)}>Cancel</Button>
+            <Button onClick={() => {
+              if (!editRow) return;
+              const updated = { ...editRow.data, valid: true,
+                pax: editRow.source === "dom"
+                  ? (editRow.data.zenLoad ?? editRow.data.pax)
+                  : (editRow.data.bcLoad ?? 0) + (editRow.data.ecLoad ?? 0),
+              };
+              if (editRow.source === "dom") {
+                setDomParsed((prev) => prev.map((r) => r.row === updated.row ? updated : r));
+              } else {
+                setIntlParsed((prev) => prev.map((r) => r.row === updated.row ? updated : r));
+              }
+              setEditRow(null);
+              toast.success(`Row ${updated.row} updated and marked valid.`);
+            }}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Post-import: success banner, meal summary, order meal action bar */}
+      {importConfirmed && (
+        <>
+          <div className="rounded-lg border border-success/40 bg-success/10 px-4 py-3 flex items-center gap-3">
+            <CheckCircle2 className="h-5 w-5 text-success flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-foreground">
+                Import confirmed — {importedOrders.length} orders
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {importDate} · {domParsed.filter((r) => r.valid).length} domestic · {intlParsed.filter((r) => r.valid).length} international
+              </p>
+            </div>
+          </div>
 
           <Card>
             <CardContent className="pt-6">
               <h3 className="text-sm font-semibold tracking-wider uppercase text-foreground mb-4">
-                Meal Order Summary
+                Meal Order Summary — Next 24 Hours
+                <span className="ml-2 text-xs font-normal normal-case tracking-normal text-muted-foreground">{importDate}</span>
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                {DAY_MEAL_PLAN.map((day) => (
-                  <div key={day.key} className="rounded-lg border border-border p-4 bg-muted/40">
-                    <div className="text-xs uppercase text-muted-foreground">{day.label}</div>
-                    <div className="text-sm text-muted-foreground mb-2">{day.date}</div>
-                    <div className="text-2xl font-semibold">{day.meals}</div>
-                    <div className="text-sm text-muted-foreground">meals estimated</div>
-                  </div>
-                ))}
-              </div>
 
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button onClick={() => setOrderVisible((v) => !v)}>
-                    {orderVisible ? "Hide Meal Order" : "Order Meal"}
-                  </Button>
-                  {forwarded && (
-                    <span className="rounded-full bg-success/10 text-success px-3 py-1 text-sm">
-                      Meal order forwarded to Production
-                    </span>
-                  )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* International column */}
+                <div className="rounded-lg border border-navy/20 bg-navy/5 p-4 space-y-4">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-navy">International</h4>
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Departure</div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Total Departure Meal</span>
+                      <span className="font-medium tabular-nums">{intlDepMeal}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Departure CHML</span>
+                      <span className="font-medium tabular-nums">{intlDepChml}</span>
+                    </div>
+                    <div className="flex justify-between text-sm font-semibold border-t border-navy/20 pt-1">
+                      <span>Departure Total</span>
+                      <span className="tabular-nums">{intlDepTotal}</span>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Return</div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Total Return Meal</span>
+                      <span className="font-medium tabular-nums">0</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Return CHML</span>
+                      <span className="font-medium tabular-nums">0</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Return VGML</span>
+                      <span className="font-medium tabular-nums">{intlRetVgml}</span>
+                    </div>
+                    <div className="flex justify-between text-sm font-semibold border-t border-navy/20 pt-1">
+                      <span>Return Total</span>
+                      <span className="tabular-nums">{intlRetTotal}</span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between text-sm font-bold border-t-2 border-navy/30 pt-2 mt-1">
+                    <span>Total Meal (Departure+Return)</span>
+                    <span className="tabular-nums">{intlGrandTotal}</span>
+                  </div>
                 </div>
 
-                {orderVisible && (
-                  <>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                      {DAY_MEAL_PLAN.map((day) => (
-                        <div key={day.key} className="rounded-lg border border-border p-4">
-                          <div className="text-sm font-semibold mb-2">{day.label}</div>
-                          <Label className="text-xs text-muted-foreground">Meals for the day</Label>
-                          <Input
-                            type="number"
-                            min={0}
-                            value={mealOrder[day.key]}
-                            onChange={(e) =>
-                              setMealOrder((prev) => ({ ...prev, [day.key]: Number(e.target.value) }))
-                            }
-                            className="mt-1"
-                          />
-                        </div>
-                      ))}
+                {/* Domestic column */}
+                <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-4">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-primary">Domestic</h4>
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">US-Bangla</div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Zenith Load</span>
+                      <span className="font-medium tabular-nums">{usbaZenith}</span>
                     </div>
-
-                    <div className="flex flex-wrap items-center gap-2 mt-2">
-                      <Button
-                        onClick={() => {
-                          setForwarded(true);
-                          setOrderVisible(false);
-                          addLog("Forwarded meal order to Production");
-                          toast.success("Meal order forwarded to Production");
-                        }}
-                        disabled={Object.values(mealOrder).every((value) => value === 0)}
-                      >
-                        Forward to Production
-                      </Button>
-                      <span className="text-sm text-muted-foreground">
-                        Enter daily meal quantities before forwarding.
-                      </span>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Pax Load</span>
+                      <span className="font-medium tabular-nums">{usbaPax}</span>
                     </div>
-                  </>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-6">
-              <h3 className="text-sm font-semibold tracking-wider uppercase text-foreground mb-4">
-                Recent Activity
-              </h3>
-              <div className="space-y-3">
-                {activityLog.map((entry, index) => (
-                  <div key={index} className="rounded-lg border border-border p-3 bg-muted/40">
-                    <div className="flex items-center justify-between text-sm text-muted-foreground">
-                      <span>{entry.user} — {entry.role}</span>
-                      <span>{entry.at}</span>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Breakfast (JBR + CKN Buggati)</span>
+                      <span className="font-medium tabular-nums">{usbaBreakfast}</span>
                     </div>
-                    <div className="mt-1 text-sm text-foreground">{entry.message}</div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Lunch</span>
+                      <span className="font-medium tabular-nums">{usbaLunch}</span>
+                    </div>
                   </div>
-                ))}
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Air Astra</div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Zenith Load</span>
+                      <span className="font-medium tabular-nums">{aaaZenith}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Pax Load</span>
+                      <span className="font-medium tabular-nums">{aaaPax}</span>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Crew Meals</div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">H. Snacks</span>
+                      <span className="font-medium tabular-nums">{crewHSnacks}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Lunch</span>
+                      <span className="font-medium tabular-nums">{crewLunch}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Dinner</span>
+                      <span className="font-medium tabular-nums">{crewDinner}</span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between text-sm font-semibold border-t border-primary/20 pt-2">
+                    <span>Total Zenith (USBA + Air Astra)</span>
+                    <span className="tabular-nums">{totalZenith}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Order Meal action bar */}
+              <div className={cn(
+                "mt-6 rounded-lg border p-4 flex items-center justify-between gap-4",
+                orderSent ? "border-success/40 bg-success/5" : "border-border bg-muted/30",
+              )}>
+                <div className="text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">{importDate}</span>
+                  <span className="mx-2">·</span>
+                  <span>{totalFlights} flight{totalFlights !== 1 ? "s" : ""}</span>
+                  <span className="mx-2">·</span>
+                  <span>{totalMeals.toLocaleString()} meals</span>
+                </div>
+                <Button
+                  onClick={handleOrderMeal}
+                  disabled={orderLoading || orderSent}
+                  className={cn(orderSent && "bg-success hover:bg-success text-white")}
+                >
+                  {orderLoading ? "Sending…" : orderSent ? (
+                    <><CheckCircle2 className="h-4 w-4 mr-1.5" />Sent</>
+                  ) : "Order meal"}
+                </Button>
               </div>
             </CardContent>
           </Card>
         </>
+      )}
+
+      {/* Recent Activity */}
+      {(bothDone || importConfirmed) && (
+        <Card>
+          <CardContent className="pt-6">
+            <h3 className="text-sm font-semibold tracking-wider uppercase text-foreground mb-4">
+              Recent Activity
+            </h3>
+            <div className="space-y-3">
+              {activityLog.map((entry, index) => (
+                <div key={index} className="rounded-lg border border-border p-3 bg-muted/40">
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                    <span>{entry.user} — {entry.role}</span>
+                    <span>{entry.at}</span>
+                  </div>
+                  <div className="mt-1 text-sm text-foreground">{entry.message}</div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       <Card>

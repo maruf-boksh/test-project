@@ -369,6 +369,7 @@ function MealPlanning() {
   const [createErrors, setCreateErrors] = useState<string[]>([]);
   const [daySelectionOpen, setDaySelectionOpen] = useState(false);
   const [pendingDay, setPendingDay] = useState(selectedDay);
+  const [tagLog, setTagLog] = useState<{ name: string; date: string; time: string } | null>(null);
 
   const currentDayMeals = useMemo(() => meals.filter((m) => m.day === selectedDay), [meals, selectedDay]);
   const selectedMealType = createData.mealTypes[0] ?? "";
@@ -1093,6 +1094,11 @@ function MealPlanning() {
             <div className="flex items-center justify-between">
               <div>
                 <div>Total: {lastForwardedQuantity.toLocaleString()} meal orders forwarded to Production for next 24 hours schedule</div>
+                {tagLog && (
+                  <div className="text-xs text-green-800 mt-1">
+                    Meal order has been generated for next 24 hours by {tagLog.name}, {tagLog.date}, {tagLog.time}
+                  </div>
+                )}
               </div>
               <div className="flex gap-2">
                 <Button size="sm" disabled className="bg-green-600 hover:bg-green-600">
@@ -1273,6 +1279,44 @@ function MealPlanning() {
             </div>
           </div>
 
+          {/* Domestic / International summary */}
+          <div className="px-6 py-3 bg-white border-b">
+            <div className="grid grid-cols-2 gap-3">
+              {(() => {
+                const domMeals = meals.filter((m) => m.day === pendingDay && m.flightType.includes("Domestic"));
+                const domTypes = [...new Set(domMeals.map((m) => m.mealType))];
+                return (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Domestic</div>
+                    <div className="text-2xl font-bold text-slate-800">{domMeals.length}</div>
+                    <div className="text-xs text-slate-500">meals configured</div>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {domTypes.length > 0 ? domTypes.map((t) => (
+                        <span key={t} className="px-1.5 py-0.5 text-xs rounded bg-slate-200 text-slate-600">{t}</span>
+                      )) : <span className="text-xs text-slate-400 italic">None configured</span>}
+                    </div>
+                  </div>
+                );
+              })()}
+              {(() => {
+                const intlMeals = meals.filter((m) => m.day === pendingDay && m.flightType.includes("International"));
+                const intlTypes = [...new Set(intlMeals.map((m) => m.mealType))];
+                return (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">International</div>
+                    <div className="text-2xl font-bold text-slate-800">{intlMeals.length}</div>
+                    <div className="text-xs text-slate-500">meals configured</div>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {intlTypes.length > 0 ? intlTypes.map((t) => (
+                        <span key={t} className="px-1.5 py-0.5 text-xs rounded bg-slate-200 text-slate-600">{t}</span>
+                      )) : <span className="text-xs text-slate-400 italic">None configured</span>}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+
           {/* Scrollable meal rows */}
           <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3 bg-slate-50">
             {(() => {
@@ -1359,6 +1403,7 @@ function MealPlanning() {
                 setForwardCycle("forwarded");
                 setLastForwardedQuantity(gmOrderData.totalMealsToday);
                 setForwardedAt(now);
+                setTagLog({ name: "Current User", date: todayFormatted, time: timeFormatted });
                 setOrderHistory((prev) => [...prev, { mealsOrdered: gmOrderData.totalMealsToday, orderedBy: "Current User", designation: "Meal Planner", date: todayFormatted, time: timeFormatted, period: "24-hour cycle" }]);
                 setDaySelectionOpen(false);
                 toast.success("Meal plan tagged and forwarded to Production — opening Production Entry");

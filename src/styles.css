@@ -77,14 +77,14 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.20 0.015 25);
 
-  /* Primary — US-Bangla vivid red */
-  --primary: oklch(0.58 0.23 25);
+  /* Primary — professional steel blue */
+  --primary: oklch(0.50 0.135 248);
   --primary-foreground: oklch(0.99 0 0);
 
   /* Secondary / muted / accent */
   --secondary: oklch(0.965 0.005 25);
   --secondary-foreground: oklch(0.22 0.015 25);
-  --muted: oklch(0.965 0.005 25);
+  --muted: oklch(0.952 0.020 240);
   --muted-foreground: oklch(0.50 0.015 25);
   --accent: oklch(0.95 0.022 30);
   --accent-foreground: oklch(0.42 0.18 25);
@@ -96,7 +96,7 @@
   /* Borders / inputs / ring */
   --border: oklch(0.915 0.006 25);
   --input: oklch(0.915 0.006 25);
-  --ring: oklch(0.58 0.23 25);
+  --ring: oklch(0.50 0.135 248);
 
   /* Brand tokens — taken directly from US-Bangla logo */
   --brand: oklch(0.58 0.23 25);                  /* vivid red */
@@ -119,15 +119,15 @@
   --chart-4: oklch(0.76 0.14 75);                /* amber */
   --chart-5: oklch(0.55 0.10 220);               /* sky */
 
-  /* Sidebar — Odoo light style with red active */
-  --sidebar: oklch(0.98 0.004 25);
-  --sidebar-foreground: oklch(0.28 0.015 25);
-  --sidebar-primary: oklch(0.55 0.22 25);
+  /* Sidebar — pearl blue professional */
+  --sidebar: oklch(0.955 0.022 240);
+  --sidebar-foreground: oklch(0.25 0.025 245);
+  --sidebar-primary: oklch(0.50 0.135 248);
   --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.95 0.025 30);
-  --sidebar-accent-foreground: oklch(0.40 0.18 25);
-  --sidebar-border: oklch(0.915 0.006 25);
-  --sidebar-ring: oklch(0.55 0.22 25);
+  --sidebar-accent: oklch(0.908 0.035 238);
+  --sidebar-accent-foreground: oklch(0.28 0.14 248);
+  --sidebar-border: oklch(0.900 0.022 240);
+  --sidebar-ring: oklch(0.50 0.135 248);
 }
 
 .dark {
@@ -232,6 +232,8 @@
     letter-spacing: 0.04em;
     text-transform: uppercase;
     font-size: 11px;
+    background-color: oklch(0.948 0.022 240);
+    border-bottom: 1px solid oklch(0.898 0.028 240);
   }
   tbody tr { transition: background-color 120ms ease; }
   tbody tr:hover { background-color: oklch(0.20 0.015 25 / 0.025); }
