@@ -5,7 +5,8 @@ import {
   ChevronDown, Factory, Truck, Pill, ThermometerSun, ClipboardCheck,
   Layers, FileText, SlidersHorizontal, Wallet, Receipt, BadgeCheck, PieChart, Send,
   Settings, Tag, Building2, Warehouse, BadgeDollarSign, GitBranch, Plane, Calculator,
-  ArrowLeftRight, MoveRight,
+  ArrowLeftRight, MoveRight, MailQuestion, ClipboardList, Scale, LineChart, Undo2,
+  Coffee, ScanBarcode, Plane as PlaneIcon, Boxes as BoxesIcon, ShieldAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRole, ROLE_PERMS } from "@/lib/roles";
@@ -21,7 +22,7 @@ const NAV: Entry[] = [
   { key: "meal-planning", to: "/meal-planning", label: "Meal Planning", icon: UtensilsCrossed },
   {
     key: "production",
-    label: "Production",
+    label: "Production Management",
     icon: Factory,
     items: [
       { key: "inventory-bom", to: "/bom", label: "Bill of Materials", icon: Layers },
@@ -50,8 +51,13 @@ const NAV: Entry[] = [
     icon: ShoppingCart,
     items: [
       { key: "supply-pr", to: "/purchase-requisition", label: "Purchase Requisition", icon: FileText },
+      { key: "supply-rfq", to: "/request-for-quotation", label: "Request for Quotation", icon: MailQuestion },
+      { key: "supply-qe", to: "/quotation-entry", label: "Quotation Entry", icon: ClipboardList },
+      { key: "supply-cs", to: "/comparative-statement", label: "Comparative Statement", icon: Scale },
       { key: "supply-po", to: "/procurement", label: "Purchase Orders", icon: ShoppingCart },
       { key: "supply-receive", to: "/receive-item", label: "Receive Items", icon: Truck },
+      { key: "supply-return", to: "/purchase-return", label: "Purchase Return", icon: Undo2 },
+      { key: "supply-reports", to: "/purchase-reports", label: "Purchase Reports", icon: LineChart },
     ],
   },
   {
@@ -75,6 +81,27 @@ const NAV: Entry[] = [
     ],
   },
   { key: "dispatch", to: "/dispatch", label: "Packaging & Dispatch", icon: PackageCheck },
+  {
+    key: "airline-consumables",
+    label: "Airline Consumables",
+    icon: Coffee,
+    items: [
+      { key: "consumables-inventory",   to: "/airline-consumables",    label: "Inventory",        icon: BoxesIcon },
+      { key: "consumables-usage",       to: "/consumable-usage",       label: "Usage Tracking",   icon: Send },
+      { key: "consumables-allocation",  to: "/consumable-allocation",  label: "Flight Allocation", icon: PlaneIcon },
+    ],
+  },
+  {
+    key: "airline-equipments",
+    label: "Airline Equipments",
+    icon: ScanBarcode,
+    items: [
+      { key: "equipments-assets",       to: "/airline-equipments",    label: "Assets",           icon: BoxesIcon },
+      { key: "equipments-maintenance",  to: "/equipment-maintenance", label: "Maintenance",      icon: Wrench },
+      { key: "equipments-returns",      to: "/equipment-returns",     label: "Returns",          icon: Undo2 },
+      { key: "equipments-damage",       to: "/equipment-damage",      label: "Damage Reports",   icon: ShieldAlert },
+    ],
+  },
   { key: "maintenance", to: "/maintenance", label: "Maintenance & Assets", icon: Wrench },
   { key: "reports", to: "/reports", label: "Reports", icon: BarChart3 },
   { key: "users", to: "/users", label: "User Management", icon: Users },
@@ -82,7 +109,7 @@ const NAV: Entry[] = [
   { key: "approval-management", to: "/approval-management", label: "Approval Management", icon: BadgeCheck },
   {
     key: "config",
-    label: "Configuration",
+    label: "Configuration Management",
     icon: Settings,
     items: [
       { key: "config-item",      to: "/config-item",      label: "Item Profile",         icon: Tag },

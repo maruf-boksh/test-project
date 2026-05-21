@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useWorkflow, type WfProductionEntry } from "@/lib/workflow-store";
+import { useArrivalFlash } from "@/lib/arrival-flash";
 
 export const Route = createFileRoute("/cooking-temp")({
   head: () => ({ meta: [{ title: "Cooking Temp & Sensory Test" }] }),
@@ -23,6 +24,7 @@ export const Route = createFileRoute("/cooking-temp")({
 type T = (typeof cookingTempLogs)[number];
 
 function CookingTemp() {
+  useArrivalFlash();
   const { productionEntries, updateProductionEntryStatus, applyStockDeltas } = useWorkflow();
   const [records, setRecords] = useState<T[]>(cookingTempLogs);
   const [newRecordOpen, setNewRecordOpen] = useState(false);
@@ -290,12 +292,14 @@ function CookingTemp() {
         </CardContent>
       </Card>
 
-      <DataTable
-        title="cooking-temp"
-        data={records}
-        columns={cols}
-        searchKeys={["id", "batch", "item", "cookedBy", "checkedBy"]}
-      />
+      <div data-arrival-id="qc-issues">
+        <DataTable
+          title="cooking-temp"
+          data={records}
+          columns={cols}
+          searchKeys={["id", "batch", "item", "cookedBy", "checkedBy"]}
+        />
+      </div>
 
       <Dialog open={qcOpen} onOpenChange={setQcOpen}>
         <DialogContent className="max-w-lg">

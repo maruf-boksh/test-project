@@ -34,6 +34,7 @@ import {
   type SpecialMealEntry, type SpecialMealCategory,
 } from "@/lib/sample-data";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useArrivalFlash } from "@/lib/arrival-flash";
 
 function OrderStatusBadges({ legs }: { legs: { status: FlightOrderStatus }[] }) {
   if (legs.length === 0) return null;
@@ -123,6 +124,7 @@ type ActivityEntry = { message: string; user: string; role: string; at: string }
 type RecentUploadRow = (typeof recentUploads)[number];
 
 function OrderManagementPage() {
+  useArrivalFlash();
   const [orders, setOrders] = useState<FlightOrder[]>(seedOrders);
   const [view, setView] = useState<"list" | "create" | "bulk" | "crew-create">("list");
   const [selectedOrder, setSelectedOrder] = useState<FlightOrder | null>(null);
@@ -638,7 +640,7 @@ function OrdersList({
           Showing <strong className="text-foreground tabular-nums">{filteredOrders.length}</strong> of {orders.length} order{orders.length === 1 ? "" : "s"}
         </div>
 
-        <div className="border border-border rounded-md overflow-hidden">
+        <div data-arrival-id="active-orders" className="border border-border rounded-md overflow-hidden">
           <Table>
             <TableHeader className="bg-muted/40">
               <TableRow>

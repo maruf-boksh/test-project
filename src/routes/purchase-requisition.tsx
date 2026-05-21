@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { activeItems } from "@/lib/sample-data";
 import { LocationPicker, LocationFilter, LocationCell } from "@/components/common/LocationPicker";
 import { useWorkflow, type WfRequisition } from "@/lib/workflow-store";
+import { useArrivalFlash } from "@/lib/arrival-flash";
 
 export const Route = createFileRoute("/purchase-requisition")({
   head: () => ({ meta: [{ title: "Purchase Requisition" }] }),
@@ -175,6 +176,7 @@ function wfReqToPurchaseRequisition(wf: WfRequisition): PurchaseRequisition {
 }
 
 function PurchaseRequisitionPage() {
+  useArrivalFlash();
   const { wfRequisitions } = useWorkflow();
   const [requisitions, setRequisitions] = useState<PurchaseRequisition[]>(seedRequisitions);
   const [view, setView] = useState<"list" | "create">("list");
@@ -271,22 +273,24 @@ function PurchaseRequisitionPage() {
             </span>
           </div>
 
-          <DataTable
-            title="purchase-requisitions"
-            data={filtered}
-            columns={cols}
-            searchKeys={["id", "department", "requestedBy", "status"]}
-            actions={(r) => (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 px-2.5 text-xs"
-                onClick={() => setSelected(r)}
-              >
-                View
-              </Button>
-            )}
-          />
+          <div data-arrival-id="pr-list">
+            <DataTable
+              title="purchase-requisitions"
+              data={filtered}
+              columns={cols}
+              searchKeys={["id", "department", "requestedBy", "status"]}
+              actions={(r) => (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2.5 text-xs"
+                  onClick={() => setSelected(r)}
+                >
+                  View
+                </Button>
+              )}
+            />
+          </div>
         </>
       ) : (
         <PurchaseRequisitionCreate

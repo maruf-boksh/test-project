@@ -17,7 +17,7 @@ import {
   Plus, PackageCheck, Clock, CheckCircle2, Send, Search, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { inventory } from "@/lib/sample-data";
+import { inventory, allocateFefo, type FefoAllocation } from "@/lib/sample-data";
 import { useWorkflow, type WfTransferNote, type WfDemandRequest } from "@/lib/workflow-store";
 import { useRole } from "@/lib/roles";
 import { LocationPicker, LocationFilter, LocationCell } from "@/components/common/LocationPicker";
@@ -34,7 +34,14 @@ const KITCHEN_SECTIONS = [
   "Hot Kitchen", "Cold Kitchen", "Veg Section", "Special Meal", "Bakery", "Packaging",
 ];
 
-type IssueItem = { id: string; name: string; qty: number; uom: string };
+type IssueItem = {
+  id: string;
+  name: string;
+  qty: number;
+  uom: string;
+  fefoAllocations?: FefoAllocation[];
+  fefoCost?: number;
+};
 
 function ItemIssuePage() {
   const { transferNotes, addTransferNote, acknowledgeTransfer, demands, updateDemandStatus } = useWorkflow();
@@ -554,7 +561,16 @@ function CreateIssueDialog({
       .filter((id) => Number(issuedMap[id] ?? 0) > 0)
       .map((id) => {
         const inv = inventory.find((i) => i.id === id)!;
-        return { id: inv.id, name: inv.name, qty: Number(issuedMap[id]), uom: inv.uom };
+        const qty = Number(issuedMap[id]);
+        const fefo = allocateFefo(inv.id, qty);
+        return {
+          id: inv.id,
+          name: inv.name,
+          qty,
+          uom: inv.uom,
+          fefoAllocations: fefo.allocations,
+          fefoCost: fefo.totalCost,
+        };
       });
     if (items.length === 0) {
       toast.error(isDirect
@@ -692,13 +708,14 @@ function CreateIssueDialog({
                 <th className="text-right px-3 py-2 text-[10px] uppercase tracking-wider w-28">Requested</th>
                 <th className="text-right px-3 py-2 text-[10px] uppercase tracking-wider w-28">Issued</th>
                 <th className="text-right px-3 py-2 text-[10px] uppercase tracking-wider w-28">Remaining</th>
+                <th className="text-left px-3 py-2 text-[10px] uppercase tracking-wider">Allocation (FEFO/FIFO)</th>
                 {isDirect && <th className="px-3 py-2 w-12" />}
               </tr>
             </thead>
             <tbody>
               {visibleItems.length === 0 ? (
                 <tr>
-                  <td colSpan={isDirect ? 8 : 7} className="text-center text-xs text-muted-foreground py-8">
+                  <td colSpan={isDirect ? 9 : 8} className="text-center text-xs text-muted-foreground py-8">
                     {isDirect
                       ? "No items added yet — use the Add Item picker above."
                       : selectedDemand
@@ -714,6 +731,7 @@ function CreateIssueDialog({
                   const over = issN > reqN && reqN > 0;
                   const lowStock = issN > 0 && issN > inv.stock;
                   const inDemand = reqN > 0;
+                  const fefo = issN > 0 ? allocateFefo(inv.id, issN) : null;
                   return (
                     <tr key={inv.id} className={"border-t border-border hover:bg-muted/20" + (inDemand ? " bg-primary/[0.03]" : "")}>
                       <td className="px-3 py-2 text-muted-foreground">{i + 1}</td>
@@ -746,6 +764,32 @@ function CreateIssueDialog({
                         <span className={over ? "text-destructive font-semibold" : remaining > 0 ? "text-warning" : "text-muted-foreground"}>
                           {over ? `+${issN - reqN}` : remaining}
                         </span>
+                      </td>
+                      <td className="px-3 py-2 text-[11px]">
+                        {fefo === null ? (
+                          <span className="text-muted-foreground">—</span>
+                        ) : (
+                          <div className="space-y-0.5">
+                            <div className="inline-flex items-center gap-1 text-[9px] uppercase tracking-wider font-bold text-primary mb-0.5">
+                              <span className="px-1.5 py-0.5 rounded bg-primary/10 border border-primary/30">{fefo.method}</span>
+                            </div>
+                            {fefo.allocations.map((a) => (
+                              <div key={a.batchNo} className="font-mono">
+                                <span className="text-foreground">{a.batchNo}</span>
+                                <span className="text-muted-foreground"> · {a.expiry} · </span>
+                                <span className="font-semibold">{a.qty} {inv.uom}</span>
+                              </div>
+                            ))}
+                            {fefo.shortfall > 0 && (
+                              <div className="text-destructive font-semibold">
+                                Shortfall: {fefo.shortfall} {inv.uom}
+                              </div>
+                            )}
+                            <div className="text-muted-foreground">
+                              Cost: ৳ {Math.round(fefo.totalCost).toLocaleString()}
+                            </div>
+                          </div>
+                        )}
                       </td>
                       {isDirect && (
                         <td className="px-3 py-2 text-right">

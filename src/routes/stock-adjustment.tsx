@@ -115,16 +115,6 @@ function StockAdjustment() {
     { key: "status", header: "Status", render: (r) => <StatusBadge status={r.status} /> },
   ];
 
-  const approve = (id: string) => {
-    setAdjustments((prev) => prev.map((a) => a.id === id ? { ...a, status: "Approved" } : a));
-    toast.success(`Adjustment ${id} approved.`);
-  };
-
-  const reject = (id: string) => {
-    setAdjustments((prev) => prev.map((a) => a.id === id ? { ...a, status: "Rejected" } : a));
-    toast.error(`Adjustment ${id} rejected.`);
-  };
-
   const handleSave = () => {
     if (!newItem || !newQty || !newBy) {
       toast.error("Item, Quantity and Adjusted By are required.");
@@ -182,30 +172,7 @@ function StockAdjustment() {
         data={adjustments}
         columns={cols}
         searchKeys={["id", "item", "itemCode", "reason", "adjustedBy", "status"]}
-        actions={(r) => (
-          <div className="flex gap-1 justify-end">
-            {r.status === "Pending Approval" ? (
-              <>
-                <Button
-                  size="sm" variant="outline"
-                  className="text-success border-success/40 hover:bg-success/10"
-                  onClick={() => approve(r.id)}
-                >
-                  Approve
-                </Button>
-                <Button
-                  size="sm" variant="outline"
-                  className="text-destructive border-destructive/40 hover:bg-destructive/10"
-                  onClick={() => reject(r.id)}
-                >
-                  Reject
-                </Button>
-              </>
-            ) : (
-              <span className="text-xs text-muted-foreground px-2">{r.status}</span>
-            )}
-          </div>
-        )}
+        selectable={false}
       />
 
       {/* New Adjustment Dialog */}

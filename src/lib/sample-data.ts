@@ -8,16 +8,230 @@ export const flights = [
   { id: "BS-411", flight: "BS-411", sector: "CGP-DXB", aircraft: "B737-800", dep: "18:25", arr: "22:10", pax: 162, adult: 144, child: 14, infant: 4, crew: 8, type: "International", window: "Dinner", duration: "5h 15m", status: "Scheduled" },
 ];
 
-export const inventory = [
-  { id: "INV-1001", name: "Basmati Rice", category: "Grains", uom: "Kg", stock: 480, reorder: 200, batch: "BR-2406", expiry: "2026-09-30", storage: "Dry", status: "OK" },
-  { id: "INV-1002", name: "Chicken Breast", category: "Protein", uom: "Kg", stock: 64, reorder: 100, batch: "CB-2511", expiry: "2025-11-12", storage: "Cold", status: "Low" },
-  { id: "INV-1003", name: "Mineral Water 250ml", category: "Beverage", uom: "Bottle", stock: 4200, reorder: 1500, batch: "MW-2606", expiry: "2027-06-01", storage: "Dry", status: "OK" },
-  { id: "INV-1004", name: "Butter Salted", category: "Dairy", uom: "Kg", stock: 38, reorder: 30, batch: "BT-2510", expiry: "2025-12-20", storage: "Cold", status: "OK" },
-  { id: "INV-1005", name: "Tomato", category: "Vegetable", uom: "Kg", stock: 22, reorder: 80, batch: "TM-2511", expiry: "2025-11-15", storage: "Cold", status: "Critical" },
-  { id: "INV-1006", name: "Wheat Flour", category: "Grains", uom: "Kg", stock: 320, reorder: 150, batch: "WF-2509", expiry: "2026-08-10", storage: "Dry", status: "OK" },
-  { id: "INV-1007", name: "Olive Oil", category: "Oil", uom: "Litre", stock: 58, reorder: 40, batch: "OO-2507", expiry: "2026-07-22", storage: "Dry", status: "OK" },
-  { id: "INV-1008", name: "Salmon Fillet", category: "Protein", uom: "Kg", stock: 12, reorder: 30, batch: "SL-2511", expiry: "2025-11-09", storage: "Frozen", status: "Critical" },
+// ── FEFO (First-Expiry-First-Out) inventory model ──────────────────────────
+// Each inventory item carries one or more batch lots. Consumption draws from
+// the batch with the earliest expiry first (see allocateFefo below). The
+// legacy `batch` / `expiry` / `stock` fields are kept and derived from the
+// batches[] array for backwards-compat with screens that read them directly.
+
+export type BatchLot = {
+  batchNo: string;
+  /** ISO date YYYY-MM-DD */
+  expiry: string;
+  qty: number;
+  /** Cost price per UoM in BDT, used for valuation. */
+  costPrice: number;
+  /** ISO date YYYY-MM-DD — when this lot was received. */
+  receivedOn: string;
+  /** Bin / rack / shelf location inside the warehouse. */
+  binLocation?: string;
+};
+
+/** Allocation method: FEFO uses expiry, FIFO uses receipt date. */
+export type AllocationMethod = "FEFO" | "FIFO";
+
+export type InventoryItem = {
+  id: string;
+  name: string;
+  category: string;
+  uom: string;
+  stock: number;
+  reorder: number;
+  batch: string;
+  expiry: string;
+  storage: string;
+  status: "OK" | "Low" | "Critical";
+  batches: BatchLot[];
+};
+
+/** Build an inventory row from a list of batches; derives stock + earliest-expiry fields. */
+function makeInventoryItem(
+  base: Omit<InventoryItem, "stock" | "batch" | "expiry" | "status"> & { status?: InventoryItem["status"] },
+): InventoryItem {
+  const sorted = [...base.batches].sort((a, b) => a.expiry.localeCompare(b.expiry));
+  const stock = sorted.reduce((s, b) => s + b.qty, 0);
+  const earliest = sorted[0];
+  const status: InventoryItem["status"] =
+    base.status ??
+    (stock <= 0 ? "Critical" : stock < base.reorder ? "Low" : "OK");
+  return {
+    ...base,
+    batches: sorted,
+    stock,
+    batch: earliest?.batchNo ?? "—",
+    expiry: earliest?.expiry ?? "—",
+    status,
+  };
+}
+
+// Hand-curated batches for items that appear in seeded demand requests. These
+// keep the existing INV-100x references stable. Everything else is auto-derived
+// from the Item Profile master (see `inventory` further down).
+const SEED_INVENTORY: InventoryItem[] = [
+  makeInventoryItem({
+    id: "INV-1001", name: "Basmati Rice", category: "Grains", uom: "Kg",
+    reorder: 200, storage: "Dry",
+    batches: [
+      { batchNo: "BR-2406", expiry: "2026-09-30", qty: 280, costPrice: 142, receivedOn: "2026-03-10", binLocation: "A1-R3-S2" },
+      { batchNo: "BR-2408", expiry: "2026-12-15", qty: 200, costPrice: 148, receivedOn: "2026-05-02", binLocation: "A1-R3-S3" },
+    ],
+  }),
+  makeInventoryItem({
+    id: "INV-1002", name: "Chicken Breast", category: "Protein", uom: "Kg",
+    reorder: 100, storage: "Cold",
+    batches: [
+      { batchNo: "CB-2511", expiry: "2025-11-12", qty: 24, costPrice: 375, receivedOn: "2025-11-01", binLocation: "C2-R1-S1" },
+      { batchNo: "CB-2606", expiry: "2026-06-30", qty: 40, costPrice: 385, receivedOn: "2026-04-18", binLocation: "C2-R1-S2" },
+    ],
+  }),
+  makeInventoryItem({
+    id: "INV-1003", name: "Mineral Water 250ml", category: "Beverage", uom: "Bottle",
+    reorder: 1500, storage: "Dry",
+    batches: [
+      { batchNo: "MW-2606", expiry: "2027-06-01", qty: 2400, costPrice: 11, receivedOn: "2026-02-20", binLocation: "B3-R2-S1" },
+      { batchNo: "MW-2611", expiry: "2027-11-15", qty: 1800, costPrice: 12, receivedOn: "2026-05-05", binLocation: "B3-R2-S2" },
+    ],
+  }),
+  makeInventoryItem({
+    id: "INV-1004", name: "Butter Salted", category: "Dairy", uom: "Kg",
+    reorder: 30, storage: "Cold",
+    batches: [
+      { batchNo: "BT-2510", expiry: "2025-12-20", qty: 14, costPrice: 720, receivedOn: "2025-10-12", binLocation: "C1-R4-S1" },
+      { batchNo: "BT-2603", expiry: "2026-03-15", qty: 24, costPrice: 740, receivedOn: "2026-01-08", binLocation: "C1-R4-S2" },
+    ],
+  }),
+  makeInventoryItem({
+    id: "INV-1005", name: "Tomato", category: "Vegetable", uom: "Kg",
+    reorder: 80, storage: "Cold",
+    batches: [
+      { batchNo: "TM-2511", expiry: "2025-11-15", qty: 8,  costPrice: 62, receivedOn: "2025-11-04", binLocation: "C3-R1-S1" },
+      { batchNo: "TM-2602", expiry: "2026-02-10", qty: 14, costPrice: 68, receivedOn: "2026-01-22", binLocation: "C3-R1-S2" },
+    ],
+  }),
+  makeInventoryItem({
+    id: "INV-1006", name: "Wheat Flour", category: "Grains", uom: "Kg",
+    reorder: 150, storage: "Dry",
+    batches: [
+      { batchNo: "WF-2509", expiry: "2026-08-10", qty: 180, costPrice: 78, receivedOn: "2026-03-01", binLocation: "A2-R1-S1" },
+      { batchNo: "WF-2604", expiry: "2026-11-20", qty: 140, costPrice: 82, receivedOn: "2026-05-12", binLocation: "A2-R1-S2" },
+    ],
+  }),
+  makeInventoryItem({
+    id: "INV-1007", name: "Olive Oil", category: "Oil", uom: "Litre",
+    reorder: 40, storage: "Dry",
+    batches: [
+      { batchNo: "OO-2507", expiry: "2026-07-22", qty: 24, costPrice: 880, receivedOn: "2026-01-15", binLocation: "A4-R2-S1" },
+      { batchNo: "OO-2602", expiry: "2027-02-10", qty: 34, costPrice: 920, receivedOn: "2026-04-10", binLocation: "A4-R2-S2" },
+    ],
+  }),
+  makeInventoryItem({
+    id: "INV-1008", name: "Salmon Fillet", category: "Protein", uom: "Kg",
+    reorder: 30, storage: "Frozen",
+    batches: [
+      { batchNo: "SL-2511", expiry: "2025-11-09", qty: 4, costPrice: 1380, receivedOn: "2025-10-22", binLocation: "F1-R1-S1" },
+      { batchNo: "SL-2604", expiry: "2026-08-15", qty: 8, costPrice: 1420, receivedOn: "2026-04-04", binLocation: "F1-R1-S2" },
+    ],
+  }),
 ];
+
+/** Resolve the allocation method for an inventory item by looking up its master. */
+export function getAllocationMethod(itemId: string): AllocationMethod {
+  const inv = inventory.find((i) => i.id === itemId);
+  if (!inv) return "FEFO";
+  // INV-{code} ids reference an Item Profile by code; legacy INV-100x rows
+  // also map by name fallback.
+  const master =
+    items.find((m) => `INV-${m.code}` === itemId) ??
+    items.find((m) => m.name === inv.name);
+  return master?.allocationMethod ?? "FEFO";
+}
+
+/** Batches sorted by the item's allocation method (FEFO = expiry asc, FIFO = receivedOn asc). */
+export function getOrderedBatches(itemId: string, method?: AllocationMethod): BatchLot[] {
+  const item = inventory.find((i) => i.id === itemId);
+  if (!item) return [];
+  const m = method ?? getAllocationMethod(itemId);
+  const sorted = item.batches.filter((b) => b.qty > 0).slice();
+  if (m === "FIFO") {
+    sorted.sort((a, b) => a.receivedOn.localeCompare(b.receivedOn));
+  } else {
+    sorted.sort((a, b) => a.expiry.localeCompare(b.expiry));
+  }
+  return sorted;
+}
+
+/** Backwards-compat: explicitly FEFO ordering (used by Stock Overview ladder). */
+export function getFefoBatches(itemId: string): BatchLot[] {
+  return getOrderedBatches(itemId, "FEFO");
+}
+
+export type FefoAllocation = {
+  batchNo: string;
+  expiry: string;
+  qty: number;
+  costPrice: number;
+  lineCost: number;
+};
+
+export type AllocationResult = {
+  allocations: FefoAllocation[];
+  allocated: number;
+  shortfall: number;
+  totalCost: number;
+  method: AllocationMethod;
+};
+
+/**
+ * Allocate `qty` of an item across batches using the item's configured method.
+ * Returns per-batch draws + shortfall + chosen method.
+ */
+export function allocate(itemId: string, qty: number): AllocationResult {
+  const method = getAllocationMethod(itemId);
+  const allocations: FefoAllocation[] = [];
+  let remaining = qty;
+  let totalCost = 0;
+  for (const b of getOrderedBatches(itemId, method)) {
+    if (remaining <= 0) break;
+    const draw = Math.min(b.qty, remaining);
+    const lineCost = draw * b.costPrice;
+    allocations.push({
+      batchNo: b.batchNo,
+      expiry: b.expiry,
+      qty: draw,
+      costPrice: b.costPrice,
+      lineCost,
+    });
+    remaining -= draw;
+    totalCost += lineCost;
+  }
+  const allocated = qty - remaining;
+  return { allocations, allocated, shortfall: Math.max(0, remaining), totalCost, method };
+}
+
+/** Backwards-compat alias — prefer `allocate()`. */
+export function allocateFefo(itemId: string, qty: number): AllocationResult {
+  return allocate(itemId, qty);
+}
+
+/** Total inventory valuation = Σ (batch.qty × batch.costPrice). */
+export function inventoryValue(items: InventoryItem[] = inventory): number {
+  return items.reduce(
+    (sum, i) => sum + i.batches.reduce((s, b) => s + b.qty * b.costPrice, 0),
+    0,
+  );
+}
+
+/** Count of items with at least one batch expiring within `days` from `from` (default: today). */
+export function nearExpiryCount(
+  items: InventoryItem[] = inventory,
+  days = 30,
+  from: Date = new Date(),
+): number {
+  const cutoff = new Date(from.getTime() + days * 86400000).toISOString().slice(0, 10);
+  return items.filter((i) =>
+    i.batches.some((b) => b.qty > 0 && b.expiry <= cutoff),
+  ).length;
+}
 
 export const purchaseOrders = [
   { id: "PO-2025-0451", vendor: "Fresh Farms Ltd", items: 12, amount: 248500, date: "2025-11-04", status: "Pending Approval" },
@@ -208,6 +422,134 @@ export const amenitiesCutlery = [
   { id: "AM-CUT-06", item: "Disposable Cup 180ml", uom: "Pcs", stock: 2100, reorder: 3000, status: "Critical" },
 ];
 
+// ── Airline Consumables ────────────────────────────────────────────────────
+
+export type ConsumableCategory =
+  | "Napkin" | "Cup" | "Cutlery" | "Tissue" | "Amenity Kit"
+  | "Plastic Tray" | "Packaging";
+
+export type ConsumableItem = {
+  id: string;
+  name: string;
+  category: ConsumableCategory;
+  uom: string;
+  stock: number;
+  reorder: number;
+  unitCost: number;
+  binLocation?: string;
+  status: "OK" | "Low" | "Critical";
+};
+
+export const consumableItems: ConsumableItem[] = [
+  { id: "CNS-001", name: "Dinner Napkin (Y-class)",          category: "Napkin",      uom: "Pcs",  stock: 6400, reorder: 3000, unitCost: 0.6,  binLocation: "A1-R1-S1", status: "OK" },
+  { id: "CNS-002", name: "Dinner Napkin (B-class)",          category: "Napkin",      uom: "Pcs",  stock: 1200, reorder: 1500, unitCost: 0.9,  binLocation: "A1-R1-S2", status: "Low" },
+  { id: "CNS-003", name: "Cocktail Napkin",                  category: "Napkin",      uom: "Pcs",  stock: 980,  reorder: 1200, unitCost: 0.4,  binLocation: "A1-R1-S3", status: "Low" },
+  { id: "CNS-004", name: "Disposable Cup 180ml",             category: "Cup",         uom: "Pcs",  stock: 2100, reorder: 3000, unitCost: 1.2,  binLocation: "A2-R1-S1", status: "Critical" },
+  { id: "CNS-005", name: "Hot Beverage Cup 220ml (Lid)",     category: "Cup",         uom: "Pcs",  stock: 5400, reorder: 2500, unitCost: 1.8,  binLocation: "A2-R1-S2", status: "OK" },
+  { id: "CNS-006", name: "Plastic Spoon (Heavy Duty)",       category: "Cutlery",     uom: "Pcs",  stock: 8400, reorder: 4000, unitCost: 0.7,  binLocation: "A3-R1-S1", status: "OK" },
+  { id: "CNS-007", name: "Plastic Fork",                     category: "Cutlery",     uom: "Pcs",  stock: 7800, reorder: 4000, unitCost: 0.7,  binLocation: "A3-R1-S2", status: "OK" },
+  { id: "CNS-008", name: "Plastic Knife",                    category: "Cutlery",     uom: "Pcs",  stock: 3600, reorder: 4000, unitCost: 0.7,  binLocation: "A3-R1-S3", status: "Low" },
+  { id: "CNS-009", name: "Wooden Stirrer",                   category: "Cutlery",     uom: "Pcs",  stock: 12400,reorder: 5000, unitCost: 0.2,  binLocation: "A3-R1-S4", status: "OK" },
+  { id: "CNS-010", name: "Wet Hand Towel (Refresh)",         category: "Tissue",      uom: "Pcs",  stock: 4800, reorder: 2000, unitCost: 1.5,  binLocation: "A4-R1-S1", status: "OK" },
+  { id: "CNS-011", name: "Facial Tissue 100s",               category: "Tissue",      uom: "Box",  stock: 240,  reorder: 150,  unitCost: 22,   binLocation: "A4-R1-S2", status: "OK" },
+  { id: "CNS-012", name: "Y-Class Amenity Kit (Short Haul)", category: "Amenity Kit", uom: "Kit",  stock: 320,  reorder: 250,  unitCost: 28,   binLocation: "A5-R1-S1", status: "OK" },
+  { id: "CNS-013", name: "B-Class Amenity Kit (Long Haul)",  category: "Amenity Kit", uom: "Kit",  stock: 84,   reorder: 100,  unitCost: 145,  binLocation: "A5-R1-S2", status: "Low" },
+  { id: "CNS-014", name: "Casserole Plastic Tray (Hot)",     category: "Plastic Tray",uom: "Pcs",  stock: 1600, reorder: 1000, unitCost: 4.5,  binLocation: "A6-R1-S1", status: "OK" },
+  { id: "CNS-015", name: "Cold Meal Tray (PET)",             category: "Plastic Tray",uom: "Pcs",  stock: 920,  reorder: 800,  unitCost: 3.8,  binLocation: "A6-R1-S2", status: "OK" },
+  { id: "CNS-016", name: "Meal Box (Foil Lid)",              category: "Packaging",   uom: "Pcs",  stock: 2600, reorder: 2000, unitCost: 6.5,  binLocation: "A7-R1-S1", status: "OK" },
+  { id: "CNS-017", name: "Aluminum Foil Sheet",              category: "Packaging",   uom: "Pcs",  stock: 1800, reorder: 1500, unitCost: 0.9,  binLocation: "A7-R1-S2", status: "OK" },
+];
+
+export type ConsumableUsage = {
+  id: string;
+  date: string;
+  flight: string;
+  sector: string;
+  cabinClass: "Y" | "B" | "F";
+  itemId: string;
+  itemName: string;
+  qty: number;
+  uom: string;
+};
+
+export const consumableUsage: ConsumableUsage[] = [
+  { id: "CU-9001", date: "2026-05-20", flight: "BG-401", sector: "DAC→DXB", cabinClass: "Y", itemId: "CNS-001", itemName: "Dinner Napkin (Y-class)", qty: 186, uom: "Pcs" },
+  { id: "CU-9002", date: "2026-05-20", flight: "BG-401", sector: "DAC→DXB", cabinClass: "Y", itemId: "CNS-006", itemName: "Plastic Spoon (Heavy Duty)", qty: 186, uom: "Pcs" },
+  { id: "CU-9003", date: "2026-05-20", flight: "BG-401", sector: "DAC→DXB", cabinClass: "B", itemId: "CNS-013", itemName: "B-Class Amenity Kit (Long Haul)", qty: 28, uom: "Kit" },
+  { id: "CU-9004", date: "2026-05-20", flight: "BG-522", sector: "DAC→LHR", cabinClass: "Y", itemId: "CNS-016", itemName: "Meal Box (Foil Lid)", qty: 214, uom: "Pcs" },
+  { id: "CU-9005", date: "2026-05-20", flight: "BG-522", sector: "DAC→LHR", cabinClass: "B", itemId: "CNS-005", itemName: "Hot Beverage Cup 220ml (Lid)", qty: 64, uom: "Pcs" },
+  { id: "CU-9006", date: "2026-05-19", flight: "VQ-901", sector: "DAC→KUL", cabinClass: "Y", itemId: "CNS-010", itemName: "Wet Hand Towel (Refresh)", qty: 162, uom: "Pcs" },
+  { id: "CU-9007", date: "2026-05-19", flight: "BS-141", sector: "DAC→CGP", cabinClass: "Y", itemId: "CNS-009", itemName: "Wooden Stirrer", qty: 68, uom: "Pcs" },
+  { id: "CU-9008", date: "2026-05-19", flight: "BS-105", sector: "DAC→CXB", cabinClass: "Y", itemId: "CNS-014", itemName: "Casserole Plastic Tray (Hot)", qty: 72, uom: "Pcs" },
+];
+
+// ── Airline Equipments ─────────────────────────────────────────────────────
+
+export type EquipmentCategory =
+  | "Trolley" | "Oven Rack" | "Container" | "Tray" | "Galley Insert" | "Hot Box";
+
+export type EquipmentAsset = {
+  id: string;
+  name: string;
+  category: EquipmentCategory;
+  serialNo: string;
+  rfidTag?: string;
+  location: string;
+  lastMaintenance: string;
+  nextMaintenance: string;
+  status: "In Service" | "In Maintenance" | "Damaged" | "Retired";
+};
+
+export const equipmentAssets: EquipmentAsset[] = [
+  { id: "EQP-T-001", name: "Full Size Meal Trolley",  category: "Trolley",       serialNo: "TR-001",  rfidTag: "RF-TR0001", location: "BG-401",        lastMaintenance: "2026-03-10", nextMaintenance: "2026-09-10", status: "In Service" },
+  { id: "EQP-T-002", name: "Half Size Bar Trolley",   category: "Trolley",       serialNo: "TR-002",  rfidTag: "RF-TR0002", location: "BG-522",        lastMaintenance: "2026-02-22", nextMaintenance: "2026-08-22", status: "In Service" },
+  { id: "EQP-T-003", name: "Full Size Meal Trolley",  category: "Trolley",       serialNo: "TR-003",  rfidTag: "RF-TR0003", location: "Hot Kitchen",   lastMaintenance: "2026-01-15", nextMaintenance: "2026-07-15", status: "In Maintenance" },
+  { id: "EQP-O-001", name: "Standard Oven Rack",      category: "Oven Rack",     serialNo: "OR-101",  rfidTag: "RF-OR0101", location: "Hot Kitchen",   lastMaintenance: "2026-04-05", nextMaintenance: "2026-10-05", status: "In Service" },
+  { id: "EQP-O-002", name: "Standard Oven Rack",      category: "Oven Rack",     serialNo: "OR-102",  rfidTag: "RF-OR0102", location: "BG-401",        lastMaintenance: "2026-04-05", nextMaintenance: "2026-10-05", status: "In Service" },
+  { id: "EQP-O-003", name: "Wide Oven Rack",          category: "Oven Rack",     serialNo: "OR-201",  rfidTag: "RF-OR0201", location: "Damaged Pool",  lastMaintenance: "2025-12-01", nextMaintenance: "2026-06-01", status: "Damaged" },
+  { id: "EQP-C-001", name: "Meal Tray Container",     category: "Container",     serialNo: "CN-301",  rfidTag: "RF-CN0301", location: "BG-522",        lastMaintenance: "2026-03-18", nextMaintenance: "2026-09-18", status: "In Service" },
+  { id: "EQP-C-002", name: "Insulated Beverage Box",  category: "Hot Box",       serialNo: "HB-401",  rfidTag: "RF-HB0401", location: "BG-401",        lastMaintenance: "2026-02-28", nextMaintenance: "2026-08-28", status: "In Service" },
+  { id: "EQP-G-001", name: "Galley Insert (Half)",    category: "Galley Insert", serialNo: "GI-501",  rfidTag: "RF-GI0501", location: "Hot Kitchen",   lastMaintenance: "2026-04-12", nextMaintenance: "2026-10-12", status: "In Service" },
+  { id: "EQP-TR-01", name: "Cabin Service Tray",      category: "Tray",          serialNo: "CT-601",  rfidTag: "RF-CT0601", location: "Cold Kitchen",  lastMaintenance: "2026-04-20", nextMaintenance: "2026-10-20", status: "In Service" },
+];
+
+export type EquipmentReturn = {
+  id: string;
+  date: string;
+  flight: string;
+  assetId: string;
+  assetName: string;
+  returnedBy: string;
+  condition: "Good" | "Minor Issue" | "Damaged";
+  remarks?: string;
+};
+
+export const equipmentReturns: EquipmentReturn[] = [
+  { id: "ER-7001", date: "2026-05-20 18:40", flight: "BG-402", assetId: "EQP-T-001", assetName: "Full Size Meal Trolley", returnedBy: "T. Rahman", condition: "Good" },
+  { id: "ER-7002", date: "2026-05-20 18:42", flight: "BG-402", assetId: "EQP-O-002", assetName: "Standard Oven Rack",     returnedBy: "T. Rahman", condition: "Good" },
+  { id: "ER-7003", date: "2026-05-20 22:10", flight: "VQ-903", assetId: "EQP-C-001", assetName: "Meal Tray Container",    returnedBy: "S. Ahmed",  condition: "Minor Issue", remarks: "Latch loose" },
+  { id: "ER-7004", date: "2026-05-19 09:30", flight: "BS-142", assetId: "EQP-TR-01", assetName: "Cabin Service Tray",     returnedBy: "M. Karim",  condition: "Good" },
+  { id: "ER-7005", date: "2026-05-18 23:55", flight: "BG-522", assetId: "EQP-O-003", assetName: "Wide Oven Rack",         returnedBy: "T. Rahman", condition: "Damaged",     remarks: "Bent shelf — sent to repair" },
+];
+
+export type DamageReport = {
+  id: string;
+  date: string;
+  assetId: string;
+  assetName: string;
+  severity: "Minor" | "Moderate" | "Severe";
+  reportedBy: string;
+  description: string;
+  status: "Open" | "Under Repair" | "Repaired" | "Written Off";
+};
+
+export const damageReports: DamageReport[] = [
+  { id: "DR-2201", date: "2026-05-18", assetId: "EQP-O-003", assetName: "Wide Oven Rack",         severity: "Severe",   reportedBy: "T. Rahman", description: "Shelf bent during turbulence; cannot hold trays.", status: "Under Repair" },
+  { id: "DR-2202", date: "2026-05-17", assetId: "EQP-C-001", assetName: "Meal Tray Container",    severity: "Minor",    reportedBy: "S. Ahmed",  description: "Latch loose, needs adjustment.",                  status: "Open" },
+  { id: "DR-2203", date: "2026-05-12", assetId: "EQP-T-003", assetName: "Full Size Meal Trolley", severity: "Moderate", reportedBy: "M. Karim",  description: "Wheel wobble; brake mechanism stiff.",            status: "Under Repair" },
+  { id: "DR-2204", date: "2026-05-05", assetId: "EQP-G-001", assetName: "Galley Insert (Half)",   severity: "Minor",    reportedBy: "F. Begum",  description: "Surface scratched — cosmetic only.",              status: "Repaired" },
+];
+
 export const receiveItems = [
   { id: "GRN-5501", po: "PO-2025-0450", vendor: "Halal Meats Co.", item: "Chicken Breast", qty: 120, uom: "Kg", temp: "3°C", expiry: "2025-11-18", receivedBy: "M. Karim", status: "Accepted" },
   { id: "GRN-5502", po: "PO-2025-0449", vendor: "Aqua Pure BD", item: "Mineral Water 250ml", qty: 2400, uom: "Bottle", temp: "Ambient", expiry: "2027-06-01", receivedBy: "M. Karim", status: "Accepted" },
@@ -279,7 +621,7 @@ const _billOfMaterialsRaw: BillOfMaterial[] = [
     yield: "100 portions", lastUpdated: "2025-10-22", status: "Active",
     date: "2026-05-20", itemCode: "FG-27041", itemName: "Chicken Biryani",
     department: "Hot Kitchen", section: "Main Course", uom: "PCS", altUom: "",
-    lotSize: 1, bomValue: 40.00, createdBy: "Md. Mubin Khan",
+    lotSize: 1, bomValue: 40.00, createdBy: "JT Jahid Hossain",
     bomType: "Single Output",
     productionItems: [
       { item: "FG-27041 - Chicken Biryani (PCS)", itemType: "Finished/Trading Goods", netWeight: 0, quantity: 1, costPct: 100 },
@@ -294,7 +636,7 @@ const _billOfMaterialsRaw: BillOfMaterial[] = [
     yield: "100 portions", lastUpdated: "2025-09-15", status: "Active",
     date: "2026-05-10", itemCode: "FG-27036", itemName: "Veg Pulao",
     department: "Hot Kitchen", section: "Main Course", uom: "pieces", altUom: "",
-    lotSize: 1, bomValue: 21.50, createdBy: "Raisa Zarin",
+    lotSize: 1, bomValue: 21.50, createdBy: "Omor Siam",
     bomType: "Single Output",
     productionItems: [
       { item: "FG-27036 - Veg Pulao (pieces)", itemType: "Finished/Trading Goods", netWeight: 0, quantity: 1, costPct: 100 },
@@ -309,7 +651,7 @@ const _billOfMaterialsRaw: BillOfMaterial[] = [
     yield: "Set", lastUpdated: "2025-10-30", status: "Active",
     date: "2026-05-10", itemCode: "FG-27037", itemName: "Continental Breakfast",
     department: "Cold Kitchen", section: "Breakfast", uom: "pieces", altUom: "",
-    lotSize: 1, bomValue: 82.18, createdBy: "Shovon Ahmed Rajib",
+    lotSize: 1, bomValue: 82.18, createdBy: "Munna Idris",
     bomType: "Single Output",
     productionItems: [
       { item: "FG-27037 - Continental Breakfast (pieces)", itemType: "Finished/Trading Goods", netWeight: 0, quantity: 1, costPct: 100 },
@@ -325,7 +667,7 @@ const _billOfMaterialsRaw: BillOfMaterial[] = [
     yield: "100 portions", lastUpdated: "2025-11-01", status: "Draft",
     date: "2026-04-30", itemCode: "FG-27021", itemName: "Grilled Salmon",
     department: "Hot Kitchen", section: "Main Course", uom: "pieces", altUom: "",
-    lotSize: 1, bomValue: 246.80, createdBy: "Md. Saidur Rahman Akash",
+    lotSize: 1, bomValue: 246.80, createdBy: "Abul Hossain Raju",
     bomType: "Single Output",
     productionItems: [
       { item: "FG-27021 - Grilled Salmon (pieces)", itemType: "Finished/Trading Goods", netWeight: 0, quantity: 1, costPct: 100 },
@@ -341,7 +683,7 @@ const _billOfMaterialsRaw: BillOfMaterial[] = [
     yield: "50 portions", lastUpdated: "2025-10-12", status: "Active",
     date: "2026-04-23", itemCode: "FG-1010", itemName: "Hindu Meal Special",
     department: "Special Meal", section: "Religious", uom: "Packet", altUom: "",
-    lotSize: 10, bomValue: 285.00, createdBy: "Md. Saidur Rahman Akash",
+    lotSize: 10, bomValue: 285.00, createdBy: "Sujon Khan",
     bomType: "Single Output",
     productionItems: [
       { item: "FG-1010 - Hindu Meal Special (Packet)", itemType: "Finished/Trading Goods", netWeight: 0, quantity: 10, costPct: 100 },
@@ -357,7 +699,7 @@ const _billOfMaterialsRaw: BillOfMaterial[] = [
     yield: "Set", lastUpdated: "2025-08-28", status: "Active",
     date: "2026-04-21", itemCode: "FG-27013", itemName: "Crew Combo Meal",
     department: "Hot Kitchen", section: "Crew", uom: "PCS", altUom: "",
-    lotSize: 1, bomValue: 28.37, createdBy: "Md. Saidur Rahman Akash",
+    lotSize: 1, bomValue: 28.37, createdBy: "Tamim Ehsan",
     bomType: "Single Output",
     productionItems: [
       { item: "FG-27013 - Crew Combo Meal (PCS)", itemType: "Finished/Trading Goods", netWeight: 0, quantity: 1, costPct: 100 },
@@ -373,7 +715,7 @@ const _billOfMaterialsRaw: BillOfMaterial[] = [
     yield: "1 PCS", lastUpdated: "2026-04-21", status: "Active",
     date: "2026-04-21", itemCode: "FG-27013", itemName: "Mum 250 ml water",
     department: "Beverage", section: "Water", uom: "PCS", altUom: "",
-    lotSize: 1, bomValue: 28.37, createdBy: "Md. Saidur Rahman Akash",
+    lotSize: 1, bomValue: 28.37, createdBy: "Fahim Shahriar Rifat",
     bomType: "Single Output",
     productionItems: [
       { item: "FG-27013 - Mum 250 ml water (PCS)", itemType: "Finished/Trading Goods", netWeight: 0, quantity: 1, costPct: 100 },
@@ -389,7 +731,7 @@ const _billOfMaterialsRaw: BillOfMaterial[] = [
     yield: "1 Litre", lastUpdated: "2026-04-21", status: "Active",
     date: "2026-04-21", itemCode: "343", itemName: "Lubricant",
     department: "Maintenance", section: "Workshop", uom: "Liter", altUom: "",
-    lotSize: 1, bomValue: 2311.30, createdBy: "Md. Saidur Rahman Akash",
+    lotSize: 1, bomValue: 2311.30, createdBy: "AL Mamun",
     bomType: "Single Output",
     productionItems: [
       { item: "343 - Lubricant (Liter)", itemType: "Finished/Trading Goods", netWeight: 0, quantity: 1, costPct: 100 },
@@ -649,6 +991,12 @@ export type ItemMaster = {
   batchNo?: string;
   expiryDate?: string;
   storage?: "Dry" | "Cold" | "Frozen";
+  /** Cost price per UoM in BDT. Used to prefill rate fields across modules. */
+  costPrice?: number;
+  /** Per-item allocation method. Perishables → FEFO, shelf-stable → FIFO. */
+  allocationMethod?: AllocationMethod;
+  /** Default bin/rack/shelf location for this item. */
+  binLocation?: string;
 };
 
 export const ITEM_TYPES = [
@@ -816,9 +1164,48 @@ const RAW_ITEMS: Array<Omit<ItemMaster, "id">> = [
   { code: "FG-BV-TEAM",   name: "Tea (Milk)",            itemType: "Finished Good", category: "Beverage",  subCategory: "Liquid", uom: "Piece", status: "Active" },
 ];
 
+// Fallback cost-price tiers used to backfill items that lack an explicit price.
+// Deterministic by category + UoM so every product has a usable rate.
+const COST_PRICE_BY_CATEGORY: Record<string, number> = {
+  Grains: 90,
+  Protein: 380,
+  Vegetable: 60,
+  Spices: 250,
+  Oil: 195,
+  Dairy: 140,
+  Beverage: 35,
+  Bakery: 45,
+  Meal: 220,
+  Packaging: 8,
+  Other: 50,
+};
+
+function defaultCostPrice(item: Omit<ItemMaster, "id">): number {
+  const base = COST_PRICE_BY_CATEGORY[item.category] ?? 50;
+  // UoM-aware adjustments so liquids/bottles aren't priced as Kg.
+  if (item.uom === "Bottle") return Math.max(12, Math.round(base / 5));
+  if (item.uom === "Piece") return Math.max(5, Math.round(base / 4));
+  if (item.uom === "Pack")  return Math.max(20, Math.round(base / 2));
+  if (item.uom === "Gm")    return Math.max(1, Math.round(base / 1000));
+  if (item.uom === "ML")    return Math.max(1, Math.round(base / 1000));
+  return base;
+}
+
+/** Default allocation method by item type/category — perishables FEFO, shelf-stable FIFO. */
+function defaultAllocationMethod(item: Omit<ItemMaster, "id">): AllocationMethod {
+  if (item.itemType === "Packaging" || item.itemType === "Consumable") return "FIFO";
+  // Raw Materials, Finished Goods, Semi-Finished — perishability driven by category
+  const fefoCats = new Set(["Protein", "Dairy", "Vegetable", "Bakery", "Meal", "Beverage"]);
+  if (fefoCats.has(item.category)) return "FEFO";
+  if (item.subCategory === "Fresh" || item.subCategory === "Frozen") return "FEFO";
+  return "FIFO";
+}
+
 export const items: ItemMaster[] = RAW_ITEMS.map((row, i) => ({
   id: `ITM-${String(i + 1).padStart(3, "0")}`,
   ...row,
+  costPrice: row.costPrice ?? defaultCostPrice(row),
+  allocationMethod: row.allocationMethod ?? defaultAllocationMethod(row),
 }));
 
 /** Active master items only (use this in pickers/DDLs by default) */
@@ -827,6 +1214,162 @@ export const activeItems: ItemMaster[] = items.filter((i) => i.status === "Activ
 /** Filter items by item type (e.g. "Raw Material", "Finished Good") */
 export const itemsByType = (...types: ItemMaster["itemType"][]): ItemMaster[] =>
   activeItems.filter((i) => types.includes(i.itemType));
+
+// ── Stock Overview: derive inventory rows from the Item Profile ─────────────
+// Every active Item Profile entry shows in Stock Overview. Curated batches
+// (SEED_INVENTORY above) override the auto-generated batches for items by name.
+
+/** Decide storage tier for an auto-generated inventory row. */
+function storageForItem(it: ItemMaster): "Dry" | "Cold" | "Frozen" {
+  if (it.subCategory === "Frozen") return "Frozen";
+  if (it.subCategory === "Fresh" || it.subCategory === "Liquid") return "Cold";
+  if (it.category === "Dairy" || it.category === "Beverage" || it.category === "Vegetable") return "Cold";
+  if (it.category === "Protein") return "Frozen";
+  return "Dry";
+}
+
+/** Days of shelf-life used to project a synthetic batch expiry. */
+function shelfLifeDays(it: ItemMaster): number {
+  if (it.itemType === "Packaging") return 730;
+  if (it.itemType === "Consumable") return 540;
+  // Raw Material varies by category / subCategory
+  if (it.subCategory === "Fresh") return 14;
+  if (it.subCategory === "Frozen") return 180;
+  if (it.category === "Dairy") return 60;
+  if (it.category === "Vegetable") return 21;
+  if (it.category === "Protein") return 90;
+  if (it.category === "Spices") return 365;
+  return 365;
+}
+
+/** Stable pseudo-random number in [min, max], seeded by `code` for determinism. */
+function seededRand(code: string, min: number, max: number): number {
+  let h = 0;
+  for (let i = 0; i < code.length; i++) h = (h * 31 + code.charCodeAt(i)) >>> 0;
+  const t = h / 0xffffffff;
+  return Math.round(min + t * (max - min));
+}
+
+/** Base on-hand quantity for an auto-generated row, scaled by UoM. */
+function defaultStockQty(it: ItemMaster): number {
+  const seed = seededRand(it.code, 1, 100);
+  if (it.uom === "Kg" || it.uom === "Litre") return 30 + seed;
+  if (it.uom === "Gm" || it.uom === "ML") return 500 + seed * 10;
+  if (it.uom === "Bottle") return 200 + seed * 5;
+  if (it.uom === "Pack") return 40 + seed;
+  return 60 + seed;
+}
+
+function addDays(date: Date, days: number): string {
+  return new Date(date.getTime() + days * 86400000).toISOString().slice(0, 10);
+}
+
+/** Bin-location aisle prefix derived from storage tier. */
+function binPrefix(it: ItemMaster): string {
+  const s = storageForItem(it);
+  if (s === "Frozen") return "F";
+  if (s === "Cold") return "C";
+  return "A";
+}
+
+function generateInventoryItem(it: ItemMaster): InventoryItem {
+  const today = new Date();
+  const life = shelfLifeDays(it);
+  const stock = defaultStockQty(it);
+  const cost = it.costPrice ?? 0;
+  const split = Math.floor(stock * 0.55);
+  const lotCode = it.code.replace(/[^A-Z0-9]/gi, "").slice(-4).toUpperCase();
+  const prefix = binPrefix(it);
+  const aisleNum = (seededRand(it.code, 1, 6));
+  const rackNum  = (seededRand(it.code + "R", 1, 5));
+  return makeInventoryItem({
+    id: `INV-${it.code}`,
+    name: it.name,
+    category: it.category,
+    uom: it.uom,
+    reorder: Math.max(5, Math.floor(stock / 3)),
+    storage: storageForItem(it),
+    batches: [
+      {
+        batchNo: `${lotCode}-A`,
+        expiry: addDays(today, Math.floor(life * 0.4)),
+        qty: split,
+        costPrice: cost,
+        receivedOn: addDays(today, -30),
+        binLocation: `${prefix}${aisleNum}-R${rackNum}-S1`,
+      },
+      {
+        batchNo: `${lotCode}-B`,
+        expiry: addDays(today, life),
+        qty: stock - split,
+        costPrice: Math.round(cost * 1.04),
+        receivedOn: addDays(today, -5),
+        binLocation: `${prefix}${aisleNum}-R${rackNum}-S2`,
+      },
+    ],
+  });
+}
+
+/**
+ * Final Stock Overview list: every active Item Profile entry, with curated
+ * SEED_INVENTORY taking precedence (by name) over auto-generated rows.
+ */
+export const inventory: InventoryItem[] = (() => {
+  const seededNames = new Set(SEED_INVENTORY.map((s) => s.name.toLowerCase()));
+  const generated = activeItems
+    .filter((it) => !seededNames.has(it.name.toLowerCase()))
+    .map(generateInventoryItem);
+  return [...SEED_INVENTORY, ...generated];
+})();
+
+/** Item Profile lookup by inventory row (matches by name first, then `INV-{code}` id). */
+export function findItemProfileFor(inv: InventoryItem): ItemMaster | undefined {
+  return (
+    items.find((m) => `INV-${m.code}` === inv.id) ??
+    items.find((m) => m.name === inv.name)
+  );
+}
+
+/** Sub-selectors used by the inventory sub-modules. */
+export const rawMaterialInventory = (): InventoryItem[] =>
+  inventory.filter((inv) => {
+    const m = findItemProfileFor(inv);
+    return m ? m.itemType === "Raw Material" : true;
+  });
+
+export const finishedGoodsInventory = (): InventoryItem[] =>
+  inventory.filter((inv) => {
+    const m = findItemProfileFor(inv);
+    return m ? (m.itemType === "Finished Good" || m.itemType === "Semi-Finished Good") : false;
+  });
+
+/** All batches across all items, flattened (for Batch/Lot Tracking & Expiry). */
+export type FlatBatch = BatchLot & {
+  itemId: string;
+  itemCode: string;
+  itemName: string;
+  category: string;
+  uom: string;
+  storage: string;
+};
+export function allBatches(): FlatBatch[] {
+  const rows: FlatBatch[] = [];
+  for (const inv of inventory) {
+    const profile = findItemProfileFor(inv);
+    for (const b of inv.batches) {
+      rows.push({
+        ...b,
+        itemId: inv.id,
+        itemCode: profile?.code ?? inv.id,
+        itemName: inv.name,
+        category: inv.category,
+        uom: inv.uom,
+        storage: inv.storage,
+      });
+    }
+  }
+  return rows;
+}
 
 // ── Org hierarchy: Company → Office → Warehouse ─────────────────────────────
 

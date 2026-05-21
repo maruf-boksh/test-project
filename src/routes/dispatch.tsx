@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { useArrivalFlash } from "@/lib/arrival-flash";
 
 export const Route = createFileRoute("/dispatch")({
   head: () => ({ meta: [{ title: "Packaging & Dispatch" }] }),
@@ -288,6 +289,7 @@ const INITIAL_RECORDS: DispatchRecord[] = [
 // ─── Component ───────────────────────────────────────────────────────────────
 
 function Dispatch() {
+  useArrivalFlash();
   // ── Dispatch records state ──────────────────────────────────────────────────
   const [records, setRecords] = useState<DispatchRecord[]>(INITIAL_RECORDS);
   const [configuredFlights, setConfiguredFlights] = useState<Set<string>>(
@@ -728,7 +730,7 @@ function Dispatch() {
       </div>
 
       {/* ── PRD Packaging Table ──────────────────────────────────────────────── */}
-      <div className="rounded-lg border border-border bg-card shadow-sm mb-6 overflow-hidden">
+      <div data-arrival-id="dispatch-list" className="rounded-lg border border-border bg-card shadow-sm mb-6 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[1100px]">
             <thead className="bg-muted/50 border-b border-border">

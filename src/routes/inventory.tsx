@@ -6,15 +6,20 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Boxes, AlertTriangle, Snowflake, Eye, Pencil, FilePlus2 } from "lucide-react";
+import { Boxes, AlertTriangle, Eye, Pencil, FilePlus2 } from "lucide-react";
 import { toast } from "sonner";
-import { inventory } from "@/lib/sample-data";
+import {
+  inventory, allocateFefo, getFefoBatches, inventoryValue, nearExpiryCount,
+  getAllocationMethod,
+  type BatchLot, type AllocationMethod,
+} from "@/lib/sample-data";
 import { KpiCard } from "@/components/common/KpiCard";
 import { useRole } from "@/lib/roles";
 import { LocationPicker, LocationFilter, LocationCell } from "@/components/common/LocationPicker";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
+import { useArrivalFlash } from "@/lib/arrival-flash";
 
 export const Route = createFileRoute("/inventory")({
   head: () => ({ meta: [{ title: "Stock Overview" }] }),
@@ -35,7 +40,11 @@ const CATEGORIES = ["Grains", "Protein", "Beverage", "Dairy", "Vegetable", "Oil"
 const UOM_OPTIONS = ["Kg", "Litre", "Bottle", "Unit", "Pcs", "Box", "Pack"];
 const STORAGE_OPTIONS = ["Dry", "Cold", "Frozen"];
 
-function computeStatus(stock: number, reorder: number, thresholdPct = 20): string {
+function computeStatus(
+  stock: number,
+  reorder: number,
+  thresholdPct = 20,
+): "OK" | "Low" | "Critical" {
   if (stock < reorder) return "Critical";
   if (stock < reorder * (1 + thresholdPct / 100)) return "Low";
   return "OK";
@@ -72,6 +81,7 @@ const emptyForm: FormState = {
 const SELECT_CLS = "w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm";
 
 function Inventory() {
+  useArrivalFlash();
   const { role } = useRole();
   // Backfill existing inventory rows with default Office + Central Warehouse
   const [items, setItems] = useState<Item[]>(
@@ -100,6 +110,7 @@ function Inventory() {
     const stock = Number(form.stock) || 0;
     const reorder = Number(form.reorder) || 0;
     const threshold = Math.max(0, Number(form.threshold) || 20);
+    const today = new Date().toISOString().slice(0, 10);
     const newItem: Item = {
       id: `INV-${String(Date.now()).slice(-4)}`,
       name: form.name.trim(),
@@ -114,6 +125,15 @@ function Inventory() {
       status: computeStatus(stock, reorder, threshold),
       officeId: form.officeId,
       warehouseId: form.warehouseId,
+      batches: stock > 0
+        ? [{
+            batchNo: form.batch.trim() || `${form.name.trim().slice(0, 2).toUpperCase()}-${String(Date.now()).slice(-4)}`,
+            expiry: form.expiry || today,
+            qty: stock,
+            costPrice: 0,
+            receivedOn: today,
+          }]
+        : [],
     };
     setItems((prev) => [newItem, ...prev]);
     setNewItemOpen(false);
@@ -201,7 +221,6 @@ function Inventory() {
     { key: "reorder", header: "Reorder Lvl" },
     { key: "batch", header: "Batch" },
     { key: "expiry", header: "Expiry" },
-    { key: "storage", header: "Storage" },
     { key: "status", header: "Status", render: (r) => <StatusBadge status={r.status} /> },
   ];
 
@@ -216,26 +235,26 @@ function Inventory() {
       <PageHeader
         title="Stock Overview"
         subtitle="Kitchen store item master — batch tracking, reorder levels and storage status"
-        actions={
-          <>
-            <Button variant="outline" onClick={() => toast.success("Material issue request opened.")}>
-              Material Issue
-            </Button>
-            <Button variant="outline" onClick={() => toast.success("Goods receipt note created.")}>
-              GRN
-            </Button>
-            <Button onClick={openNew}>
-              <Plus className="h-4 w-4 mr-1" /> New Item
-            </Button>
-          </>
-        }
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 mb-6">
         <KpiCard label="Total Items" value={1248} icon={Boxes} tone="navy" />
         <KpiCard label="Low Stock" value={lowStockCount} icon={AlertTriangle} tone="warning" />
         <KpiCard label="Critical" value={criticalCount} icon={AlertTriangle} tone="red" />
-        <KpiCard label="Cold Storage" value="62%" sub="Capacity used" icon={Snowflake} tone="success" />
+        <KpiCard
+          label="Near Expiry (30d)"
+          value={nearExpiryCount(items, 30)}
+          icon={AlertTriangle}
+          tone="warning"
+        />
+        <div data-arrival-id="inv-value">
+          <KpiCard
+            label="Stock Value (FEFO)"
+            value={`৳ ${Math.round(inventoryValue(items)).toLocaleString()}`}
+            icon={Boxes}
+            tone="success"
+          />
+        </div>
       </div>
 
       <div className="mb-4">
@@ -246,11 +265,13 @@ function Inventory() {
         />
       </div>
 
+      <div data-arrival-id="inv-alerts">
       <DataTable
         title="inventory"
         data={filteredItems}
         columns={cols}
         searchKeys={["name", "category", "batch", "status"]}
+        selectable={false}
         actions={(row) => (
           <div className="flex items-center gap-1">
             <Button
@@ -288,6 +309,7 @@ function Inventory() {
           </div>
         )}
       />
+      </div>
 
       {/* New Item Dialog */}
       <Dialog open={newItemOpen} onOpenChange={setNewItemOpen}>
@@ -428,32 +450,39 @@ function Inventory() {
 
       {/* View Dialog */}
       <Dialog open={viewOpen} onOpenChange={setViewOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{selected?.name}</DialogTitle>
           </DialogHeader>
           {selected && (
-            <div className="text-sm">
-              {(
-                [
-                  ["Code", selected.id],
-                  ["Category", selected.category],
-                  ["UOM", selected.uom],
-                  ["Current Stock", String(selected.stock)],
-                  ["Reorder Level", String(selected.reorder)],
-                  ["Batch No.", selected.batch],
-                  ["Expiry", selected.expiry],
-                  ["Storage", selected.storage],
-                  ["Status", selected.status],
-                ] as [string, string][]
-              ).map(([label, value]) => (
-                <div key={label} className="flex justify-between py-1.5 border-b border-border/50 last:border-0">
-                  <span className="text-muted-foreground">{label}</span>
-                  <span className="font-medium">{value}</span>
-                </div>
-              ))}
+            <div className="text-sm space-y-4">
+              <div>
+                {(
+                  [
+                    ["Code", selected.id],
+                    ["Category", selected.category],
+                    ["UOM", selected.uom],
+                    ["Current Stock", String(selected.stock)],
+                    ["Reorder Level", String(selected.reorder)],
+                    ["Storage", selected.storage],
+                    ["Status", selected.status],
+                  ] as [string, string][]
+                ).map(([label, value]) => (
+                  <div key={label} className="flex justify-between py-1.5 border-b border-border/50 last:border-0">
+                    <span className="text-muted-foreground">{label}</span>
+                    <span className="font-medium">{value}</span>
+                  </div>
+                ))}
+              </div>
+
+              <FefoBatchLadder
+                batches={selected.batches}
+                uom={selected.uom}
+                method={getAllocationMethod(selected.id)}
+              />
+
               {selected.lastEditedBy && (
-                <div className="mt-3 rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+                <div className="rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
                   Last edited by{" "}
                   <span className="font-medium text-foreground">{selected.lastEditedBy}</span>
                   {" "}on {selected.lastEditedDate} at {selected.lastEditedTime}
@@ -468,5 +497,103 @@ function Inventory() {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+function FefoBatchLadder({
+  batches, uom, method,
+}: { batches: BatchLot[]; uom: string; method: AllocationMethod }) {
+  if (!batches || batches.length === 0) {
+    return (
+      <div className="rounded-md border border-border bg-muted/30 px-3 py-3 text-xs text-muted-foreground">
+        No batch lots recorded for this item.
+      </div>
+    );
+  }
+  const sorted = [...batches].sort((a, b) =>
+    method === "FIFO"
+      ? a.receivedOn.localeCompare(b.receivedOn)
+      : a.expiry.localeCompare(b.expiry),
+  );
+  const today = new Date().toISOString().slice(0, 10);
+  const cutoff30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+  const totalQty = sorted.reduce((s, b) => s + b.qty, 0);
+  const totalValue = sorted.reduce((s, b) => s + b.qty * b.costPrice, 0);
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-[11px] uppercase tracking-wider font-semibold text-foreground flex items-center gap-2">
+          Batch Ladder
+          <span className="px-1.5 py-0.5 rounded text-[10px] bg-primary/10 border border-primary/30 text-primary">{method}</span>
+        </div>
+        <div className="text-[10px] text-muted-foreground">
+          {method === "FIFO"
+            ? "Oldest receipt drained first"
+            : "Earliest expiry drained first"}
+          {" · "}{sorted.length} lot{sorted.length === 1 ? "" : "s"}
+        </div>
+      </div>
+      <div className="border border-border rounded-md overflow-hidden">
+        <table className="w-full text-xs">
+          <thead className="bg-muted/40">
+            <tr>
+              <th className="text-left px-2 py-1.5 font-semibold w-8">#</th>
+              <th className="text-left px-2 py-1.5 font-semibold">Batch</th>
+              <th className="text-left px-2 py-1.5 font-semibold">Received</th>
+              <th className="text-left px-2 py-1.5 font-semibold">Expiry</th>
+              <th className="text-right px-2 py-1.5 font-semibold">Qty</th>
+              <th className="text-right px-2 py-1.5 font-semibold">Cost / {uom}</th>
+              <th className="text-right px-2 py-1.5 font-semibold">Line Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((b, i) => {
+              const expired = b.expiry < today;
+              const near = !expired && b.expiry <= cutoff30;
+              return (
+                <tr
+                  key={b.batchNo}
+                  className={
+                    expired
+                      ? "bg-destructive/5"
+                      : near
+                      ? "bg-warning/5"
+                      : "hover:bg-muted/20"
+                  }
+                >
+                  <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{i + 1}</td>
+                  <td className="px-2 py-1.5 font-mono text-[11px]">{b.batchNo}</td>
+                  <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{b.receivedOn}</td>
+                  <td className="px-2 py-1.5 tabular-nums">
+                    {b.expiry}
+                    {expired && (
+                      <span className="ml-1 text-[10px] text-destructive font-semibold">EXPIRED</span>
+                    )}
+                    {near && (
+                      <span className="ml-1 text-[10px] text-warning font-semibold">NEAR</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-1.5 text-right tabular-nums font-medium">
+                    {b.qty.toLocaleString()} {uom}
+                  </td>
+                  <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">
+                    ৳ {b.costPrice.toLocaleString()}
+                  </td>
+                  <td className="px-2 py-1.5 text-right tabular-nums font-semibold">
+                    ৳ {(b.qty * b.costPrice).toLocaleString()}
+                  </td>
+                </tr>
+              );
+            })}
+            <tr className="bg-muted/30 font-semibold">
+              <td colSpan={4} className="px-2 py-1.5 text-right uppercase text-[10px] tracking-wider">Total</td>
+              <td className="px-2 py-1.5 text-right tabular-nums">{totalQty.toLocaleString()} {uom}</td>
+              <td />
+              <td className="px-2 py-1.5 text-right tabular-nums">৳ {totalValue.toLocaleString()}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }

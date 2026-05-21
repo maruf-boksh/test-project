@@ -346,6 +346,16 @@ function ItemList({ data, onToggle }: { data: ItemRow[]; onToggle: (id: string) 
     { key: "category", header: "Category" },
     { key: "uom", header: "UOM" },
     {
+      key: "binLocation",
+      header: "Bin",
+      render: (r) =>
+        r.binLocation ? (
+          <span className="font-mono text-[11px]">{r.binLocation}</span>
+        ) : (
+          <span className="text-muted-foreground text-xs">—</span>
+        ),
+    },
+    {
       key: "status",
       header: "Status",
       render: (r) => {
@@ -387,6 +397,7 @@ function ItemCreate({ nextId, onSave }: { nextId: string; onSave: (row: ItemRow)
   const [thresholdPct, setThresholdPct] = useState("20");
   const [batchNo, setBatchNo] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
+  const [binLocation, setBinLocation] = useState("");
 
   const save = () => {
     if (!name.trim()) { toast.error("Item name is required."); return; }
@@ -410,6 +421,7 @@ function ItemCreate({ nextId, onSave }: { nextId: string; onSave: (row: ItemRow)
       thresholdPct: threshold,
       batchNo: batchNo.trim() || undefined,
       expiryDate: expiryDate || undefined,
+      binLocation: binLocation.trim() || undefined,
     });
     toast.success(`Item "${name.trim()}" created.`);
   };
@@ -496,6 +508,18 @@ function ItemCreate({ nextId, onSave }: { nextId: string; onSave: (row: ItemRow)
           <div>
             <Label className="text-xs uppercase tracking-wider text-muted-foreground">Expiry Date</Label>
             <Input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} className="mt-1 tabular-nums" />
+          </div>
+          <div className="md:col-span-2">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Bin Location</Label>
+            <Input
+              value={binLocation}
+              onChange={(e) => setBinLocation(e.target.value)}
+              className="mt-1 font-mono"
+              placeholder="e.g. A1-R3-S2  (aisle-rack-shelf)"
+            />
+            <div className="mt-1 text-[11px] text-muted-foreground">
+              Default warehouse bin. Used as the picking location across Inventory, Airline Consumables, and FEFO/FIFO lookups.
+            </div>
           </div>
         </div>
       </CardContent>

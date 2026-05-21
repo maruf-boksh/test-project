@@ -13,9 +13,13 @@ import { Route as UsersRouteImport } from './routes/users'
 import { Route as TransferRequestRouteImport } from './routes/transfer-request'
 import { Route as TransferRouteImport } from './routes/transfer'
 import { Route as StockAdjustmentRouteImport } from './routes/stock-adjustment'
+import { Route as RequestForQuotationRouteImport } from './routes/request-for-quotation'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as ReceiveItemRouteImport } from './routes/receive-item'
+import { Route as QuotationEntryRouteImport } from './routes/quotation-entry'
+import { Route as PurchaseReturnRouteImport } from './routes/purchase-return'
 import { Route as PurchaseRequisitionRouteImport } from './routes/purchase-requisition'
+import { Route as PurchaseReportsRouteImport } from './routes/purchase-reports'
 import { Route as ProductionReportsRouteImport } from './routes/production-reports'
 import { Route as ProductionEntryNewRouteImport } from './routes/production-entry-new'
 import { Route as ProductionEntryRouteImport } from './routes/production-entry'
@@ -28,10 +32,15 @@ import { Route as KitchenRouteImport } from './routes/kitchen'
 import { Route as ItemIssueRouteImport } from './routes/item-issue'
 import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as HygieneMonitoringRouteImport } from './routes/hygiene-monitoring'
+import { Route as EquipmentReturnsRouteImport } from './routes/equipment-returns'
+import { Route as EquipmentMaintenanceRouteImport } from './routes/equipment-maintenance'
+import { Route as EquipmentDamageRouteImport } from './routes/equipment-damage'
 import { Route as DispatchMonitoringRouteImport } from './routes/dispatch-monitoring'
 import { Route as DispatchRouteImport } from './routes/dispatch'
 import { Route as DemandOrdersRouteImport } from './routes/demand-orders'
 import { Route as CookingTempRouteImport } from './routes/cooking-temp'
+import { Route as ConsumableUsageRouteImport } from './routes/consumable-usage'
+import { Route as ConsumableAllocationRouteImport } from './routes/consumable-allocation'
 import { Route as ConfigWarehouseRouteImport } from './routes/config-warehouse'
 import { Route as ConfigSupplierRouteImport } from './routes/config-supplier'
 import { Route as ConfigPriceRouteImport } from './routes/config-price'
@@ -40,11 +49,14 @@ import { Route as ConfigItemRouteImport } from './routes/config-item'
 import { Route as ConfigCompanyRouteImport } from './routes/config-company'
 import { Route as ConfigApprovalRouteImport } from './routes/config-approval'
 import { Route as ConfigAirlineRouteImport } from './routes/config-airline'
+import { Route as ComparativeStatementRouteImport } from './routes/comparative-statement'
 import { Route as BomRouteImport } from './routes/bom'
 import { Route as BakeryRouteImport } from './routes/bakery'
 import { Route as AuditRouteImport } from './routes/audit'
 import { Route as ApprovalManagementRouteImport } from './routes/approval-management'
 import { Route as AmenitiesRouteImport } from './routes/amenities'
+import { Route as AirlineEquipmentsRouteImport } from './routes/airline-equipments'
+import { Route as AirlineConsumablesRouteImport } from './routes/airline-consumables'
 import { Route as AccountsInvoicesRouteImport } from './routes/accounts-invoices'
 import { Route as AccountsExpensesRouteImport } from './routes/accounts-expenses'
 import { Route as AccountsApprovalsRouteImport } from './routes/accounts-approvals'
@@ -71,6 +83,11 @@ const StockAdjustmentRoute = StockAdjustmentRouteImport.update({
   path: '/stock-adjustment',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RequestForQuotationRoute = RequestForQuotationRouteImport.update({
+  id: '/request-for-quotation',
+  path: '/request-for-quotation',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReportsRoute = ReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
@@ -81,9 +98,24 @@ const ReceiveItemRoute = ReceiveItemRouteImport.update({
   path: '/receive-item',
   getParentRoute: () => rootRouteImport,
 } as any)
+const QuotationEntryRoute = QuotationEntryRouteImport.update({
+  id: '/quotation-entry',
+  path: '/quotation-entry',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PurchaseReturnRoute = PurchaseReturnRouteImport.update({
+  id: '/purchase-return',
+  path: '/purchase-return',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PurchaseRequisitionRoute = PurchaseRequisitionRouteImport.update({
   id: '/purchase-requisition',
   path: '/purchase-requisition',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PurchaseReportsRoute = PurchaseReportsRouteImport.update({
+  id: '/purchase-reports',
+  path: '/purchase-reports',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProductionReportsRoute = ProductionReportsRouteImport.update({
@@ -146,6 +178,21 @@ const HygieneMonitoringRoute = HygieneMonitoringRouteImport.update({
   path: '/hygiene-monitoring',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EquipmentReturnsRoute = EquipmentReturnsRouteImport.update({
+  id: '/equipment-returns',
+  path: '/equipment-returns',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EquipmentMaintenanceRoute = EquipmentMaintenanceRouteImport.update({
+  id: '/equipment-maintenance',
+  path: '/equipment-maintenance',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EquipmentDamageRoute = EquipmentDamageRouteImport.update({
+  id: '/equipment-damage',
+  path: '/equipment-damage',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DispatchMonitoringRoute = DispatchMonitoringRouteImport.update({
   id: '/dispatch-monitoring',
   path: '/dispatch-monitoring',
@@ -164,6 +211,16 @@ const DemandOrdersRoute = DemandOrdersRouteImport.update({
 const CookingTempRoute = CookingTempRouteImport.update({
   id: '/cooking-temp',
   path: '/cooking-temp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConsumableUsageRoute = ConsumableUsageRouteImport.update({
+  id: '/consumable-usage',
+  path: '/consumable-usage',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConsumableAllocationRoute = ConsumableAllocationRouteImport.update({
+  id: '/consumable-allocation',
+  path: '/consumable-allocation',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConfigWarehouseRoute = ConfigWarehouseRouteImport.update({
@@ -206,6 +263,11 @@ const ConfigAirlineRoute = ConfigAirlineRouteImport.update({
   path: '/config-airline',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ComparativeStatementRoute = ComparativeStatementRouteImport.update({
+  id: '/comparative-statement',
+  path: '/comparative-statement',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BomRoute = BomRouteImport.update({
   id: '/bom',
   path: '/bom',
@@ -229,6 +291,16 @@ const ApprovalManagementRoute = ApprovalManagementRouteImport.update({
 const AmenitiesRoute = AmenitiesRouteImport.update({
   id: '/amenities',
   path: '/amenities',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AirlineEquipmentsRoute = AirlineEquipmentsRouteImport.update({
+  id: '/airline-equipments',
+  path: '/airline-equipments',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AirlineConsumablesRoute = AirlineConsumablesRouteImport.update({
+  id: '/airline-consumables',
+  path: '/airline-consumables',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AccountsInvoicesRoute = AccountsInvoicesRouteImport.update({
@@ -263,11 +335,14 @@ export interface FileRoutesByFullPath {
   '/accounts-approvals': typeof AccountsApprovalsRoute
   '/accounts-expenses': typeof AccountsExpensesRoute
   '/accounts-invoices': typeof AccountsInvoicesRoute
+  '/airline-consumables': typeof AirlineConsumablesRoute
+  '/airline-equipments': typeof AirlineEquipmentsRoute
   '/amenities': typeof AmenitiesRoute
   '/approval-management': typeof ApprovalManagementRoute
   '/audit': typeof AuditRoute
   '/bakery': typeof BakeryRoute
   '/bom': typeof BomRoute
+  '/comparative-statement': typeof ComparativeStatementRoute
   '/config-airline': typeof ConfigAirlineRoute
   '/config-approval': typeof ConfigApprovalRoute
   '/config-company': typeof ConfigCompanyRoute
@@ -276,10 +351,15 @@ export interface FileRoutesByFullPath {
   '/config-price': typeof ConfigPriceRoute
   '/config-supplier': typeof ConfigSupplierRoute
   '/config-warehouse': typeof ConfigWarehouseRoute
+  '/consumable-allocation': typeof ConsumableAllocationRoute
+  '/consumable-usage': typeof ConsumableUsageRoute
   '/cooking-temp': typeof CookingTempRoute
   '/demand-orders': typeof DemandOrdersRoute
   '/dispatch': typeof DispatchRoute
   '/dispatch-monitoring': typeof DispatchMonitoringRoute
+  '/equipment-damage': typeof EquipmentDamageRoute
+  '/equipment-maintenance': typeof EquipmentMaintenanceRoute
+  '/equipment-returns': typeof EquipmentReturnsRoute
   '/hygiene-monitoring': typeof HygieneMonitoringRoute
   '/inventory': typeof InventoryRoute
   '/item-issue': typeof ItemIssueRoute
@@ -292,9 +372,13 @@ export interface FileRoutesByFullPath {
   '/production-entry': typeof ProductionEntryRoute
   '/production-entry-new': typeof ProductionEntryNewRoute
   '/production-reports': typeof ProductionReportsRoute
+  '/purchase-reports': typeof PurchaseReportsRoute
   '/purchase-requisition': typeof PurchaseRequisitionRoute
+  '/purchase-return': typeof PurchaseReturnRoute
+  '/quotation-entry': typeof QuotationEntryRoute
   '/receive-item': typeof ReceiveItemRoute
   '/reports': typeof ReportsRoute
+  '/request-for-quotation': typeof RequestForQuotationRoute
   '/stock-adjustment': typeof StockAdjustmentRoute
   '/transfer': typeof TransferRoute
   '/transfer-request': typeof TransferRequestRoute
@@ -306,11 +390,14 @@ export interface FileRoutesByTo {
   '/accounts-approvals': typeof AccountsApprovalsRoute
   '/accounts-expenses': typeof AccountsExpensesRoute
   '/accounts-invoices': typeof AccountsInvoicesRoute
+  '/airline-consumables': typeof AirlineConsumablesRoute
+  '/airline-equipments': typeof AirlineEquipmentsRoute
   '/amenities': typeof AmenitiesRoute
   '/approval-management': typeof ApprovalManagementRoute
   '/audit': typeof AuditRoute
   '/bakery': typeof BakeryRoute
   '/bom': typeof BomRoute
+  '/comparative-statement': typeof ComparativeStatementRoute
   '/config-airline': typeof ConfigAirlineRoute
   '/config-approval': typeof ConfigApprovalRoute
   '/config-company': typeof ConfigCompanyRoute
@@ -319,10 +406,15 @@ export interface FileRoutesByTo {
   '/config-price': typeof ConfigPriceRoute
   '/config-supplier': typeof ConfigSupplierRoute
   '/config-warehouse': typeof ConfigWarehouseRoute
+  '/consumable-allocation': typeof ConsumableAllocationRoute
+  '/consumable-usage': typeof ConsumableUsageRoute
   '/cooking-temp': typeof CookingTempRoute
   '/demand-orders': typeof DemandOrdersRoute
   '/dispatch': typeof DispatchRoute
   '/dispatch-monitoring': typeof DispatchMonitoringRoute
+  '/equipment-damage': typeof EquipmentDamageRoute
+  '/equipment-maintenance': typeof EquipmentMaintenanceRoute
+  '/equipment-returns': typeof EquipmentReturnsRoute
   '/hygiene-monitoring': typeof HygieneMonitoringRoute
   '/inventory': typeof InventoryRoute
   '/item-issue': typeof ItemIssueRoute
@@ -335,9 +427,13 @@ export interface FileRoutesByTo {
   '/production-entry': typeof ProductionEntryRoute
   '/production-entry-new': typeof ProductionEntryNewRoute
   '/production-reports': typeof ProductionReportsRoute
+  '/purchase-reports': typeof PurchaseReportsRoute
   '/purchase-requisition': typeof PurchaseRequisitionRoute
+  '/purchase-return': typeof PurchaseReturnRoute
+  '/quotation-entry': typeof QuotationEntryRoute
   '/receive-item': typeof ReceiveItemRoute
   '/reports': typeof ReportsRoute
+  '/request-for-quotation': typeof RequestForQuotationRoute
   '/stock-adjustment': typeof StockAdjustmentRoute
   '/transfer': typeof TransferRoute
   '/transfer-request': typeof TransferRequestRoute
@@ -350,11 +446,14 @@ export interface FileRoutesById {
   '/accounts-approvals': typeof AccountsApprovalsRoute
   '/accounts-expenses': typeof AccountsExpensesRoute
   '/accounts-invoices': typeof AccountsInvoicesRoute
+  '/airline-consumables': typeof AirlineConsumablesRoute
+  '/airline-equipments': typeof AirlineEquipmentsRoute
   '/amenities': typeof AmenitiesRoute
   '/approval-management': typeof ApprovalManagementRoute
   '/audit': typeof AuditRoute
   '/bakery': typeof BakeryRoute
   '/bom': typeof BomRoute
+  '/comparative-statement': typeof ComparativeStatementRoute
   '/config-airline': typeof ConfigAirlineRoute
   '/config-approval': typeof ConfigApprovalRoute
   '/config-company': typeof ConfigCompanyRoute
@@ -363,10 +462,15 @@ export interface FileRoutesById {
   '/config-price': typeof ConfigPriceRoute
   '/config-supplier': typeof ConfigSupplierRoute
   '/config-warehouse': typeof ConfigWarehouseRoute
+  '/consumable-allocation': typeof ConsumableAllocationRoute
+  '/consumable-usage': typeof ConsumableUsageRoute
   '/cooking-temp': typeof CookingTempRoute
   '/demand-orders': typeof DemandOrdersRoute
   '/dispatch': typeof DispatchRoute
   '/dispatch-monitoring': typeof DispatchMonitoringRoute
+  '/equipment-damage': typeof EquipmentDamageRoute
+  '/equipment-maintenance': typeof EquipmentMaintenanceRoute
+  '/equipment-returns': typeof EquipmentReturnsRoute
   '/hygiene-monitoring': typeof HygieneMonitoringRoute
   '/inventory': typeof InventoryRoute
   '/item-issue': typeof ItemIssueRoute
@@ -379,9 +483,13 @@ export interface FileRoutesById {
   '/production-entry': typeof ProductionEntryRoute
   '/production-entry-new': typeof ProductionEntryNewRoute
   '/production-reports': typeof ProductionReportsRoute
+  '/purchase-reports': typeof PurchaseReportsRoute
   '/purchase-requisition': typeof PurchaseRequisitionRoute
+  '/purchase-return': typeof PurchaseReturnRoute
+  '/quotation-entry': typeof QuotationEntryRoute
   '/receive-item': typeof ReceiveItemRoute
   '/reports': typeof ReportsRoute
+  '/request-for-quotation': typeof RequestForQuotationRoute
   '/stock-adjustment': typeof StockAdjustmentRoute
   '/transfer': typeof TransferRoute
   '/transfer-request': typeof TransferRequestRoute
@@ -395,11 +503,14 @@ export interface FileRouteTypes {
     | '/accounts-approvals'
     | '/accounts-expenses'
     | '/accounts-invoices'
+    | '/airline-consumables'
+    | '/airline-equipments'
     | '/amenities'
     | '/approval-management'
     | '/audit'
     | '/bakery'
     | '/bom'
+    | '/comparative-statement'
     | '/config-airline'
     | '/config-approval'
     | '/config-company'
@@ -408,10 +519,15 @@ export interface FileRouteTypes {
     | '/config-price'
     | '/config-supplier'
     | '/config-warehouse'
+    | '/consumable-allocation'
+    | '/consumable-usage'
     | '/cooking-temp'
     | '/demand-orders'
     | '/dispatch'
     | '/dispatch-monitoring'
+    | '/equipment-damage'
+    | '/equipment-maintenance'
+    | '/equipment-returns'
     | '/hygiene-monitoring'
     | '/inventory'
     | '/item-issue'
@@ -424,9 +540,13 @@ export interface FileRouteTypes {
     | '/production-entry'
     | '/production-entry-new'
     | '/production-reports'
+    | '/purchase-reports'
     | '/purchase-requisition'
+    | '/purchase-return'
+    | '/quotation-entry'
     | '/receive-item'
     | '/reports'
+    | '/request-for-quotation'
     | '/stock-adjustment'
     | '/transfer'
     | '/transfer-request'
@@ -438,11 +558,14 @@ export interface FileRouteTypes {
     | '/accounts-approvals'
     | '/accounts-expenses'
     | '/accounts-invoices'
+    | '/airline-consumables'
+    | '/airline-equipments'
     | '/amenities'
     | '/approval-management'
     | '/audit'
     | '/bakery'
     | '/bom'
+    | '/comparative-statement'
     | '/config-airline'
     | '/config-approval'
     | '/config-company'
@@ -451,10 +574,15 @@ export interface FileRouteTypes {
     | '/config-price'
     | '/config-supplier'
     | '/config-warehouse'
+    | '/consumable-allocation'
+    | '/consumable-usage'
     | '/cooking-temp'
     | '/demand-orders'
     | '/dispatch'
     | '/dispatch-monitoring'
+    | '/equipment-damage'
+    | '/equipment-maintenance'
+    | '/equipment-returns'
     | '/hygiene-monitoring'
     | '/inventory'
     | '/item-issue'
@@ -467,9 +595,13 @@ export interface FileRouteTypes {
     | '/production-entry'
     | '/production-entry-new'
     | '/production-reports'
+    | '/purchase-reports'
     | '/purchase-requisition'
+    | '/purchase-return'
+    | '/quotation-entry'
     | '/receive-item'
     | '/reports'
+    | '/request-for-quotation'
     | '/stock-adjustment'
     | '/transfer'
     | '/transfer-request'
@@ -481,11 +613,14 @@ export interface FileRouteTypes {
     | '/accounts-approvals'
     | '/accounts-expenses'
     | '/accounts-invoices'
+    | '/airline-consumables'
+    | '/airline-equipments'
     | '/amenities'
     | '/approval-management'
     | '/audit'
     | '/bakery'
     | '/bom'
+    | '/comparative-statement'
     | '/config-airline'
     | '/config-approval'
     | '/config-company'
@@ -494,10 +629,15 @@ export interface FileRouteTypes {
     | '/config-price'
     | '/config-supplier'
     | '/config-warehouse'
+    | '/consumable-allocation'
+    | '/consumable-usage'
     | '/cooking-temp'
     | '/demand-orders'
     | '/dispatch'
     | '/dispatch-monitoring'
+    | '/equipment-damage'
+    | '/equipment-maintenance'
+    | '/equipment-returns'
     | '/hygiene-monitoring'
     | '/inventory'
     | '/item-issue'
@@ -510,9 +650,13 @@ export interface FileRouteTypes {
     | '/production-entry'
     | '/production-entry-new'
     | '/production-reports'
+    | '/purchase-reports'
     | '/purchase-requisition'
+    | '/purchase-return'
+    | '/quotation-entry'
     | '/receive-item'
     | '/reports'
+    | '/request-for-quotation'
     | '/stock-adjustment'
     | '/transfer'
     | '/transfer-request'
@@ -525,11 +669,14 @@ export interface RootRouteChildren {
   AccountsApprovalsRoute: typeof AccountsApprovalsRoute
   AccountsExpensesRoute: typeof AccountsExpensesRoute
   AccountsInvoicesRoute: typeof AccountsInvoicesRoute
+  AirlineConsumablesRoute: typeof AirlineConsumablesRoute
+  AirlineEquipmentsRoute: typeof AirlineEquipmentsRoute
   AmenitiesRoute: typeof AmenitiesRoute
   ApprovalManagementRoute: typeof ApprovalManagementRoute
   AuditRoute: typeof AuditRoute
   BakeryRoute: typeof BakeryRoute
   BomRoute: typeof BomRoute
+  ComparativeStatementRoute: typeof ComparativeStatementRoute
   ConfigAirlineRoute: typeof ConfigAirlineRoute
   ConfigApprovalRoute: typeof ConfigApprovalRoute
   ConfigCompanyRoute: typeof ConfigCompanyRoute
@@ -538,10 +685,15 @@ export interface RootRouteChildren {
   ConfigPriceRoute: typeof ConfigPriceRoute
   ConfigSupplierRoute: typeof ConfigSupplierRoute
   ConfigWarehouseRoute: typeof ConfigWarehouseRoute
+  ConsumableAllocationRoute: typeof ConsumableAllocationRoute
+  ConsumableUsageRoute: typeof ConsumableUsageRoute
   CookingTempRoute: typeof CookingTempRoute
   DemandOrdersRoute: typeof DemandOrdersRoute
   DispatchRoute: typeof DispatchRoute
   DispatchMonitoringRoute: typeof DispatchMonitoringRoute
+  EquipmentDamageRoute: typeof EquipmentDamageRoute
+  EquipmentMaintenanceRoute: typeof EquipmentMaintenanceRoute
+  EquipmentReturnsRoute: typeof EquipmentReturnsRoute
   HygieneMonitoringRoute: typeof HygieneMonitoringRoute
   InventoryRoute: typeof InventoryRoute
   ItemIssueRoute: typeof ItemIssueRoute
@@ -554,9 +706,13 @@ export interface RootRouteChildren {
   ProductionEntryRoute: typeof ProductionEntryRoute
   ProductionEntryNewRoute: typeof ProductionEntryNewRoute
   ProductionReportsRoute: typeof ProductionReportsRoute
+  PurchaseReportsRoute: typeof PurchaseReportsRoute
   PurchaseRequisitionRoute: typeof PurchaseRequisitionRoute
+  PurchaseReturnRoute: typeof PurchaseReturnRoute
+  QuotationEntryRoute: typeof QuotationEntryRoute
   ReceiveItemRoute: typeof ReceiveItemRoute
   ReportsRoute: typeof ReportsRoute
+  RequestForQuotationRoute: typeof RequestForQuotationRoute
   StockAdjustmentRoute: typeof StockAdjustmentRoute
   TransferRoute: typeof TransferRoute
   TransferRequestRoute: typeof TransferRequestRoute
@@ -593,6 +749,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StockAdjustmentRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/request-for-quotation': {
+      id: '/request-for-quotation'
+      path: '/request-for-quotation'
+      fullPath: '/request-for-quotation'
+      preLoaderRoute: typeof RequestForQuotationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reports': {
       id: '/reports'
       path: '/reports'
@@ -607,11 +770,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReceiveItemRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/quotation-entry': {
+      id: '/quotation-entry'
+      path: '/quotation-entry'
+      fullPath: '/quotation-entry'
+      preLoaderRoute: typeof QuotationEntryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/purchase-return': {
+      id: '/purchase-return'
+      path: '/purchase-return'
+      fullPath: '/purchase-return'
+      preLoaderRoute: typeof PurchaseReturnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/purchase-requisition': {
       id: '/purchase-requisition'
       path: '/purchase-requisition'
       fullPath: '/purchase-requisition'
       preLoaderRoute: typeof PurchaseRequisitionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/purchase-reports': {
+      id: '/purchase-reports'
+      path: '/purchase-reports'
+      fullPath: '/purchase-reports'
+      preLoaderRoute: typeof PurchaseReportsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/production-reports': {
@@ -698,6 +882,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HygieneMonitoringRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/equipment-returns': {
+      id: '/equipment-returns'
+      path: '/equipment-returns'
+      fullPath: '/equipment-returns'
+      preLoaderRoute: typeof EquipmentReturnsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/equipment-maintenance': {
+      id: '/equipment-maintenance'
+      path: '/equipment-maintenance'
+      fullPath: '/equipment-maintenance'
+      preLoaderRoute: typeof EquipmentMaintenanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/equipment-damage': {
+      id: '/equipment-damage'
+      path: '/equipment-damage'
+      fullPath: '/equipment-damage'
+      preLoaderRoute: typeof EquipmentDamageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dispatch-monitoring': {
       id: '/dispatch-monitoring'
       path: '/dispatch-monitoring'
@@ -724,6 +929,20 @@ declare module '@tanstack/react-router' {
       path: '/cooking-temp'
       fullPath: '/cooking-temp'
       preLoaderRoute: typeof CookingTempRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/consumable-usage': {
+      id: '/consumable-usage'
+      path: '/consumable-usage'
+      fullPath: '/consumable-usage'
+      preLoaderRoute: typeof ConsumableUsageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/consumable-allocation': {
+      id: '/consumable-allocation'
+      path: '/consumable-allocation'
+      fullPath: '/consumable-allocation'
+      preLoaderRoute: typeof ConsumableAllocationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/config-warehouse': {
@@ -782,6 +1001,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConfigAirlineRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/comparative-statement': {
+      id: '/comparative-statement'
+      path: '/comparative-statement'
+      fullPath: '/comparative-statement'
+      preLoaderRoute: typeof ComparativeStatementRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/bom': {
       id: '/bom'
       path: '/bom'
@@ -815,6 +1041,20 @@ declare module '@tanstack/react-router' {
       path: '/amenities'
       fullPath: '/amenities'
       preLoaderRoute: typeof AmenitiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/airline-equipments': {
+      id: '/airline-equipments'
+      path: '/airline-equipments'
+      fullPath: '/airline-equipments'
+      preLoaderRoute: typeof AirlineEquipmentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/airline-consumables': {
+      id: '/airline-consumables'
+      path: '/airline-consumables'
+      fullPath: '/airline-consumables'
+      preLoaderRoute: typeof AirlineConsumablesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/accounts-invoices': {
@@ -861,11 +1101,14 @@ const rootRouteChildren: RootRouteChildren = {
   AccountsApprovalsRoute: AccountsApprovalsRoute,
   AccountsExpensesRoute: AccountsExpensesRoute,
   AccountsInvoicesRoute: AccountsInvoicesRoute,
+  AirlineConsumablesRoute: AirlineConsumablesRoute,
+  AirlineEquipmentsRoute: AirlineEquipmentsRoute,
   AmenitiesRoute: AmenitiesRoute,
   ApprovalManagementRoute: ApprovalManagementRoute,
   AuditRoute: AuditRoute,
   BakeryRoute: BakeryRoute,
   BomRoute: BomRoute,
+  ComparativeStatementRoute: ComparativeStatementRoute,
   ConfigAirlineRoute: ConfigAirlineRoute,
   ConfigApprovalRoute: ConfigApprovalRoute,
   ConfigCompanyRoute: ConfigCompanyRoute,
@@ -874,10 +1117,15 @@ const rootRouteChildren: RootRouteChildren = {
   ConfigPriceRoute: ConfigPriceRoute,
   ConfigSupplierRoute: ConfigSupplierRoute,
   ConfigWarehouseRoute: ConfigWarehouseRoute,
+  ConsumableAllocationRoute: ConsumableAllocationRoute,
+  ConsumableUsageRoute: ConsumableUsageRoute,
   CookingTempRoute: CookingTempRoute,
   DemandOrdersRoute: DemandOrdersRoute,
   DispatchRoute: DispatchRoute,
   DispatchMonitoringRoute: DispatchMonitoringRoute,
+  EquipmentDamageRoute: EquipmentDamageRoute,
+  EquipmentMaintenanceRoute: EquipmentMaintenanceRoute,
+  EquipmentReturnsRoute: EquipmentReturnsRoute,
   HygieneMonitoringRoute: HygieneMonitoringRoute,
   InventoryRoute: InventoryRoute,
   ItemIssueRoute: ItemIssueRoute,
@@ -890,9 +1138,13 @@ const rootRouteChildren: RootRouteChildren = {
   ProductionEntryRoute: ProductionEntryRoute,
   ProductionEntryNewRoute: ProductionEntryNewRoute,
   ProductionReportsRoute: ProductionReportsRoute,
+  PurchaseReportsRoute: PurchaseReportsRoute,
   PurchaseRequisitionRoute: PurchaseRequisitionRoute,
+  PurchaseReturnRoute: PurchaseReturnRoute,
+  QuotationEntryRoute: QuotationEntryRoute,
   ReceiveItemRoute: ReceiveItemRoute,
   ReportsRoute: ReportsRoute,
+  RequestForQuotationRoute: RequestForQuotationRoute,
   StockAdjustmentRoute: StockAdjustmentRoute,
   TransferRoute: TransferRoute,
   TransferRequestRoute: TransferRequestRoute,

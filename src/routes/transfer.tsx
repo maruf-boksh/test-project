@@ -19,9 +19,10 @@ import {
 } from "lucide-react";
 import { KpiCard } from "@/components/common/KpiCard";
 import { toast } from "sonner";
-import { activeItems, warehouses as ALL_WAREHOUSES } from "@/lib/sample-data";
+import { activeItems, warehouses as ALL_WAREHOUSES, inventory, allocateFefo } from "@/lib/sample-data";
 import { LocationPicker, LocationFilter, LocationCell } from "@/components/common/LocationPicker";
 import { useWorkflow, type WfTransferNote } from "@/lib/workflow-store";
+import { useArrivalFlash } from "@/lib/arrival-flash";
 
 export const Route = createFileRoute("/transfer")({
   head: () => ({ meta: [{ title: "Transfer" }] }),
@@ -169,6 +170,7 @@ function wfTransferNoteToTransfer(wf: WfTransferNote): Transfer {
 }
 
 function TransferPage() {
+  useArrivalFlash();
   const { transferNotes } = useWorkflow();
   const [rows, setRows] = useState<Transfer[]>(SEED);
   const [view, setView] = useState<"list" | "create">("list");
@@ -547,7 +549,7 @@ function TransferTabs({
   const received       = data.filter((r) => r.kind === "Outbound" && r.status === "Completed");
 
   return (
-    <Tabs defaultValue="out" className="space-y-4">
+    <Tabs defaultValue="out" className="space-y-4" data-arrival-id="transfer-list">
       <TabsList className="h-auto bg-transparent p-0 border-b border-border w-full justify-start rounded-none">
         <TabsTrigger value="out"        className={TAB_PILL_CLS}>
           Transfer Out
@@ -877,19 +879,24 @@ function TransferCreate({ nextId, onSave }: { nextId: string; onSave: (t: Transf
                   <TableHead className="text-xs uppercase tracking-wider text-right">Requested</TableHead>
                   <TableHead className="text-xs uppercase tracking-wider text-right">Transferred</TableHead>
                   <TableHead className="text-xs uppercase tracking-wider text-right">Short</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider">Allocation Lots (Source)</TableHead>
                   <TableHead className="w-12" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {lines.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
+                    <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">
                       No items added yet.
                     </TableCell>
                   </TableRow>
                 ) : (
                   lines.map((l, i) => {
                     const short = l.requestedQty - l.transferredQty;
+                    const invMatch = inventory.find((iv) => iv.name === l.item);
+                    const fefo = invMatch && l.transferredQty > 0
+                      ? allocateFefo(invMatch.id, l.transferredQty)
+                      : null;
                     return (
                       <TableRow key={l.id}>
                         <TableCell>{i + 1}</TableCell>
@@ -899,6 +906,29 @@ function TransferCreate({ nextId, onSave }: { nextId: string; onSave: (t: Transf
                         <TableCell className="text-right tabular-nums">{l.transferredQty}</TableCell>
                         <TableCell className={`text-right tabular-nums ${short > 0 ? "text-warning-foreground font-medium" : ""}`}>
                           {short > 0 ? short : "—"}
+                        </TableCell>
+                        <TableCell className="text-[11px]">
+                          {fefo === null ? (
+                            <span className="text-muted-foreground">—</span>
+                          ) : (
+                            <div className="space-y-0.5">
+                              <div className="text-[9px] uppercase tracking-wider font-bold mb-0.5">
+                                <span className="px-1.5 py-0.5 rounded bg-primary/10 border border-primary/30 text-primary">{fefo.method}</span>
+                              </div>
+                              {fefo.allocations.map((a) => (
+                                <div key={a.batchNo} className="font-mono">
+                                  <span className="text-foreground">{a.batchNo}</span>
+                                  <span className="text-muted-foreground"> · {a.expiry} · </span>
+                                  <span className="font-semibold">{a.qty} {l.uom}</span>
+                                </div>
+                              ))}
+                              {fefo.shortfall > 0 && (
+                                <div className="text-destructive font-semibold">
+                                  Shortfall: {fefo.shortfall} {l.uom}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
                           <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => removeLine(l.id)}>

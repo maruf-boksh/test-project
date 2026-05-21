@@ -26,10 +26,11 @@ import {
 import { toast } from "sonner";
 import {
   billOfMaterials, seedFlightOrders, inventory, warehouses as ALL_WAREHOUSES,
-  MEAL_SLOTS, getMealSlot, isDomesticSector,
-  type FlightOrderRow, type MealSlot,
+  MEAL_SLOTS, getMealSlot, isDomesticSector, itemsByType, allocateFefo,
+  type FlightOrderRow, type MealSlot, type ItemMaster,
 } from "@/lib/sample-data";
 import { Fragment } from "react";
+import { useArrivalFlash } from "@/lib/arrival-flash";
 import {
   useWorkflow,
   type WfProductionEntry, type WfProductionEntryStatus,
@@ -165,7 +166,6 @@ function computeOrderRequirements(orders: FlightOrderRow[]): OrderRequirement[] 
 }
 
 
-const DEPARTMENTS = ["Hot Kitchen", "Cold Kitchen", "Bakery", "Beverage", "Special Meal"];
 
 const selectCls =
   "w-full mt-1 h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
@@ -243,6 +243,7 @@ function ProductionEntryRowMenu({
 }
 
 function ProductionEntryPage() {
+  useArrivalFlash();
   const { productionEntries, addProductionEntry, updateProductionEntryStatus, mrpRuns } = useWorkflow();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedForwardedDate, setSelectedForwardedDate] = useState(
@@ -495,14 +496,16 @@ function ProductionEntryPage() {
               onChange={(n) => { setFilterOffice(n.officeId); setFilterWarehouse(n.warehouseId); }}
             />
           </div>
-          <DataTable
-            title="production-entries"
-            data={numberedEntries}
-            columns={cols}
-            searchKeys={["id", "bom", "outputItemName", "status"]}
-            selectable={false}
-            actions={(r) => <ProductionEntryRowMenu entry={r} onAdvance={advanceStatus} />}
-          />
+          <div data-arrival-id="production-list">
+            <DataTable
+              title="production-entries"
+              data={numberedEntries}
+              columns={cols}
+              searchKeys={["id", "bom", "outputItemName", "status"]}
+              selectable={false}
+              actions={(r) => <ProductionEntryRowMenu entry={r} onAdvance={advanceStatus} />}
+            />
+          </div>
         </>
       ) : (
         <ProductionEntryCreate key={createKey} initialItem={pendingItem} onSave={addEntry} />
@@ -729,6 +732,13 @@ function MaterialTable({
 }: { title: string; items: AggregatedMaterial[] }) {
   const grandTotal = items.reduce((sum, m) => sum + m.reqQty * m.rate, 0);
 
+  // Match aggregated materials to inventory by name so we can render FEFO lots.
+  const fefoForItem = (name: string, reqQty: number) => {
+    const inv = inventory.find((i) => i.name === name);
+    if (!inv) return null;
+    return allocateFefo(inv.id, reqQty);
+  };
+
   return (
     <div>
       <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
@@ -745,35 +755,63 @@ function MaterialTable({
               <TableHead className="text-xs uppercase tracking-wider text-right">Req. Qty</TableHead>
               <TableHead className="text-xs uppercase tracking-wider text-right">Rate</TableHead>
               <TableHead className="text-xs uppercase tracking-wider text-right">Total Cost</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider">Allocation Lots</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-6">
+                <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-6">
                   —
                 </TableCell>
               </TableRow>
             ) : (
               <>
-                {items.map((m, i) => (
-                  <TableRow key={m.itemCode}>
-                    <TableCell>{i + 1}</TableCell>
-                    <TableCell className="font-mono text-xs">{m.itemCode}</TableCell>
-                    <TableCell className="font-medium">{m.itemName}</TableCell>
-                    <TableCell>{m.uom}</TableCell>
-                    <TableCell className="text-right tabular-nums">{m.reqQty.toFixed(3)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{m.rate.toFixed(2)}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {(m.reqQty * m.rate).toFixed(2)}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {items.map((m, i) => {
+                  const fefo = fefoForItem(m.itemName, m.reqQty);
+                  return (
+                    <TableRow key={m.itemCode}>
+                      <TableCell>{i + 1}</TableCell>
+                      <TableCell className="font-mono text-xs">{m.itemCode}</TableCell>
+                      <TableCell className="font-medium">{m.itemName}</TableCell>
+                      <TableCell>{m.uom}</TableCell>
+                      <TableCell className="text-right tabular-nums">{m.reqQty.toFixed(3)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{m.rate.toFixed(2)}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {(m.reqQty * m.rate).toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-[11px]">
+                        {fefo === null ? (
+                          <span className="text-muted-foreground">Not in stock master</span>
+                        ) : (
+                          <div className="space-y-0.5">
+                            <div className="text-[9px] uppercase tracking-wider font-bold mb-0.5">
+                              <span className="px-1.5 py-0.5 rounded bg-primary/10 border border-primary/30 text-primary">{fefo.method}</span>
+                            </div>
+                            {fefo.allocations.map((a) => (
+                              <div key={a.batchNo} className="font-mono">
+                                <span className="text-foreground">{a.batchNo}</span>
+                                <span className="text-muted-foreground"> · {a.expiry} · </span>
+                                <span className="font-semibold">{a.qty.toFixed(3)}</span>
+                              </div>
+                            ))}
+                            {fefo.shortfall > 0 && (
+                              <div className="text-destructive font-semibold">
+                                Shortfall: {fefo.shortfall.toFixed(3)}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
                 <TableRow className="bg-muted/30 font-semibold">
                   <TableCell colSpan={6} className="text-right uppercase text-xs tracking-wider">
                     Total
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{grandTotal.toFixed(2)}</TableCell>
+                  <TableCell />
                 </TableRow>
               </>
             )}
@@ -797,24 +835,34 @@ function ManualMaterialsEditor({
 }) {
   return (
     <div className="space-y-6">
-      <ManualMaterialSection title="Raw Materials"      rows={raw}   onChange={setRaw}   />
-      <ManualMaterialSection title="Packaging Materials" rows={pkg}   onChange={setPkg}   />
-      <ManualMaterialSection title="Other Consumption"   rows={other} onChange={setOther} />
+      <ManualMaterialSection title="Raw Materials"       rows={raw}   onChange={setRaw}   itemType="Raw Material" />
+      <ManualMaterialSection title="Packaging Materials" rows={pkg}   onChange={setPkg}   itemType="Packaging" />
+      <ManualMaterialSection title="Other Consumption"   rows={other} onChange={setOther} itemType="Consumable" />
     </div>
   );
 }
 
 function ManualMaterialSection({
-  title, rows, onChange,
+  title, rows, onChange, itemType,
 }: {
   title: string;
   rows: ManualRow[];
   onChange: React.Dispatch<React.SetStateAction<ManualRow[]>>;
+  itemType: ItemMaster["itemType"];
 }) {
+  const itemOptions = useMemo(() => itemsByType(itemType), [itemType]);
   const [itemName, setItemName] = useState("");
   const [uom, setUom] = useState(UOM_OPTIONS[0]);
   const [qty, setQty] = useState("");
   const [rate, setRate] = useState("");
+
+  const handleItemPick = (name: string) => {
+    setItemName(name);
+    const picked = itemOptions.find((i) => i.name === name);
+    if (!picked) return;
+    if (UOM_OPTIONS.includes(picked.uom)) setUom(picked.uom);
+    if (picked.costPrice != null) setRate(String(picked.costPrice));
+  };
 
   const add = () => {
     if (!itemName.trim()) { toast.error("Item name is required."); return; }
@@ -842,7 +890,18 @@ function ManualMaterialSection({
       <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end mb-3">
         <div className="md:col-span-5">
           <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Item Name</Label>
-          <Input value={itemName} onChange={(e) => setItemName(e.target.value)} placeholder="e.g. Basmati Rice" className="mt-1 h-9" />
+          <select
+            value={itemName}
+            onChange={(e) => handleItemPick(e.target.value)}
+            className={cn(selectCls, "mt-1")}
+          >
+            <option value="">Select an item…</option>
+            {itemOptions.map((opt) => (
+              <option key={opt.code} value={opt.name}>
+                {opt.code} — {opt.name}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="md:col-span-2">
           <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">UoM</Label>
@@ -927,7 +986,6 @@ function ProductionEntryCreate({
   const [orderDate, setOrderDate] = useState(today);
   const [withoutBom, setWithoutBom] = useState(initialItem !== undefined);
   const [bomName, setBomName] = useState("");
-  const [department, setDepartment] = useState("");
   const [officeId, setOfficeId] = useState("OFF-001");
   const [warehouseId, setWarehouseId] = useState("WH-003"); // Hot Kitchen
   const [remarks, setRemarks] = useState(
@@ -1021,20 +1079,6 @@ function ProductionEntryCreate({
                 onChange={(e) => setOrderDate(e.target.value)}
                 className="mt-1"
               />
-            </div>
-
-            <div>
-              <Label className="text-xs uppercase tracking-wider text-muted-foreground">
-                Department
-              </Label>
-              <select
-                value={department}
-                onChange={(e) => setDepartment(e.target.value)}
-                className={selectCls}
-              >
-                <option value="">Department</option>
-                {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
-              </select>
             </div>
 
             <LocationPicker

@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { useWorkflow, type WfPurchaseOrder, type WfRequisition } from "@/lib/workflow-store";
 import { LocationPicker, LocationFilter, LocationCell } from "@/components/common/LocationPicker";
+import { useArrivalFlash } from "@/lib/arrival-flash";
 
 export const Route = createFileRoute("/procurement")({
   head: () => ({ meta: [{ title: "Purchase Orders" }] }),
@@ -27,6 +28,7 @@ export const Route = createFileRoute("/procurement")({
 type POLineRow = { id: string; name: string; qty: number; uom: string; unitPrice: number };
 
 function ProcurementPage() {
+  useArrivalFlash();
   const wf = useWorkflow();
   const { wfPurchaseOrders, wfRequisitions, addPurchaseOrder } = wf;
 
@@ -225,13 +227,15 @@ function ProcurementPage() {
       <div className="mb-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
         Purchase Orders
       </div>
-      <DataTable
-        title="purchase-orders"
-        data={filteredPOs}
-        columns={poCols}
-        searchKeys={["id", "vendor", "status", "requisitionRef"]}
-        actions={(r) => <RowActions row={r} actions={["view", "edit", "print", "delete"]} />}
-      />
+      <div data-arrival-id="po-list">
+        <DataTable
+          title="purchase-orders"
+          data={filteredPOs}
+          columns={poCols}
+          searchKeys={["id", "vendor", "status", "requisitionRef"]}
+          actions={(r) => <RowActions row={r} actions={["view", "edit", "print", "delete"]} />}
+        />
+      </div>
 
       {/* PO Creation Dialog */}
       <Dialog open={poDialogOpen} onOpenChange={setPoDialogOpen}>
