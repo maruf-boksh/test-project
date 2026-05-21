@@ -79,6 +79,17 @@ const gmOrderData: GMOrder = {
   approvedTimestamp: "2025-11-08 10:45 AM",
 };
 
+const gmMealSummary = {
+  importDate: "2026-05-21",
+  intl: { depMeal: 618, depChml: 24, depTotal: 642, retMeal: 0, retChml: 0, retVgml: 18, retTotal: 18, grandTotal: 660 },
+  dom: {
+    usba: { zenith: 160, pax: 160, breakfast: 160, lunch: 0 },
+    aaa: { zenith: 66, pax: 66 },
+    crew: { hSnacks: 8, lunch: 0, dinner: 4 },
+    totalZenith: 226,
+  },
+};
+
 // Sample data for current day
 function getSampleMeals(): MealCard[] {
   const today = DAYS[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1];
@@ -1021,45 +1032,108 @@ function MealPlanning() {
             </Button>
 
             <Dialog open={orderDetailsOpen} onOpenChange={setOrderDetailsOpen}>
-              <DialogContent>
+              <DialogContent className="max-w-3xl">
                 <DialogHeader>
-                  <DialogTitle>GM Order Details</DialogTitle>
+                  <DialogTitle>GM Order Details — {selectedDay}</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-3 text-sm">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <span className="font-semibold">Flight Number:</span> {gmOrderData.flightNumber}
+                <h3 className="text-sm font-semibold tracking-wider uppercase text-foreground">
+                  Meal Order Summary — Next 24 Hours
+                  <span className="ml-2 text-xs font-normal normal-case tracking-normal text-muted-foreground">{gmMealSummary.importDate}</span>
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* International column */}
+                  <div className="rounded-lg border border-navy/20 bg-navy/5 p-4 space-y-4">
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-navy">International</h4>
+                    <div className="space-y-1.5">
+                      <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Departure</div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Total Departure Meal</span>
+                        <span className="font-medium tabular-nums">{gmMealSummary.intl.depMeal}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Departure CHML</span>
+                        <span className="font-medium tabular-nums">{gmMealSummary.intl.depChml}</span>
+                      </div>
+                      <div className="flex justify-between text-sm font-semibold border-t border-navy/20 pt-1">
+                        <span>Departure Total</span>
+                        <span className="tabular-nums">{gmMealSummary.intl.depTotal}</span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="font-semibold">Route:</span> {gmOrderData.route}
+                    <div className="space-y-1.5">
+                      <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Return</div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Total Return Meal</span>
+                        <span className="font-medium tabular-nums">{gmMealSummary.intl.retMeal}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Return CHML</span>
+                        <span className="font-medium tabular-nums">{gmMealSummary.intl.retChml}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Return VGML</span>
+                        <span className="font-medium tabular-nums">{gmMealSummary.intl.retVgml}</span>
+                      </div>
+                      <div className="flex justify-between text-sm font-semibold border-t border-navy/20 pt-1">
+                        <span>Return Total</span>
+                        <span className="tabular-nums">{gmMealSummary.intl.retTotal}</span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="font-semibold">Date:</span> {gmOrderData.date}
-                    </div>
-                    <div>
-                      <span className="font-semibold">Departure:</span> {gmOrderData.departureTime}
-                    </div>
-                    <div>
-                      <span className="font-semibold">PAX Count:</span> {gmOrderData.paxCount}
-                    </div>
-                    <div>
-                      <span className="font-semibold">Crew Count:</span> {gmOrderData.crewCount}
+                    <div className="flex justify-between text-sm font-bold border-t-2 border-navy/30 pt-2 mt-1">
+                      <span>Total Meal (Departure+Return)</span>
+                      <span className="tabular-nums">{gmMealSummary.intl.grandTotal}</span>
                     </div>
                   </div>
-                  <div className="border-t pt-3">
-                    <div>
-                      <span className="font-semibold">Total Meals Today:</span> {gmOrderData.totalMealsToday.toLocaleString()}
+                  {/* Domestic column */}
+                  <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-4">
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-primary">Domestic</h4>
+                    <div className="space-y-1.5">
+                      <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">US-Bangla</div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Zenith Load</span>
+                        <span className="font-medium tabular-nums">{gmMealSummary.dom.usba.zenith}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Pax Load</span>
+                        <span className="font-medium tabular-nums">{gmMealSummary.dom.usba.pax}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Breakfast (JBR + CKN Buggati)</span>
+                        <span className="font-medium tabular-nums">{gmMealSummary.dom.usba.breakfast}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Lunch</span>
+                        <span className="font-medium tabular-nums">{gmMealSummary.dom.usba.lunch}</span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="font-semibold">Total Meals (96h):</span> {gmOrderData.totalMeals96h.toLocaleString()}
+                    <div className="space-y-1.5">
+                      <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Air Astra</div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Zenith Load</span>
+                        <span className="font-medium tabular-nums">{gmMealSummary.dom.aaa.zenith}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Pax Load</span>
+                        <span className="font-medium tabular-nums">{gmMealSummary.dom.aaa.pax}</span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="border-t pt-3">
-                    <div>
-                      <span className="font-semibold">Approved By:</span> {gmOrderData.approvedBy}
+                    <div className="space-y-1.5">
+                      <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Crew Meals</div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">H. Snacks</span>
+                        <span className="font-medium tabular-nums">{gmMealSummary.dom.crew.hSnacks}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Lunch</span>
+                        <span className="font-medium tabular-nums">{gmMealSummary.dom.crew.lunch}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Dinner</span>
+                        <span className="font-medium tabular-nums">{gmMealSummary.dom.crew.dinner}</span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="font-semibold">Timestamp:</span> {gmOrderData.approvedTimestamp}
+                    <div className="flex justify-between text-sm font-semibold border-t border-primary/20 pt-2">
+                      <span>Total Zenith (USBA + Air Astra)</span>
+                      <span className="tabular-nums">{gmMealSummary.dom.totalZenith}</span>
                     </div>
                   </div>
                 </div>
@@ -1069,6 +1143,12 @@ function MealPlanning() {
                     onClick={() => setOrderDetailsOpen(false)}
                   >
                     Close
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => { setOrderDetailsOpen(false); toast.info("Edit order to make changes."); }}
+                  >
+                    Edit
                   </Button>
                   <Button
                     onClick={() => {
