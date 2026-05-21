@@ -18,7 +18,7 @@ import {
 import {
   BadgeCheck, Check, X as XIcon, Clock, ShieldCheck, Search,
   FileText, ShoppingCart, Truck, ArrowLeftRight, Layers, UserCog,
-  ClipboardCheck, SlidersHorizontal, History,
+  ClipboardCheck, SlidersHorizontal, History, Eye, User as UserIcon, Calendar, Hash,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -34,7 +34,7 @@ type Category =
   | "Goods Receipt"
   | "Transfer Request"
   | "Stock Adjustment"
-  | "Production Entry"
+  | "Production Order"
   | "Bill of Materials"
   | "User Account";
 
@@ -44,7 +44,7 @@ const CATEGORIES: { key: Category; label: string; icon: typeof FileText }[] = [
   { key: "Goods Receipt",        label: "Goods Receipts",     icon: Truck           },
   { key: "Transfer Request",     label: "Transfer Requests",  icon: ArrowLeftRight  },
   { key: "Stock Adjustment",     label: "Stock Adj.",         icon: SlidersHorizontal },
-  { key: "Production Entry",     label: "Production",         icon: ClipboardCheck  },
+  { key: "Production Order",     label: "Production",         icon: ClipboardCheck  },
   { key: "Bill of Materials",    label: "BOM",                icon: Layers          },
   { key: "User Account",         label: "Users",              icon: UserCog         },
 ];
@@ -87,8 +87,8 @@ const SEED: ApprovalItem[] = [
   // Stock Adjustment
   { id: "AP-1401", category: "Stock Adjustment",     refId: "SA-2026-019", title: "Spice Mix variance",                      requestedBy: "F. Begum",   requestedAt: "2026-05-19 07:55", summary: "Physical count -2.4 Kg vs system — wastage write-off",    status: "Pending" },
 
-  // Production Entry
-  { id: "AP-1501", category: "Production Entry",     refId: "PE-2026-000031", title: "Chicken Biryani batch",                 requestedBy: "N. Hossen",  requestedAt: "2026-05-19 13:15", summary: "280 portions — ready for QC sign-off",                    itemsCount: 1, status: "Pending" },
+  // Production Order
+  { id: "AP-1501", category: "Production Order",     refId: "PO-2026-000031", title: "Chicken Biryani batch",                 requestedBy: "N. Hossen",  requestedAt: "2026-05-19 13:15", summary: "280 portions — ready for QC sign-off",                    itemsCount: 1, status: "Pending" },
 
   // Bill of Materials
   { id: "AP-1601", category: "Bill of Materials",    refId: "BOM-007",     title: "New BOM — Vegetable Cutlet",              requestedBy: "S. Ahmed",   requestedAt: "2026-05-18 16:40", summary: "Draft v1.0 with 8 materials, ready to publish",          itemsCount: 8, status: "Pending" },
@@ -327,6 +327,16 @@ function ApprovalManagementPage() {
                             <TableCell className="text-right">
                               <div className="flex items-center justify-end gap-1.5">
                                 <Button
+                                  size="icon"
+                                  variant="outline"
+                                  className="h-7 w-7 text-muted-foreground hover:text-primary hover:border-primary/40"
+                                  onClick={() => openDetail(it)}
+                                  aria-label={`View ${it.refId}`}
+                                  title="View details"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
                                   size="sm"
                                   className="h-7 px-2 text-[11px] bg-success text-success-foreground hover:bg-success/90"
                                   onClick={() => approve(it)}
@@ -459,51 +469,105 @@ function ApprovalManagementPage() {
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{detailItem?.refId} — {detailItem?.title}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              {detailItem && (() => {
+                const Icon = categoryIcon(detailItem.category);
+                return <Icon className="h-4 w-4 text-primary" />;
+              })()}
+              <span className="font-mono text-sm text-muted-foreground">{detailItem?.refId}</span>
+              <span className="text-foreground">— {detailItem?.title}</span>
+            </DialogTitle>
             <DialogDescription>{detailItem?.category} approval detail</DialogDescription>
           </DialogHeader>
+
           {detailItem && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
-                <Detail label="Reference"    value={<span className="font-mono">{detailItem.refId}</span>} />
-                <Detail label="Category"     value={detailItem.category} />
-                <Detail label="Requested By" value={detailItem.requestedBy} />
-                <Detail label="Date"         value={<span className="tabular-nums">{detailItem.requestedAt}</span>} />
+              {/* Status strip */}
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-muted/20 px-3 py-2">
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "font-medium text-[11px] h-6 px-2",
+                    detailItem.status === "Approved" && "bg-success/10 text-success border-success/30",
+                    detailItem.status === "Rejected" && "bg-destructive/10 text-destructive border-destructive/30",
+                    detailItem.status === "Pending"  && "bg-warning/15 text-warning-foreground border-warning/40",
+                  )}
+                >
+                  {detailItem.status === "Approved" && <Check className="h-3 w-3 mr-1" />}
+                  {detailItem.status === "Rejected" && <XIcon className="h-3 w-3 mr-1" />}
+                  {detailItem.status === "Pending"  && <Clock className="h-3 w-3 mr-1" />}
+                  {detailItem.status}
+                </Badge>
+                <div className="text-[11px] text-muted-foreground tabular-nums">
+                  Raised <span className="text-foreground">{detailItem.requestedAt}</span>
+                </div>
+              </div>
+
+              {/* Metadata grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 text-sm">
+                <Detail
+                  label="Reference"
+                  icon={Hash}
+                  value={<span className="font-mono">{detailItem.refId}</span>}
+                />
+                <Detail
+                  label="Category"
+                  icon={categoryIcon(detailItem.category)}
+                  value={detailItem.category}
+                />
+                <Detail
+                  label="Requested By"
+                  icon={UserIcon}
+                  value={detailItem.requestedBy}
+                />
+                <Detail
+                  label="Date"
+                  icon={Calendar}
+                  value={<span className="tabular-nums">{detailItem.requestedAt}</span>}
+                />
                 {detailItem.amount !== undefined && (
-                  <Detail label="Amount" value={<span className="font-semibold tabular-nums">৳ {detailItem.amount.toLocaleString()}</span>} />
+                  <Detail
+                    label="Amount"
+                    value={<span className="font-semibold tabular-nums text-primary">৳ {detailItem.amount.toLocaleString()}</span>}
+                  />
                 )}
                 {detailItem.itemsCount !== undefined && (
-                  <Detail label="Items" value={`${detailItem.itemsCount} item${detailItem.itemsCount > 1 ? "s" : ""}`} />
+                  <Detail
+                    label="Items"
+                    value={`${detailItem.itemsCount} item${detailItem.itemsCount > 1 ? "s" : ""}`}
+                  />
                 )}
-                <Detail
-                  label="Status"
-                  value={
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "font-medium text-[10px]",
-                        detailItem.status === "Approved" && "bg-success/10 text-success border-success/30",
-                        detailItem.status === "Rejected" && "bg-destructive/10 text-destructive border-destructive/30",
-                        detailItem.status === "Pending"  && "bg-warning/15 text-warning-foreground border-warning/40",
-                      )}
-                    >
-                      {detailItem.status}
-                    </Badge>
-                  }
-                />
               </div>
 
+              {/* Summary */}
               <div className="rounded-md border border-border bg-muted/30 p-3">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-1">Summary</div>
-                <div className="text-sm">{detailItem.summary}</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-1">
+                  Summary
+                </div>
+                <div className="text-sm leading-relaxed">{detailItem.summary}</div>
               </div>
 
+              {/* Processing history */}
               {(detailItem.processedBy || detailItem.processedAt) && (
-                <div className="rounded-md border border-border p-3 text-xs">
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-1">Processed</div>
-                  <div>{detailItem.processedBy} · <span className="tabular-nums">{detailItem.processedAt}</span></div>
+                <div
+                  className={cn(
+                    "rounded-md border p-3 text-xs",
+                    detailItem.status === "Approved"
+                      ? "border-success/30 bg-success/5"
+                      : "border-destructive/30 bg-destructive/5",
+                  )}
+                >
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-1">
+                    {detailItem.status === "Approved" ? "Approved by" : "Rejected by"}
+                  </div>
+                  <div className="flex items-center gap-1.5 text-foreground">
+                    <UserIcon className="h-3 w-3 text-muted-foreground" />
+                    <span className="font-medium">{detailItem.processedBy}</span>
+                    <span className="text-muted-foreground">·</span>
+                    <span className="tabular-nums text-muted-foreground">{detailItem.processedAt}</span>
+                  </div>
                   {detailItem.rejectionReason && (
-                    <div className="mt-1 text-destructive">
+                    <div className="mt-2 pt-2 border-t border-destructive/20 text-destructive">
                       <span className="font-medium">Reason:</span> {detailItem.rejectionReason}
                     </div>
                   )}
@@ -511,6 +575,7 @@ function ApprovalManagementPage() {
               )}
             </div>
           )}
+
           <DialogFooter>
             {detailItem?.status === "Pending" && (
               <>
@@ -541,10 +606,19 @@ function ApprovalManagementPage() {
   );
 }
 
-function Detail({ label, value }: { label: string; value: React.ReactNode }) {
+function Detail({
+  label, value, icon: Icon,
+}: {
+  label: string;
+  value: React.ReactNode;
+  icon?: typeof FileText;
+}) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{label}</div>
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium flex items-center gap-1">
+        {Icon && <Icon className="h-2.5 w-2.5" />}
+        {label}
+      </div>
       <div className="mt-0.5 text-sm text-foreground">{value}</div>
     </div>
   );

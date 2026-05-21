@@ -22,6 +22,7 @@ import {
 import { toast } from "sonner";
 import { activeItems } from "@/lib/sample-data";
 import { LocationPicker, LocationFilter, LocationCell } from "@/components/common/LocationPicker";
+import { useWorkflow, type WfRequisition } from "@/lib/workflow-store";
 
 export const Route = createFileRoute("/purchase-requisition")({
   head: () => ({ meta: [{ title: "Purchase Requisition" }] }),
@@ -137,7 +138,44 @@ const seedRequisitions: PurchaseRequisition[] = [
   },
 ];
 
+// ── Bridge: convert workflow-store WfRequisition (e.g. MRP-generated) into the
+// local PurchaseRequisition shape so they show up in this module's list. The
+// item rate is looked up from the central inventory if available; otherwise 0.
+function wfReqToPurchaseRequisition(wf: WfRequisition): PurchaseRequisition {
+  const lines: PRLineItem[] = (wf.demandItems ?? []).map((d, i) => ({
+    id: `${wf.id}-L${i + 1}`,
+    itemName: d.name,
+    description: d.type ? `${d.type}` : "",
+    qty: d.qty,
+    uom: d.uom,
+    rate: 0,    // unit rate isn't carried on demand items
+  }));
+  const totalAmount = lines.reduce((s, l) => s + l.qty * l.rate, 0);
+  // Map workflow statuses → local statuses for the list display
+  const statusMap: Record<string, string> = {
+    "Pending Accounts": "Pending Approval",
+    "Approved": "Approved",
+    "Rejected": "Rejected",
+  };
+  const status = statusMap[wf.status] ?? "Pending Approval";
+  return {
+    id: wf.id,
+    date: wf.date.slice(0, 10),
+    officeId: wf.officeId ?? "OFF-001",
+    warehouseId: wf.warehouseId ?? "WH-001",
+    requestedBy: wf.requestedBy,
+    department: wf.source === "MRP" ? "Production (MRP)" : (wf.source || "Store"),
+    requiredBy: "—",
+    priority: "Normal",
+    justification: wf.note,
+    lines,
+    status,
+    totalAmount,
+  };
+}
+
 function PurchaseRequisitionPage() {
+  const { wfRequisitions } = useWorkflow();
   const [requisitions, setRequisitions] = useState<PurchaseRequisition[]>(seedRequisitions);
   const [view, setView] = useState<"list" | "create">("list");
   const [selected, setSelected] = useState<PurchaseRequisition | null>(null);
@@ -149,7 +187,16 @@ function PurchaseRequisitionPage() {
     setView("list");
   };
 
-  const filtered = requisitions.filter((r) => {
+  // Workflow-store requisitions (MRP, kitchen demand, etc.) bridged in for display.
+  // De-dupe in case any local PR happens to share an id with a workflow record.
+  const bridged: PurchaseRequisition[] = wfRequisitions.map(wfReqToPurchaseRequisition);
+  const localIds = new Set(requisitions.map((r) => r.id));
+  const combined = [
+    ...bridged.filter((b) => !localIds.has(b.id)),
+    ...requisitions,
+  ];
+
+  const filtered = combined.filter((r) => {
     if (filterOffice && r.officeId !== filterOffice) return false;
     if (filterWarehouse && r.warehouseId !== filterWarehouse) return false;
     return true;
@@ -220,7 +267,7 @@ function PurchaseRequisitionPage() {
               onChange={(n) => { setFilterOffice(n.officeId); setFilterWarehouse(n.warehouseId); }}
             />
             <span className="text-xs text-muted-foreground">
-              Showing <strong className="text-foreground tabular-nums">{filtered.length}</strong> of {requisitions.length}
+              Showing <strong className="text-foreground tabular-nums">{filtered.length}</strong> of {combined.length}
             </span>
           </div>
 

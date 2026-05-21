@@ -4,7 +4,7 @@ import {
   Package, Boxes, ShoppingCart, ShieldCheck, Wrench, BarChart3, Users, ScrollText,
   ChevronDown, Factory, Truck, Pill, ThermometerSun, ClipboardCheck,
   Layers, FileText, SlidersHorizontal, Wallet, Receipt, BadgeCheck, PieChart, Send,
-  Settings, Tag, Building2, Warehouse, BadgeDollarSign, GitBranch, Plane,
+  Settings, Tag, Building2, Warehouse, BadgeDollarSign, GitBranch, Plane, Calculator,
   ArrowLeftRight, MoveRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -25,7 +25,9 @@ const NAV: Entry[] = [
     icon: Factory,
     items: [
       { key: "inventory-bom", to: "/bom", label: "Bill of Materials", icon: Layers },
-      { key: "production-entry", to: "/production-entry", label: "Production Entry", icon: ClipboardCheck },
+      { key: "production-entry", to: "/production-entry", label: "Production Order", icon: ClipboardCheck },
+      { key: "production-entry-new", to: "/production-entry-new", label: "Production Entry", icon: ClipboardCheck },
+      { key: "mrp", to: "/mrp", label: "Material Requirement Planning", icon: Calculator },
       { key: "production-reports", to: "/production-reports", label: "Production Reports", icon: BarChart3 },
     ],
   },
