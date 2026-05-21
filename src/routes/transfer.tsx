@@ -21,6 +21,7 @@ import { KpiCard } from "@/components/common/KpiCard";
 import { toast } from "sonner";
 import { activeItems, warehouses as ALL_WAREHOUSES } from "@/lib/sample-data";
 import { LocationPicker, LocationFilter, LocationCell } from "@/components/common/LocationPicker";
+import { useWorkflow, type WfTransferNote } from "@/lib/workflow-store";
 
 export const Route = createFileRoute("/transfer")({
   head: () => ({ meta: [{ title: "Transfer" }] }),
@@ -136,7 +137,39 @@ const SEED: Transfer[] = SEED_BASE.map((r) => ({ ...r, ...tagsForLocation(r.from
 
 type ActionMode = "receive" | "return";
 
+// ── Bridge: convert workflow-store WfTransferNote (e.g. MRP-generated) into
+// the local Transfer shape so they show up in this module's tabs.
+function wfTransferNoteToTransfer(wf: WfTransferNote): Transfer {
+  const isMrp = wf.demandRef?.startsWith("MRP-");
+  const lines: TransferLine[] = wf.items.map((it, i) => ({
+    id: `${wf.id}-L${i + 1}`,
+    item: it.name,
+    uom: it.uom,
+    requestedQty: it.qty,
+    transferredQty: wf.status === "Issued" ? it.qty : 0,
+  }));
+  const statusMap: Record<string, TransferStatus> = {
+    "Pending": "Pending",
+    "Issued": "Completed",
+  };
+  return {
+    id: wf.id,
+    date: wf.date,
+    trRef: isMrp ? wf.demandRef : "Direct Transfer",
+    from: wf.from,
+    to: wf.to,
+    issuedBy: wf.issuedBy,
+    receivedBy: wf.status === "Issued" ? "(acknowledged)" : "—",
+    lines,
+    status: statusMap[wf.status] ?? "Pending",
+    kind: "Outbound",
+    officeId: wf.officeId ?? "OFF-001",
+    warehouseId: wf.warehouseId ?? "WH-001",
+  };
+}
+
 function TransferPage() {
+  const { transferNotes } = useWorkflow();
   const [rows, setRows] = useState<Transfer[]>(SEED);
   const [view, setView] = useState<"list" | "create">("list");
   const [actionTransfer, setActionTransfer] = useState<Transfer | null>(null);
@@ -144,7 +177,16 @@ function TransferPage() {
   const [filterOffice, setFilterOffice] = useState("");
   const [filterWarehouse, setFilterWarehouse] = useState("");
 
-  const filtered = rows.filter((r) => {
+  // Workflow-store transfer notes (MRP, item-issue allocations, etc.) bridged
+  // in for display. De-dupe against local Transfer ids.
+  const bridged: Transfer[] = transferNotes.map(wfTransferNoteToTransfer);
+  const localIds = new Set(rows.map((r) => r.id));
+  const combined = [
+    ...bridged.filter((b) => !localIds.has(b.id)),
+    ...rows,
+  ];
+
+  const filtered = combined.filter((r) => {
     if (filterOffice && r.officeId !== filterOffice) return false;
     if (filterWarehouse && r.warehouseId !== filterWarehouse) return false;
     return true;
@@ -239,9 +281,9 @@ function TransferPage() {
     closeAction();
   };
 
-  const pending = rows.filter((r) => r.status === "Pending").length;
-  const inTransit = rows.filter((r) => r.status === "In Transit").length;
-  const completed = rows.filter((r) => r.status === "Completed").length;
+  const pending = combined.filter((r) => r.status === "Pending").length;
+  const inTransit = combined.filter((r) => r.status === "In Transit").length;
+  const completed = combined.filter((r) => r.status === "Completed").length;
 
   return (
     <>
@@ -261,7 +303,7 @@ function TransferPage() {
       {view === "list" ? (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
-            <KpiCard label="Total Transfers" value={rows.length} icon={MoveRight} tone="navy" />
+            <KpiCard label="Total Transfers" value={combined.length} icon={MoveRight} tone="navy" />
             <KpiCard label="Pending" value={pending} icon={Clock} tone="warning" />
             <KpiCard label="In Transit" value={inTransit} icon={Truck} tone="navy" />
             <KpiCard label="Completed" value={completed} icon={CheckCircle} tone="success" />

@@ -35,6 +35,11 @@ import {
 } from "@/lib/sample-data";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+function OrderStatusBadges({ legs }: { legs: { status: FlightOrderStatus }[] }) {
+  if (legs.length === 0) return null;
+  return <StatusBadge status={legs[0].status} />;
+}
+
 export const Route = createFileRoute("/order-management")({
   head: () => ({ meta: [{ title: "Order Management" }] }),
   component: OrderManagementPage,
@@ -347,7 +352,6 @@ function CrewMealsView({ orders }: { orders: FlightOrder[] }) {
                     <TableHead className="text-xs uppercase tracking-wider w-20">ETD</TableHead>
                     <TableHead className="text-xs uppercase tracking-wider text-right w-24">PAX</TableHead>
                     <TableHead className="text-xs uppercase tracking-wider text-right w-28">No of Crew</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider w-32">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -367,7 +371,7 @@ function CrewMealsView({ orders }: { orders: FlightOrder[] }) {
                     return (
                       <Fragment key={slot.name}>
                         <TableRow className="bg-primary/5 border-t-2 border-t-primary/40 hover:bg-primary/10">
-                          <TableCell colSpan={6} className="py-2">
+                          <TableCell colSpan={5} className="py-2">
                             <span className="font-semibold text-primary uppercase tracking-wider text-xs">
                               {slot.name}
                             </span>
@@ -379,16 +383,19 @@ function CrewMealsView({ orders }: { orders: FlightOrder[] }) {
                         {Array.from(slotOrderGroups.entries()).map(([orderNo, legs]) => (
                           <Fragment key={`${slot.name}-${orderNo}`}>
                             <TableRow className="bg-muted/40 hover:bg-muted/50">
-                              <TableCell colSpan={6} className="pl-4 py-1.5">
-                                <span className="font-mono text-sm font-semibold text-primary">{orderNo}</span>
-                                {legs.length > 1 && (
-                                  <Badge
-                                    variant="outline"
-                                    className="ml-2 h-5 px-1.5 text-[10px] tabular-nums border-primary/30 bg-card text-primary"
-                                  >
-                                    {legs.length} legs
-                                  </Badge>
-                                )}
+                              <TableCell colSpan={5} className="pl-4 py-1.5">
+                                <div className="flex items-center flex-wrap gap-2">
+                                  <span className="font-mono text-sm font-semibold text-primary">{orderNo}</span>
+                                  {legs.length > 1 && (
+                                    <Badge
+                                      variant="outline"
+                                      className="h-5 px-1.5 text-[10px] tabular-nums border-primary/30 bg-card text-primary"
+                                    >
+                                      {legs.length} legs
+                                    </Badge>
+                                  )}
+                                  <OrderStatusBadges legs={legs} />
+                                </div>
                               </TableCell>
                             </TableRow>
                             {legs.map((o) => (
@@ -403,7 +410,6 @@ function CrewMealsView({ orders }: { orders: FlightOrder[] }) {
                                 <TableCell className="tabular-nums">{o.etd}</TableCell>
                                 <TableCell className="text-right tabular-nums">{o.pax}</TableCell>
                                 <TableCell className="text-right tabular-nums font-semibold">{o.crew}</TableCell>
-                                <TableCell><StatusBadge status={o.status} /></TableCell>
                               </TableRow>
                             ))}
                           </Fragment>
@@ -413,7 +419,6 @@ function CrewMealsView({ orders }: { orders: FlightOrder[] }) {
                             {slot.name} Total
                           </TableCell>
                           <TableCell className="text-right tabular-nums text-primary">{slotCrew}</TableCell>
-                          <TableCell />
                         </TableRow>
                       </Fragment>
                     );
@@ -644,14 +649,13 @@ function OrdersList({
                 <TableHead className="text-xs uppercase tracking-wider">ETD</TableHead>
                 <TableHead className="text-xs uppercase tracking-wider text-right">PAX</TableHead>
                 <TableHead className="text-xs uppercase tracking-wider text-right">Spec. Meals</TableHead>
-                <TableHead className="text-xs uppercase tracking-wider">Status</TableHead>
                 <TableHead className="text-xs uppercase tracking-wider">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredOrders.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-sm text-muted-foreground py-8">
+                  <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">
                     No flight orders match the selected filters.
                   </TableCell>
                 </TableRow>
@@ -672,18 +676,21 @@ function OrdersList({
                       className="bg-primary/5 hover:bg-primary/10 border-t-2 border-t-primary/40"
                     >
                       <TableCell
-                        colSpan={9}
+                        colSpan={8}
                         className="font-mono text-sm font-semibold text-foreground py-2"
                       >
-                        <span className="text-primary">{orderNo}</span>
-                        {legs.length > 1 && (
-                          <Badge
-                            variant="outline"
-                            className="ml-2 h-5 px-1.5 text-[10px] tabular-nums border-primary/30 bg-card text-primary"
-                          >
-                            {legs.length} legs
-                          </Badge>
-                        )}
+                        <div className="flex items-center flex-wrap gap-2">
+                          <span className="text-primary">{orderNo}</span>
+                          {legs.length > 1 && (
+                            <Badge
+                              variant="outline"
+                              className="h-5 px-1.5 text-[10px] tabular-nums border-primary/30 bg-card text-primary"
+                            >
+                              {legs.length} legs
+                            </Badge>
+                          )}
+                          <OrderStatusBadges legs={legs} />
+                        </div>
                       </TableCell>
                     </TableRow>,
                   );
@@ -707,7 +714,6 @@ function OrdersList({
                         <TableCell>{o.etd}</TableCell>
                         <TableCell className="text-right tabular-nums">{o.pax}</TableCell>
                         <TableCell className="text-right tabular-nums">{o.specialMeals}</TableCell>
-                        <TableCell><StatusBadge status={o.status} /></TableCell>
                         <TableCell>
                           <Button
                             size="sm"
@@ -760,6 +766,7 @@ function OrderCreate({
   nextOrderNo: string;
   nextRowSeq: number;
 }) {
+  const [scope, setScope] = useState<"Domestic" | "International">("Domestic");
   const [flight, setFlight] = useState("");
   const [airline, setAirline] = useState(AIRLINES[0]);
   const [from, setFrom] = useState("");
@@ -772,6 +779,22 @@ function OrderCreate({
   const [bulkPaste, setBulkPaste] = useState("");
   const [showBulk, setShowBulk] = useState(false);
   const [legs, setLegs] = useState<LegDraft[]>([]);
+
+  const domesticCodes = ["DAC", "CGP", "CXB", "ZYL", "JSR"];
+  const airportChoices = scope === "Domestic"
+    ? AIRPORTS.filter((a) => domesticCodes.includes(a.code))
+    : AIRPORTS;
+
+  const onScopeChange = (next: "Domestic" | "International") => {
+    setScope(next);
+    // If the currently-picked airport doesn't belong to the new scope, clear it.
+    const isDomCode = (code: string) => domesticCodes.includes(code);
+    if (next === "Domestic") {
+      if (from && !isDomCode(from)) setFrom("");
+      if (to && !isDomCode(to)) setTo("");
+    }
+    // For International we keep whatever was selected — all codes are valid.
+  };
 
   const resetForm = () => {
     setFlight(""); setFrom(""); setTo("");
@@ -921,6 +944,27 @@ function OrderCreate({
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-4 mb-4">
           <div>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Scope</Label>
+            <div className="mt-1 inline-flex rounded-md border border-input bg-background p-0.5 shadow-sm">
+              {(["Domestic", "International"] as const).map((s) => {
+                const active = scope === s;
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => onScopeChange(s)}
+                    className={
+                      "px-3 py-1.5 text-xs font-medium rounded-sm transition-colors " +
+                      (active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground")
+                    }
+                  >
+                    {s}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div>
             <Label className="text-xs uppercase tracking-wider text-muted-foreground">
               Airline
             </Label>
@@ -943,7 +987,6 @@ function OrderCreate({
               className="mt-1"
             />
           </div>
-          <div className="hidden md:block" />
         </div>
 
         <div className="border-t border-border pt-4 mb-2">
@@ -975,7 +1018,7 @@ function OrderCreate({
               className={selectCls}
             >
               <option value="">Select origin</option>
-              {AIRPORTS.map((a) => (
+              {airportChoices.map((a) => (
                 <option key={a.code} value={a.code}>{a.code} — {a.name}</option>
               ))}
             </select>
@@ -991,7 +1034,7 @@ function OrderCreate({
               className={selectCls}
             >
               <option value="">Select destination</option>
-              {AIRPORTS.map((a) => (
+              {airportChoices.map((a) => (
                 <option key={a.code} value={a.code}>{a.code} — {a.name}</option>
               ))}
             </select>

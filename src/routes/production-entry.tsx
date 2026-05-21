@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
 import { RowActions } from "@/components/common/RowActions";
@@ -7,7 +7,7 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -18,14 +18,24 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { Plus, Plane, Users, Clock, Flame, Save, Trash2, UtensilsCrossed, ArrowRight, ClipboardCheck, MoreHorizontal, Eye, Pencil, Printer } from "lucide-react";
+import { Plus, Plane, Users, Clock, Flame, Save, Trash2, UtensilsCrossed, ArrowRight, ClipboardCheck, MoreHorizontal, Eye, Pencil, Printer, Calculator, Package, PackageOpen, Wrench, CheckCircle2, AlertCircle, FileText } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { billOfMaterials, seedFlightOrders, type FlightOrderRow } from "@/lib/sample-data";
-import { useWorkflow, type WfProductionEntry, type WfProductionEntryStatus } from "@/lib/workflow-store";
+import {
+  billOfMaterials, seedFlightOrders, inventory, warehouses as ALL_WAREHOUSES,
+  MEAL_SLOTS, getMealSlot, isDomesticSector,
+  type FlightOrderRow, type MealSlot,
+} from "@/lib/sample-data";
+import { Fragment } from "react";
+import {
+  useWorkflow,
+  type WfProductionEntry, type WfProductionEntryStatus,
+  type WfMrpRun, type WfMrpMaterial,
+  type WfRequisition, type WfDemandItem, type WfTransferNote,
+} from "@/lib/workflow-store";
 import { LocationPicker, LocationFilter, LocationCell } from "@/components/common/LocationPicker";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -40,6 +50,17 @@ const TOTAL_MEALS_FROM_ORDERS = seedFlightOrders.reduce(
   (sum, o) => sum + o.pax + o.crew + o.specialMeals,
   0,
 );
+
+// One forwarded entry per distinct order date, sorted ascending.
+const FORWARDED_ORDERS: { date: string; totalMeals: number }[] = (() => {
+  const byDate = new Map<string, number>();
+  for (const o of seedFlightOrders) {
+    byDate.set(o.date, (byDate.get(o.date) ?? 0) + o.pax + o.crew + o.specialMeals);
+  }
+  return Array.from(byDate.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, totalMeals]) => ({ date, totalMeals }));
+})();
 
 const DOMESTIC_AIRPORTS = new Set(["DAC", "CXB", "CGP", "ZYL", "JSR"]);
 
@@ -64,6 +85,59 @@ type OrderRequirement = {
   specialMeals: number;
   orders: FlightOrderRow[];
 };
+
+/**
+ * Compute the production quantity for a meal-plan item, given the day's flight
+ * orders. A Choice item gets `audience × choice%`. A Special item gets the
+ * special-meals total directly. Audience depends on `forType` — Passengers,
+ * Crew, or both.
+ */
+function computeMealQty({
+  requirements, day, flightTypes, forType, kind, percentage,
+}: {
+  requirements: OrderRequirement[];
+  day: string;
+  flightTypes: string[];   // meal.flightType
+  forType: string;          // "Passengers" | "Crew" | "Both" | ...
+  kind: "Choice" | "Special";
+  percentage?: number;      // 0-100 for choices
+}): { qty: number; breakdown: string } {
+  const matching = requirements.filter(
+    (r) => r.day === day && flightTypes.includes(r.flightType),
+  );
+  if (matching.length === 0) return { qty: 0, breakdown: "No matching flight orders" };
+
+  const pax = matching.reduce((s, r) => s + r.passengers, 0);
+  const crew = matching.reduce((s, r) => s + r.crew, 0);
+  const spec = matching.reduce((s, r) => s + r.specialMeals, 0);
+
+  if (kind === "Special") {
+    return {
+      qty: spec,
+      breakdown: `${spec} special meal${spec === 1 ? "" : "s"} on ${day} · ${flightTypes.join(" / ")}`,
+    };
+  }
+
+  const ft = forType.toLowerCase();
+  let audience = 0;
+  let audienceLabel = "";
+  if (ft.includes("passenger") && ft.includes("crew")) {
+    audience = pax + crew;
+    audienceLabel = `${pax} pax + ${crew} crew = ${audience}`;
+  } else if (ft.includes("crew")) {
+    audience = crew;
+    audienceLabel = `${crew} crew`;
+  } else {
+    audience = pax;
+    audienceLabel = `${pax} pax`;
+  }
+  const pct = percentage ?? 100;
+  const qty = Math.round((audience * pct) / 100);
+  return {
+    qty,
+    breakdown: `${audienceLabel} × ${pct}% = ${qty} (${day} · ${flightTypes.join(" / ")})`,
+  };
+}
 
 function computeOrderRequirements(orders: FlightOrderRow[]): OrderRequirement[] {
   const map = new Map<string, OrderRequirement>();
@@ -90,10 +164,6 @@ function computeOrderRequirements(orders: FlightOrderRow[]): OrderRequirement[] 
   });
 }
 
-const FORWARDED_ORDER = {
-  date: gmOrderSummary.date,
-  totalMeals: TOTAL_MEALS_FROM_ORDERS,
-};
 
 const DEPARTMENTS = ["Hot Kitchen", "Cold Kitchen", "Bakery", "Beverage", "Special Meal"];
 
@@ -101,7 +171,7 @@ const selectCls =
   "w-full mt-1 h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
 
 export const Route = createFileRoute("/production-entry")({
-  head: () => ({ meta: [{ title: "Production Entry" }] }),
+  head: () => ({ meta: [{ title: "Production Order" }] }),
   component: ProductionEntryPage,
 });
 
@@ -173,13 +243,27 @@ function ProductionEntryRowMenu({
 }
 
 function ProductionEntryPage() {
-  const { productionEntries, addProductionEntry, updateProductionEntryStatus } = useWorkflow();
+  const { productionEntries, addProductionEntry, updateProductionEntryStatus, mrpRuns } = useWorkflow();
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [selectedForwardedDate, setSelectedForwardedDate] = useState(
+    FORWARDED_ORDERS[0]?.date ?? "",
+  );
   const [view, setView] = useState<"list" | "create">("list");
   const [pendingItem, setPendingItem] = useState<OutputLine | undefined>(undefined);
   const [createKey, setCreateKey] = useState(0);
   const [filterOffice, setFilterOffice] = useState("");
   const [filterWarehouse, setFilterWarehouse] = useState("");
+  const [mrpOpen, setMrpOpen] = useState(false);
+  const lastMrpRun = mrpRuns[0];  // newest first in store
+
+  // Allow other modules to open MRP directly by navigating with `#mrp`.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.location.hash === "#mrp") {
+      setMrpOpen(true);
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+  }, []);
 
   const entries = productionEntries.filter((e) => {
     if (filterOffice && e.officeId !== filterOffice) return false;
@@ -201,11 +285,12 @@ function ProductionEntryPage() {
   };
 
   const startFromMealPlan = (item: MealPlanPickItem) => {
+    const qty = item.computedQty ?? 0;
     const line: OutputLine = {
       id: `OL-MP-${Date.now()}`,
       itemCode: item.code,
       itemName: item.name,
-      qty: 0,
+      qty,
       source: "meal-plan",
       mealMeta: {
         day: item.day,
@@ -219,7 +304,11 @@ function ProductionEntryPage() {
     setCreateKey((k) => k + 1);
     setDetailsOpen(false);
     setView("create");
-    toast.success(`"${item.name}" selected — enter production quantity to auto-load materials.`);
+    if (qty > 0) {
+      toast.success(`"${item.name}" — order qty pre-filled at ${qty.toLocaleString()} pcs (${item.qtyBreakdown ?? "auto"}).`);
+    } else {
+      toast.success(`"${item.name}" selected — enter order quantity to auto-load materials.`);
+    }
   };
 
   type NumberedEntry = ProductionEntry & { __sl: number };
@@ -233,7 +322,7 @@ function ProductionEntryPage() {
       className: "w-12 text-center",
       render: (r) => <span className="tabular-nums">{r.__sl}</span>,
     },
-    { key: "id",         header: "Entry No" },
+    { key: "id",         header: "Order No" },
     { key: "date",       header: "Date" },
     {
       key: "officeId" as keyof NumberedEntry, header: "Office / Warehouse",
@@ -259,6 +348,14 @@ function ProductionEntryPage() {
       ),
     },
     {
+      key: "orderQty" as keyof NumberedEntry,
+      header: "Order Qty",
+      className: "text-right",
+      render: (r) => (
+        <span className="tabular-nums">{(r.orderQty ?? r.producedQty).toLocaleString()}</span>
+      ),
+    },
+    {
       key: "producedQty",
       header: "Produced Qty",
       className: "text-right",
@@ -266,19 +363,44 @@ function ProductionEntryPage() {
         <span className="tabular-nums">{r.producedQty.toLocaleString()}</span>
       ),
     },
+    {
+      key: "id" as keyof NumberedEntry,
+      header: "Remaining Qty",
+      className: "text-right",
+      render: (r) => {
+        const order = r.orderQty ?? r.producedQty;
+        const remaining = Math.max(0, order - r.producedQty);
+        return (
+          <span className={`tabular-nums ${remaining > 0 ? "text-warning font-medium" : "text-success"}`}>
+            {remaining.toLocaleString()}
+          </span>
+        );
+      },
+    },
     { key: "status", header: "Status", render: (r) => <StatusBadge status={r.status} /> },
   ];
 
   return (
     <>
       <PageHeader
-        title="Production Entry"
-        subtitle="Record and manage production entries"
+        title="Production Order"
+        subtitle="Record and manage production orders"
         actions={
-          <Button onClick={() => setView(view === "create" ? "list" : "create")}>
-            <Plus className="h-4 w-4 mr-1" />
-            {view === "create" ? "View List" : "Create Entry"}
-          </Button>
+          <div className="flex items-center gap-2">
+            {view === "list" && (
+              <Button
+                variant="outline"
+                onClick={() => setMrpOpen(true)}
+                className="border-primary/40 text-primary hover:bg-primary/5"
+              >
+                <Calculator className="h-4 w-4 mr-1" /> Run MRP
+              </Button>
+            )}
+            <Button onClick={() => setView(view === "create" ? "list" : "create")}>
+              <Plus className="h-4 w-4 mr-1" />
+              {view === "create" ? "View List" : "Create Order"}
+            </Button>
+          </div>
         }
       />
 
@@ -290,17 +412,27 @@ function ProductionEntryPage() {
                 <div className="text-xs font-semibold uppercase tracking-wider text-success">
                   Forwarded from Order Management
                 </div>
-                <div className="mt-1 text-base font-bold text-foreground">
-                  New Meal Order for {FORWARDED_ORDER.date}
-                </div>
-                <div className="mt-0.5 text-sm text-muted-foreground">
-                  Total Meals:{" "}
+                <div className="mt-1 text-sm text-foreground">
+                  <span className="font-bold">{FORWARDED_ORDERS.length}</span>{" "}
+                  date{FORWARDED_ORDERS.length === 1 ? "" : "s"} pending ·{" "}
                   <span className="font-bold text-success">
-                    {FORWARDED_ORDER.totalMeals.toLocaleString()}
-                  </span>
+                    {TOTAL_MEALS_FROM_ORDERS.toLocaleString()}
+                  </span>{" "}
+                  meals
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={selectedForwardedDate}
+                  onChange={(e) => setSelectedForwardedDate(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  {FORWARDED_ORDERS.map((f) => (
+                    <option key={f.date} value={f.date}>
+                      {f.date} — {f.totalMeals.toLocaleString()} meals
+                    </option>
+                  ))}
+                </select>
                 <Button
                   className="bg-success text-success-foreground hover:bg-success/90"
                   onClick={() => setDetailsOpen(true)}
@@ -310,6 +442,51 @@ function ProductionEntryPage() {
               </div>
             </div>
           </div>
+
+          {lastMrpRun && (
+            <div className="mb-4 rounded-md border border-primary/30 bg-primary/5 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-xs">
+                <Calculator className="h-4 w-4 text-primary" />
+                <span className="font-semibold text-primary uppercase tracking-wider">Last MRP Run</span>
+                <span className="font-mono text-foreground">{lastMrpRun.id}</span>
+                <span className="text-muted-foreground tabular-nums">· {lastMrpRun.date}</span>
+                <span className="text-muted-foreground">·</span>
+                <span className="text-foreground">{lastMrpRun.orderIds.length} order{lastMrpRun.orderIds.length === 1 ? "" : "s"}</span>
+                <span className="text-muted-foreground">·</span>
+                <span className="text-foreground">{lastMrpRun.materials.length} materials</span>
+                {lastMrpRun.requisitionIds.length > 0 && (
+                  <>
+                    <span className="text-muted-foreground">·</span>
+                    <span className="text-success font-medium">{lastMrpRun.requisitionIds.length} PR{lastMrpRun.requisitionIds.length === 1 ? "" : "s"}</span>
+                  </>
+                )}
+                {lastMrpRun.transferIds.length > 0 && (
+                  <>
+                    <span className="text-muted-foreground">·</span>
+                    <span className="text-navy font-medium">{lastMrpRun.transferIds.length} transfer{lastMrpRun.transferIds.length === 1 ? "" : "s"}</span>
+                  </>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-muted-foreground tabular-nums">
+                  Plan value: <strong className="text-foreground">৳ {lastMrpRun.totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong>
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs"
+                  onClick={() => downloadMrpCsv(lastMrpRun)}
+                >
+                  <FileText className="h-3.5 w-3.5 mr-1" /> CSV
+                </Button>
+                {mrpRuns.length > 1 && (
+                  <Badge variant="outline" className="text-[10px]">
+                    +{mrpRuns.length - 1} earlier
+                  </Badge>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="mb-4">
             <LocationFilter
@@ -335,6 +512,13 @@ function ProductionEntryPage() {
         open={detailsOpen}
         onOpenChange={setDetailsOpen}
         onSelectItem={startFromMealPlan}
+        date={selectedForwardedDate}
+      />
+
+      <MaterialRequirementPlanningDialog
+        open={mrpOpen}
+        onOpenChange={setMrpOpen}
+        orders={productionEntries}
       />
     </>
   );
@@ -447,6 +631,10 @@ type MealPlanPickItem = {
   kind: "Choice" | "Special";
   weight: number;
   calories: number;
+  /** Computed production qty derived from flight orders + choice allocation. */
+  computedQty?: number;
+  /** Short human-readable explanation of how computedQty was derived. */
+  qtyBreakdown?: string;
 };
 
 function slugifyItem(name: string) {
@@ -789,22 +977,23 @@ function ProductionEntryCreate({
     if (!officeId) { toast.error("Office is required."); return; }
     if (!warehouseId) { toast.error("Warehouse is required."); return; }
     const qty = Number(itemQty);
-    if (!qty || qty <= 0) { toast.error("Production quantity must be greater than zero."); return; }
+    if (!qty || qty <= 0) { toast.error("Order quantity must be greater than zero."); return; }
 
     const nextSeq = String(Date.now()).slice(-6);
     const newEntry: ProductionEntry = {
-      id: `PE-2026-${nextSeq}`,
+      id: `PO-2026-${nextSeq}`,
       date: orderDate,
       bom: withoutBom ? "Without BOM" : bomName,
       outputItemName: outputItem.itemName,
       outputItemCode: outputItem.itemCode,
-      producedQty: qty,
+      orderQty: qty,
+      producedQty: 0,
       status: "Pending",
       officeId,
       warehouseId,
     };
 
-    toast.success(`Entry ${newEntry.id} created — ${outputItem.itemName} × ${qty.toLocaleString()}.`);
+    toast.success(`Order ${newEntry.id} created — ${outputItem.itemName} × ${qty.toLocaleString()}.`);
     onSave?.(newEntry);
   };
 
@@ -947,7 +1136,7 @@ function ProductionEntryCreate({
 
               <div className="mt-4 max-w-xs">
                 <Label className="text-xs uppercase tracking-wider text-muted-foreground">
-                  Production Quantity <span className="text-destructive">*</span>
+                  Order Quantity <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   type="number"
@@ -981,7 +1170,7 @@ function ProductionEntryCreate({
 
               <div className="md:col-span-4">
                 <Label className="text-xs uppercase tracking-wider text-muted-foreground">
-                  Production Quantity <span className="text-destructive">*</span>
+                  Order Quantity <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   type="number"
@@ -1035,7 +1224,7 @@ function ProductionEntryCreate({
             </div>
           ) : Number(itemQty) <= 0 ? (
             <div className="text-center text-sm text-muted-foreground py-8">
-              Enter a production quantity to compute the required materials.
+              Enter an order quantity to compute the required materials.
             </div>
           ) : bomMaterials.raw.length === 0 && bomMaterials.pkg.length === 0 && bomMaterials.other.length === 0 ? (
             <div className="rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-foreground">
@@ -1058,10 +1247,11 @@ function ProductionEntryCreate({
 }
 
 function MealCardView({
-  meal, onSelect,
+  meal, onSelect, requirements,
 }: {
   meal: MealCard;
-  onSelect: (code: string) => void;
+  onSelect: (payload: { code: string; computedQty: number; breakdown: string }) => void;
+  requirements: OrderRequirement[];
 }) {
   return (
     <Card>
@@ -1103,19 +1293,36 @@ function MealCardView({
               <ul className="space-y-2">
                 {c.items.map((item, i) => {
                   const code = `MP-${slugifyItem(item.name)}`;
+                  const { qty, breakdown } = computeMealQty({
+                    requirements,
+                    day: meal.day,
+                    flightTypes: meal.flightType,
+                    forType: meal.forType,
+                    kind: "Choice",
+                    percentage: c.percentage,
+                  });
                   return (
                     <li key={i} className="text-xs flex items-center gap-2">
                       <div className="flex-1 min-w-0">
                         <div className="text-foreground truncate">{item.name}</div>
                         <div className="text-[10px] text-muted-foreground">
                           {item.weight}g · {item.calories} kcal
+                          {qty > 0 && (
+                            <>
+                              {" · "}
+                              <span className="text-primary font-medium tabular-nums">
+                                {qty.toLocaleString()} pcs
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
                       <Button
                         size="sm"
                         variant="outline"
                         className="h-7 px-2 text-[11px] shrink-0"
-                        onClick={() => onSelect(code)}
+                        onClick={() => onSelect({ code, computedQty: qty, breakdown })}
+                        title={breakdown}
                       >
                         Select →
                       </Button>
@@ -1144,19 +1351,43 @@ function MealCardView({
                   <ul className="space-y-1.5">
                     {s.items.map((item, i) => {
                       const code = `MP-${slugifyItem(item.name)}`;
+                      // Special-meal portions can come from the meal-plan
+                      // template; if it's a fixed number use that, otherwise
+                      // fall back to the special-meals count from flight orders.
+                      const explicitPortions = typeof s.portions === "number" ? s.portions : 0;
+                      const computed = computeMealQty({
+                        requirements,
+                        day: meal.day,
+                        flightTypes: meal.flightType,
+                        forType: meal.forType,
+                        kind: "Special",
+                      });
+                      const qty = explicitPortions > 0 ? explicitPortions : computed.qty;
+                      const breakdown = explicitPortions > 0
+                        ? `${explicitPortions} portion${explicitPortions === 1 ? "" : "s"} configured for ${s.type}`
+                        : computed.breakdown;
                       return (
                         <li key={i} className="text-[11px] flex items-center gap-2">
                           <div className="flex-1 min-w-0">
                             <div className="text-foreground truncate">{item.name}</div>
                             <div className="text-[10px] text-muted-foreground">
                               {item.weight}g · {item.calories} kcal
+                              {qty > 0 && (
+                                <>
+                                  {" · "}
+                                  <span className="text-primary font-medium tabular-nums">
+                                    {qty.toLocaleString()} pcs
+                                  </span>
+                                </>
+                              )}
                             </div>
                           </div>
                           <Button
                             size="sm"
                             variant="outline"
                             className="h-7 px-2 text-[11px] shrink-0"
-                            onClick={() => onSelect(code)}
+                            onClick={() => onSelect({ code, computedQty: qty, breakdown })}
+                            title={breakdown}
                           >
                             Select →
                           </Button>
@@ -1185,14 +1416,19 @@ function MealCardView({
 }
 
 function MealPlanningDetailsDialog({
-  open, onOpenChange, onSelectItem,
+  open, onOpenChange, onSelectItem, date,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSelectItem: (item: MealPlanPickItem) => void;
+  date: string;
 }) {
   const navigate = useNavigate();
-  const requirements = useMemo(() => computeOrderRequirements(seedFlightOrders), []);
+  const ordersForDate = useMemo(
+    () => (date ? seedFlightOrders.filter((o) => o.date === date) : seedFlightOrders),
+    [date],
+  );
+  const requirements = useMemo(() => computeOrderRequirements(ordersForDate), [ordersForDate]);
   const orderDays = useMemo(() => new Set(requirements.map((r) => r.day)), [requirements]);
 
   const itemByCode = useMemo(() => {
@@ -1201,10 +1437,10 @@ function MealPlanningDetailsDialog({
     return m;
   }, []);
 
-  const handleSelect = (code: string) => {
-    const item = itemByCode.get(code);
+  const handleSelect = (payload: { code: string; computedQty: number; breakdown: string }) => {
+    const item = itemByCode.get(payload.code);
     if (!item) return;
-    onSelectItem(item);
+    onSelectItem({ ...item, computedQty: payload.computedQty, qtyBreakdown: payload.breakdown });
   };
 
   const byDay = useMemo(() => {
@@ -1219,9 +1455,9 @@ function MealPlanningDetailsDialog({
     );
   }, [orderDays]);
 
-  const totalPax = seedFlightOrders.reduce((s, o) => s + o.pax, 0);
-  const totalCrew = seedFlightOrders.reduce((s, o) => s + o.crew, 0);
-  const totalSpecial = seedFlightOrders.reduce((s, o) => s + o.specialMeals, 0);
+  const totalPax = ordersForDate.reduce((s, o) => s + o.pax, 0);
+  const totalCrew = ordersForDate.reduce((s, o) => s + o.crew, 0);
+  const totalSpecial = ordersForDate.reduce((s, o) => s + o.specialMeals, 0);
   const totalMeals = totalPax + totalCrew + totalSpecial;
 
   return (
@@ -1230,7 +1466,7 @@ function MealPlanningDetailsDialog({
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
           <div className="flex items-start justify-between gap-4">
             <DialogTitle>
-              Meal Planning Details — New Meal Order for {gmOrderSummary.date}
+              Meal Planning Details — New Meal Order for {date || gmOrderSummary.date}
             </DialogTitle>
             <Button
               variant="outline"
@@ -1245,7 +1481,7 @@ function MealPlanningDetailsDialog({
             </Button>
           </div>
           <div className="mt-3 grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
-            <SummaryStat label="Flights"        value={seedFlightOrders.length.toString()} />
+            <SummaryStat label="Flights"        value={ordersForDate.length.toString()} />
             <SummaryStat label="Passengers"     value={totalPax.toLocaleString()} />
             <SummaryStat label="Crew"           value={totalCrew.toString()} />
             <SummaryStat label="Special Meals"  value={totalSpecial.toString()} />
@@ -1260,7 +1496,13 @@ function MealPlanningDetailsDialog({
                 value="orders"
                 className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none px-1 pb-3 text-xs uppercase tracking-wider font-semibold"
               >
-                Flight Orders ({seedFlightOrders.length})
+                Flight Orders ({ordersForDate.length})
+              </TabsTrigger>
+              <TabsTrigger
+                value="crew"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none px-1 pb-3 text-xs uppercase tracking-wider font-semibold"
+              >
+                Crew Meals ({totalCrew})
               </TabsTrigger>
               <TabsTrigger
                 value="meals"
@@ -1272,7 +1514,11 @@ function MealPlanningDetailsDialog({
           </div>
 
           <TabsContent value="orders" className="flex-1 overflow-y-auto px-6 py-5 mt-0">
-            <FlightOrdersTabContent orders={seedFlightOrders} />
+            <FlightOrdersTabContent orders={ordersForDate} />
+          </TabsContent>
+
+          <TabsContent value="crew" className="flex-1 overflow-y-auto px-6 py-5 mt-0">
+            <CrewMealsTabContent orders={ordersForDate} />
           </TabsContent>
 
           <TabsContent value="meals" className="flex-1 overflow-hidden flex flex-col mt-0">
@@ -1319,6 +1565,7 @@ function MealPlanningDetailsDialog({
                               key={m.id}
                               meal={m}
                               onSelect={handleSelect}
+                              requirements={requirements}
                             />
                           ))}
                         </div>
@@ -1348,50 +1595,259 @@ function SummaryStat({
   );
 }
 
+function OrderStatusBadges({ legs }: { legs: { status: string }[] }) {
+  if (legs.length === 0) return null;
+  return <StatusBadge status={legs[0].status} />;
+}
+
 function FlightOrdersTabContent({ orders }: { orders: FlightOrderRow[] }) {
   const totalPax = orders.reduce((s, o) => s + o.pax, 0);
   const totalCrew = orders.reduce((s, o) => s + o.crew, 0);
   const totalSpecial = orders.reduce((s, o) => s + o.specialMeals, 0);
 
+  // Group by Date, then by Order # within each date, then sort legs by ETD.
+  const byDate = new Map<string, FlightOrderRow[]>();
+  for (const o of orders) {
+    if (!byDate.has(o.date)) byDate.set(o.date, []);
+    byDate.get(o.date)!.push(o);
+  }
+  const datesSorted = Array.from(byDate.keys()).sort();
+
   return (
     <div className="space-y-4">
       <div className="border border-border rounded-md overflow-hidden">
         <Table>
-          <TableHeader className="bg-muted/40">
+          <TableHeader className="bg-muted/40 sticky top-0">
             <TableRow>
-              <TableHead className="text-xs uppercase tracking-wider">Order #</TableHead>
               <TableHead className="text-xs uppercase tracking-wider">Flight</TableHead>
               <TableHead className="text-xs uppercase tracking-wider">Sector</TableHead>
-              <TableHead className="text-xs uppercase tracking-wider">Date</TableHead>
               <TableHead className="text-xs uppercase tracking-wider">ETD</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider">Type</TableHead>
               <TableHead className="text-xs uppercase tracking-wider text-right">PAX</TableHead>
               <TableHead className="text-xs uppercase tracking-wider text-right">Crew</TableHead>
               <TableHead className="text-xs uppercase tracking-wider text-right">Special</TableHead>
-              <TableHead className="text-xs uppercase tracking-wider">Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {orders.map((o) => (
-              <TableRow key={o.id} className="hover:bg-muted/30">
-                <TableCell className="font-mono text-xs">{o.id}</TableCell>
-                <TableCell className="font-medium">{o.flight}</TableCell>
-                <TableCell>{o.sector}</TableCell>
-                <TableCell>{o.date}</TableCell>
-                <TableCell>{o.etd}</TableCell>
-                <TableCell className="text-right tabular-nums">{o.pax}</TableCell>
-                <TableCell className="text-right tabular-nums">{o.crew}</TableCell>
-                <TableCell className="text-right tabular-nums">{o.specialMeals}</TableCell>
-                <TableCell><StatusBadge status={o.status} /></TableCell>
-              </TableRow>
-            ))}
+            {datesSorted.map((date) => {
+              const dayRows = byDate.get(date)!;
+              const dayPax = dayRows.reduce((s, o) => s + o.pax, 0);
+              const dayCrew = dayRows.reduce((s, o) => s + o.crew, 0);
+              const daySpec = dayRows.reduce((s, o) => s + o.specialMeals, 0);
+
+              // Sub-group by Order # within this date, preserving first-seen order
+              const byOrder = new Map<string, FlightOrderRow[]>();
+              dayRows.forEach((o) => {
+                if (!byOrder.has(o.orderNo)) byOrder.set(o.orderNo, []);
+                byOrder.get(o.orderNo)!.push(o);
+              });
+              // Sort each order's legs by ETD
+              byOrder.forEach((legs) => legs.sort((a, b) => a.etd.localeCompare(b.etd)));
+
+              return (
+                <Fragment key={date}>
+                  <TableRow className="bg-primary/10 border-t-2 border-t-primary/50 hover:bg-primary/15">
+                    <TableCell colSpan={7} className="py-2">
+                      <span className="font-semibold text-primary uppercase tracking-wider text-xs">
+                        {date}
+                      </span>
+                      <span className="ml-2 text-[11px] text-muted-foreground tabular-nums">
+                        {byOrder.size} order{byOrder.size === 1 ? "" : "s"} ·
+                        {" "}{dayRows.length} flight{dayRows.length === 1 ? "" : "s"} ·
+                        {" "}<strong className="text-foreground">{dayPax.toLocaleString()}</strong> pax ·
+                        {" "}<strong className="text-foreground">{dayCrew.toLocaleString()}</strong> crew ·
+                        {" "}<strong className="text-foreground">{daySpec.toLocaleString()}</strong> special
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                  {Array.from(byOrder.entries()).map(([orderNo, legs]) => (
+                    <Fragment key={`${date}-${orderNo}`}>
+                      <TableRow className="bg-primary/5 hover:bg-primary/10">
+                        <TableCell colSpan={7} className="pl-4 py-1.5">
+                          <div className="flex items-center flex-wrap gap-2">
+                            <span className="font-mono text-sm font-semibold text-primary">{orderNo}</span>
+                            {legs.length > 1 && (
+                              <Badge
+                                variant="outline"
+                                className="h-5 px-1.5 text-[10px] tabular-nums border-primary/30 bg-card text-primary"
+                              >
+                                {legs.length} legs
+                              </Badge>
+                            )}
+                            <OrderStatusBadges legs={legs} />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {legs.map((o) => {
+                        const dom = isDomesticSector(o.sector);
+                        return (
+                          <TableRow key={o.id} className="hover:bg-muted/30">
+                            <TableCell className="font-medium pl-8">{o.flight}</TableCell>
+                            <TableCell>{o.sector}</TableCell>
+                            <TableCell className="tabular-nums">{o.etd}</TableCell>
+                            <TableCell>
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "text-[10px] font-normal",
+                                  dom
+                                    ? "border-success/30 bg-success/5 text-success"
+                                    : "border-navy/30 bg-navy/5 text-navy",
+                                )}
+                              >
+                                {dom ? "Domestic" : "International"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">{o.pax}</TableCell>
+                            <TableCell className="text-right tabular-nums">{o.crew}</TableCell>
+                            <TableCell className="text-right tabular-nums">{o.specialMeals}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </Fragment>
+                  ))}
+                </Fragment>
+              );
+            })}
             <TableRow className="bg-muted/30 font-semibold">
-              <TableCell colSpan={5} className="text-right uppercase text-xs tracking-wider">
-                Totals
+              <TableCell colSpan={4} className="text-right uppercase text-xs tracking-wider">
+                Grand Total
               </TableCell>
               <TableCell className="text-right tabular-nums">{totalPax.toLocaleString()}</TableCell>
               <TableCell className="text-right tabular-nums">{totalCrew.toLocaleString()}</TableCell>
               <TableCell className="text-right tabular-nums">{totalSpecial.toLocaleString()}</TableCell>
-              <TableCell />
+            </TableRow>
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Crew Meals tab — same flight orders, grouped by meal slot (derived from ETD)
+// ─────────────────────────────────────────────────────────────────────────────
+function CrewMealsTabContent({ orders }: { orders: FlightOrderRow[] }) {
+  // Group orders by meal slot, then by Order # within each slot
+  const bySlot = new Map<MealSlot, FlightOrderRow[]>();
+  MEAL_SLOTS.forEach((s) => bySlot.set(s.name, []));
+  orders.forEach((o) => bySlot.get(getMealSlot(o.etd))!.push(o));
+  MEAL_SLOTS.forEach((s) =>
+    bySlot.get(s.name)!.sort((a, b) => a.etd.localeCompare(b.etd)),
+  );
+
+  const totalCrew = orders.reduce((s, o) => s + o.crew, 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-foreground flex items-center gap-2">
+        <Users className="h-3.5 w-3.5 text-primary shrink-0" />
+        <span>
+          Cabin-crew meal counts grouped by serving slot — slot is derived from each flight's ETD.
+          Use this to plan crew-specific BOMs alongside passenger meals.
+        </span>
+      </div>
+
+      <div className="border border-border rounded-md overflow-hidden">
+        <Table>
+          <TableHeader className="bg-muted/40 sticky top-0">
+            <TableRow>
+              <TableHead className="text-xs uppercase tracking-wider">Flight</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider">Sector</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider">ETD</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider">Type</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-right">No of Crew</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {MEAL_SLOTS.map((slot) => {
+              const slotRows = bySlot.get(slot.name)!;
+              if (slotRows.length === 0) return null;
+              const slotCrew = slotRows.reduce((s, o) => s + o.crew, 0);
+
+              // Sub-group by Order # within this slot
+              const byOrder = new Map<string, FlightOrderRow[]>();
+              slotRows.forEach((o) => {
+                if (!byOrder.has(o.orderNo)) byOrder.set(o.orderNo, []);
+                byOrder.get(o.orderNo)!.push(o);
+              });
+              byOrder.forEach((legs) => legs.sort((a, b) => a.etd.localeCompare(b.etd)));
+
+              return (
+                <Fragment key={slot.name}>
+                  <TableRow className="bg-primary/10 border-t-2 border-t-primary/50 hover:bg-primary/15">
+                    <TableCell colSpan={5} className="py-2">
+                      <span className="font-semibold text-primary uppercase tracking-wider text-xs">
+                        {slot.name}
+                      </span>
+                      <span className="ml-2 text-[10px] text-muted-foreground tabular-nums">
+                        {slot.range}
+                      </span>
+                      <span className="ml-3 text-[11px] text-muted-foreground tabular-nums">
+                        {byOrder.size} order{byOrder.size === 1 ? "" : "s"} ·
+                        {" "}{slotRows.length} flight{slotRows.length === 1 ? "" : "s"} ·
+                        {" "}<strong className="text-foreground">{slotCrew.toLocaleString()}</strong> crew meals
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                  {Array.from(byOrder.entries()).map(([orderNo, legs]) => (
+                    <Fragment key={`${slot.name}-${orderNo}`}>
+                      <TableRow className="bg-primary/5 hover:bg-primary/10">
+                        <TableCell colSpan={5} className="pl-4 py-1.5">
+                          <div className="flex items-center flex-wrap gap-2">
+                            <span className="font-mono text-sm font-semibold text-primary">{orderNo}</span>
+                            {legs.length > 1 && (
+                              <Badge
+                                variant="outline"
+                                className="h-5 px-1.5 text-[10px] tabular-nums border-primary/30 bg-card text-primary"
+                              >
+                                {legs.length} legs
+                              </Badge>
+                            )}
+                            <OrderStatusBadges legs={legs} />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {legs.map((o) => {
+                        const dom = isDomesticSector(o.sector);
+                        return (
+                          <TableRow key={o.id} className="hover:bg-muted/30">
+                            <TableCell className="font-medium pl-8">{o.flight}</TableCell>
+                            <TableCell>{o.sector}</TableCell>
+                            <TableCell className="tabular-nums">{o.etd}</TableCell>
+                            <TableCell>
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "text-[10px] font-normal",
+                                  dom
+                                    ? "border-success/30 bg-success/5 text-success"
+                                    : "border-navy/30 bg-navy/5 text-navy",
+                                )}
+                              >
+                                {dom ? "Domestic" : "International"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums font-semibold">{o.crew}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </Fragment>
+                  ))}
+                  <TableRow className="bg-muted/30 font-semibold">
+                    <TableCell colSpan={4} className="text-right uppercase text-[10px] tracking-wider">
+                      {slot.name} Total
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-primary">{slotCrew}</TableCell>
+                  </TableRow>
+                </Fragment>
+              );
+            })}
+            <TableRow className="bg-primary/10 font-bold">
+              <TableCell colSpan={4} className="text-right uppercase text-xs tracking-wider">
+                Grand Total
+              </TableCell>
+              <TableCell className="text-right tabular-nums text-primary">{totalCrew.toLocaleString()}</TableCell>
             </TableRow>
           </TableBody>
         </Table>
@@ -1468,6 +1924,756 @@ function RequirementsSummary({ requirements }: { requirements: OrderRequirement[
                 {grandTotal.toLocaleString()}
               </TableCell>
             </TableRow>
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Material Requirement Planning (MRP)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Lets the user pick one or more Production Orders and computes the combined
+// material requirement (raw + packaging + other consumption) using each
+// order's BOM and outstanding qty (orderQty − producedQty).
+//
+// Match strategy: look up PRODUCTION_ITEMS by name (the order's `bom` field),
+// since not every seed order carries an `outputItemCode`.
+// ═══════════════════════════════════════════════════════════════════════════
+
+type MrpBasis = "remaining" | "full";
+
+// ── Reference lookups for MRP ─────────────────────────────────────────────────
+// Material → supplier mapping (mirrors the seed data in /config-price plus
+// reasonable defaults for items the procurement team typically buys together).
+// Any material not in this map falls back to a generic supplier, which means
+// it gets bundled into a single fallback Purchase Requisition.
+const MRP_SUPPLIER_BY_MATERIAL: Record<string, string> = {
+  "Basmati Rice": "Agro Fresh Ltd.",
+  "Chicken": "Meat & Co.",
+  "Chicken Breast": "Meat & Co.",
+  "Onion": "Agro Fresh Ltd.",
+  "Tomato": "Agro Fresh Ltd.",
+  "Spice Mix": "Spice House Ltd.",
+  "Cooking Oil": "Agro Fresh Ltd.",
+  "Mixed Vegetable": "Agro Fresh Ltd.",
+  "Aluminum Tray": "Packaging BD",
+  "Lid Foil": "Packaging BD",
+  "Meal Box": "Packaging BD",
+  "Mineral Water 250ml": "Pure Water Co.",
+  "Cooking Gas": "Industrial Gas Co.",
+  "Disposable Glove": "Hygiene Supplies Ltd.",
+};
+const MRP_FALLBACK_SUPPLIER = "Catering General Supplies";
+
+function resolveMrpSupplier(itemName: string): string {
+  return MRP_SUPPLIER_BY_MATERIAL[itemName] ?? MRP_FALLBACK_SUPPLIER;
+}
+
+// Stock lookup by item name. We treat the entire `inventory.stock` value as
+// being held at WH-001 (Central Warehouse) — per-warehouse stock isn't modeled
+// yet, so this is the demo simplification.
+function getMrpOnHand(itemName: string): number {
+  const inv = inventory.find((i) => i.name.toLowerCase() === itemName.toLowerCase());
+  return inv?.stock ?? 0;
+}
+
+const MRP_CENTRAL_WAREHOUSE_ID = "WH-001";
+const MRP_CENTRAL_WAREHOUSE_NAME =
+  ALL_WAREHOUSES.find((w) => w.id === MRP_CENTRAL_WAREHOUSE_ID)?.name ?? "Central Warehouse";
+
+function downloadMrpCsv(run: WfMrpRun) {
+  const header = [
+    "MRP Run", "Date", "Run By", "Basis",
+    "Bucket", "Item Code", "Item Name", "UoM",
+    "Required Qty", "On Hand", "Shortfall",
+    "Rate (BDT)", "Total Cost (BDT)",
+  ];
+  const rows = run.materials.map((m) => [
+    run.id, run.date, run.runBy, run.basis,
+    m.bucket, m.itemCode, m.itemName, m.uom,
+    m.reqQty.toFixed(3), m.onHand.toString(), m.shortfall.toFixed(3),
+    m.rate.toString(), m.totalCost.toFixed(2),
+  ]);
+  const csv = [header, ...rows]
+    .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${run.id}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function MaterialRequirementPlanningDialog({
+  open, onOpenChange, orders,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  orders: WfProductionEntry[];
+}) {
+  const { addRequisition, addTransferNote, addMrpRun, mrpRuns } = useWorkflow();
+  const [lastRun, setLastRun] = useState<WfMrpRun | null>(null);
+  // Default to fulfillable orders: anything not yet shipped (drop Completed)
+  // and exclude Pending until approved.
+  const eligible = useMemo(
+    () => orders.filter((o) => o.status !== "Completed"),
+    [orders],
+  );
+
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [basis, setBasis] = useState<MrpBasis>("remaining");
+
+  // Reset selection each time the dialog opens
+  useEffect(() => {
+    if (open) {
+      // Pre-select Approved + In Preparation orders by default — these are
+      // actively in the production pipeline.
+      const defaults = new Set(
+        eligible
+          .filter((o) => o.status === "Approved" || o.status === "In Preparation")
+          .map((o) => o.id),
+      );
+      setSelected(defaults);
+      setBasis("remaining");
+      setLastRun(null);  // clear any previous result view
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const toggle = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  const selectAll = () => setSelected(new Set(eligible.map((o) => o.id)));
+  const clearAll = () => setSelected(new Set());
+
+  // Build the material aggregation from selected orders + basis
+  const materials = useMemo(() => {
+    const lines: OutputLine[] = [];
+    for (const o of eligible) {
+      if (!selected.has(o.id)) continue;
+      const target = o.orderQty ?? o.producedQty;
+      const qty = basis === "remaining" ? Math.max(0, target - o.producedQty) : target;
+      if (qty <= 0) continue;
+      // Find the production item by name (BOM name = output item name typically)
+      const item = PRODUCTION_ITEMS.find(
+        (p) => p.name === o.outputItemName || p.name === o.bom || p.code === o.outputItemCode,
+      );
+      if (!item) continue;
+      lines.push({
+        id: o.id,
+        itemCode: item.code,
+        itemName: item.name,
+        qty,
+        source: "bom",
+      });
+    }
+    return aggregateMaterials(lines);
+  }, [selected, basis, eligible]);
+
+  const selectedOrders = eligible.filter((o) => selected.has(o.id));
+  const totalUnits = selectedOrders.reduce((s, o) => {
+    const target = o.orderQty ?? o.producedQty;
+    const q = basis === "remaining" ? Math.max(0, target - o.producedQty) : target;
+    return s + q;
+  }, 0);
+  const totalCost =
+    materials.raw.reduce((s, m) => s + m.reqQty * m.rate, 0) +
+    materials.pkg.reduce((s, m) => s + m.reqQty * m.rate, 0) +
+    materials.other.reduce((s, m) => s + m.reqQty * m.rate, 0);
+
+  const unmatched = selectedOrders.filter((o) => !PRODUCTION_ITEMS.find(
+    (p) => p.name === o.outputItemName || p.name === o.bom || p.code === o.outputItemCode,
+  ));
+
+  // Flatten + enrich every material with stock + shortfall + supplier
+  const enrichMaterial = (m: AggregatedMaterial, bucket: "Raw" | "Packaging" | "Other"): WfMrpMaterial => {
+    const onHand = getMrpOnHand(m.itemName);
+    const shortfall = Math.max(0, m.reqQty - onHand);
+    return {
+      itemCode: m.itemCode,
+      itemName: m.itemName,
+      uom: m.uom,
+      bucket,
+      reqQty: m.reqQty,
+      onHand,
+      shortfall,
+      rate: m.rate,
+      totalCost: m.reqQty * m.rate,
+      supplier: shortfall > 0 ? resolveMrpSupplier(m.itemName) : undefined,
+    };
+  };
+  const enrichedMaterials: WfMrpMaterial[] = [
+    ...materials.raw.map((m) => enrichMaterial(m, "Raw")),
+    ...materials.pkg.map((m) => enrichMaterial(m, "Packaging")),
+    ...materials.other.map((m) => enrichMaterial(m, "Other")),
+  ];
+  const shortfallMaterials = enrichedMaterials.filter((m) => m.shortfall > 0);
+  const transferableMaterials = enrichedMaterials.filter((m) => m.onHand > 0 && m.reqQty > 0);
+  const shortfallCost = shortfallMaterials.reduce((s, m) => s + m.shortfall * m.rate, 0);
+
+  // ── Generate Requirement Plan: creates artifacts + persists run + CSV ───
+  const handleGenerate = () => {
+    if (selectedOrders.length === 0 || totalUnits === 0) return;
+
+    const runSeq = String(mrpRuns.length + 1).padStart(3, "0");
+    const runId = `MRP-2026-${runSeq}`;
+    const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+
+    // 1) Group shortfalls by supplier → one PR per supplier
+    const requisitionIds: string[] = [];
+    const bySupplier = new Map<string, WfMrpMaterial[]>();
+    shortfallMaterials.forEach((m) => {
+      const sup = m.supplier ?? MRP_FALLBACK_SUPPLIER;
+      if (!bySupplier.has(sup)) bySupplier.set(sup, []);
+      bySupplier.get(sup)!.push(m);
+    });
+    let prSeq = 100 + mrpRuns.length * 10;
+    bySupplier.forEach((items, supplier) => {
+      const reqId = `REQ-${runId}-${String(++prSeq).padStart(3, "0")}`;
+      const demandItems: WfDemandItem[] = items.map((m) => ({
+        id: m.itemCode,
+        name: m.itemName,
+        qty: Math.ceil(m.shortfall),  // round up — can't order partial units
+        uom: m.uom,
+        type: m.bucket,
+      }));
+      const req: WfRequisition = {
+        id: reqId,
+        reference: runId,
+        requestedBy: "MRP System",
+        source: "MRP",
+        date: stamp,
+        status: "Pending Accounts",
+        items: items.length,
+        note: `Auto-generated from ${runId} — supplier: ${supplier}. Covers shortfall on ${items.length} material${items.length === 1 ? "" : "s"}.`,
+        demandRef: runId,
+        demandItems,
+        officeId: "OFF-001",
+        warehouseId: selectedOrders[0]?.warehouseId ?? "WH-003",
+      };
+      addRequisition(req);
+      requisitionIds.push(reqId);
+    });
+
+    // 2) Internal transfers: bundle by destination warehouse (the order's warehouse)
+    const transferIds: string[] = [];
+    const byDest = new Map<string, { items: { id: string; name: string; qty: number; uom: string }[]; orderIds: string[] }>();
+    selectedOrders.forEach((o) => {
+      const target = o.orderQty ?? o.producedQty;
+      const orderQty = basis === "remaining" ? Math.max(0, target - o.producedQty) : target;
+      if (orderQty <= 0) return;
+      const dest = o.warehouseId ?? "WH-003";
+      if (!byDest.has(dest)) byDest.set(dest, { items: [], orderIds: [] });
+      byDest.get(dest)!.orderIds.push(o.id);
+    });
+
+    // Allocate transferable materials proportionally to each destination.
+    // Simple approach: split equally across destinations that have orders.
+    const destCount = byDest.size;
+    if (destCount > 0) {
+      transferableMaterials.forEach((m) => {
+        const totalToMove = Math.min(m.reqQty, m.onHand);
+        if (totalToMove <= 0) return;
+        const perDest = totalToMove / destCount;
+        byDest.forEach((bucket) => {
+          bucket.items.push({
+            id: m.itemCode,
+            name: m.itemName,
+            qty: Math.round(perDest * 1000) / 1000,
+            uom: m.uom,
+          });
+        });
+      });
+
+      let tnSeq = 200 + mrpRuns.length * 10;
+      byDest.forEach((bucket, destId) => {
+        if (bucket.items.length === 0) return;
+        const tnId = `TN-${runId}-${String(++tnSeq).padStart(3, "0")}`;
+        const destName = ALL_WAREHOUSES.find((w) => w.id === destId)?.name ?? destId;
+        const tn: WfTransferNote = {
+          id: tnId,
+          demandRef: runId,
+          grnRef: "Internal MRP Allocation",
+          items: bucket.items,
+          from: MRP_CENTRAL_WAREHOUSE_NAME,
+          to: destName,
+          issuedBy: "MRP System",
+          date: stamp,
+          status: "Pending",
+          officeId: "OFF-001",
+          warehouseId: destId,
+        };
+        addTransferNote(tn);
+        transferIds.push(tnId);
+      });
+    }
+
+    // 3) Persist the run
+    const run: WfMrpRun = {
+      id: runId,
+      date: stamp,
+      runBy: "GM/Admin",
+      basis,
+      orderIds: selectedOrders.map((o) => o.id),
+      totalUnits,
+      totalCost,
+      materials: enrichedMaterials,
+      requisitionIds,
+      transferIds,
+    };
+    addMrpRun(run);
+
+    // 4) Switch dialog to result view
+    setLastRun(run);
+    toast.success(
+      `${runId} generated — ${requisitionIds.length} PR${requisitionIds.length === 1 ? "" : "s"} · ${transferIds.length} transfer${transferIds.length === 1 ? "" : "s"}.`,
+    );
+  };
+
+  // ── Render: result view after generation ────────────────────────────────
+  if (lastRun) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-success" />
+              Requirement Plan Generated
+              <span className="font-mono text-sm text-muted-foreground ml-1">— {lastRun.id}</span>
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              CSV has been downloaded. Generated artifacts are now visible in their respective queues.
+            </p>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-md border border-border bg-muted/20 px-4 py-3">
+              <SummaryCell label="Orders" value={lastRun.orderIds.length.toString()} />
+              <SummaryCell label="Units Planned" value={lastRun.totalUnits.toLocaleString()} />
+              <SummaryCell label="Materials" value={lastRun.materials.length.toString()} />
+              <SummaryCell
+                label="Plan Value"
+                value={`৳ ${lastRun.totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+                tone="primary"
+              />
+            </div>
+
+            <div className="rounded-md border border-success/30 bg-success/5 px-4 py-3">
+              <div className="flex items-center gap-2 mb-2">
+                <FileText className="h-4 w-4 text-success" />
+                <span className="text-sm font-semibold uppercase tracking-wider text-success">
+                  Purchase Requisitions ({lastRun.requisitionIds.length})
+                </span>
+              </div>
+              {lastRun.requisitionIds.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No shortfall — every required material has enough stock on hand.
+                </p>
+              ) : (
+                <>
+                  <p className="text-[11px] text-muted-foreground mb-2">
+                    Created in Procurement → <span className="font-medium">Requisitions from Store</span>:
+                  </p>
+                  <ul className="space-y-1">
+                    {lastRun.requisitionIds.map((id) => (
+                      <li key={id} className="text-xs font-mono">
+                        <Badge variant="outline" className="border-success/40 bg-card text-foreground font-mono text-[11px]">
+                          {id}
+                        </Badge>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+
+            <div className="rounded-md border border-navy/30 bg-navy/5 px-4 py-3">
+              <div className="flex items-center gap-2 mb-2">
+                <PackageOpen className="h-4 w-4 text-navy" />
+                <span className="text-sm font-semibold uppercase tracking-wider text-navy">
+                  Internal Transfers ({lastRun.transferIds.length})
+                </span>
+              </div>
+              {lastRun.transferIds.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No transfer needed — no on-hand stock to allocate.
+                </p>
+              ) : (
+                <>
+                  <p className="text-[11px] text-muted-foreground mb-2">
+                    Created in Item Issue with status <span className="font-medium">Pending</span>:
+                  </p>
+                  <ul className="space-y-1">
+                    {lastRun.transferIds.map((id) => (
+                      <li key={id} className="text-xs font-mono">
+                        <Badge variant="outline" className="border-navy/40 bg-card text-foreground font-mono text-[11px]">
+                          {id}
+                        </Badge>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => downloadMrpCsv(lastRun)}>
+              <FileText className="h-4 w-4 mr-1.5" /> Re-download CSV
+            </Button>
+            <Button variant="outline" onClick={() => setLastRun(null)}>
+              <Calculator className="h-4 w-4 mr-1.5" /> New Run
+            </Button>
+            <Button onClick={() => onOpenChange(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // ── Render: planning view ───────────────────────────────────────────────
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-6xl max-h-[92vh] overflow-hidden flex flex-col p-0 gap-0">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
+          <DialogTitle className="flex items-center gap-2">
+            <Calculator className="h-5 w-5 text-primary" />
+            Material Requirement Planning (MRP)
+          </DialogTitle>
+          <p className="text-xs text-muted-foreground mt-1">
+            Select one or more Production Orders below — the combined material requirement is computed live from each order's BOM.
+          </p>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto">
+          {/* ── Order selection ───────────────────────────────────────── */}
+          <div className="px-6 pt-5 pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+              <h3 className="text-sm font-semibold uppercase tracking-wider">
+                Production Orders
+                <Badge variant="outline" className="ml-2 text-[10px]">
+                  {selected.size} selected
+                </Badge>
+              </h3>
+              <div className="flex items-center gap-2">
+                <div className="inline-flex rounded-md border border-input bg-background p-0.5 shadow-sm">
+                  {(["remaining", "full"] as MrpBasis[]).map((b) => {
+                    const active = basis === b;
+                    return (
+                      <button
+                        key={b}
+                        type="button"
+                        onClick={() => setBasis(b)}
+                        className={
+                          "px-3 py-1 text-[11px] font-medium rounded-sm transition-colors " +
+                          (active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground")
+                        }
+                        title={b === "remaining"
+                          ? "Use only the qty still pending (order − produced)"
+                          : "Use the full order qty regardless of produced"}
+                      >
+                        {b === "remaining" ? "Remaining Only" : "Full Order Qty"}
+                      </button>
+                    );
+                  })}
+                </div>
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={selectAll}>
+                  Select All
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={clearAll}>
+                  Clear
+                </Button>
+              </div>
+            </div>
+
+            <div className="border border-border rounded-md overflow-hidden max-h-[260px] overflow-y-auto">
+              <Table>
+                <TableHeader className="bg-muted/40 sticky top-0">
+                  <TableRow>
+                    <TableHead className="w-10" />
+                    <TableHead className="text-[10px] uppercase tracking-wider">Order #</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider">Output Item</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider">BOM</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider text-right">Order Qty</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider text-right">Produced</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider text-right">Remaining</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {eligible.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center text-xs text-muted-foreground py-6">
+                        No fulfillable orders. Approve a Production Order to see materials here.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    eligible.map((o) => {
+                      const target = o.orderQty ?? o.producedQty;
+                      const rem = Math.max(0, target - o.producedQty);
+                      const isSelected = selected.has(o.id);
+                      const hasRecipe = !!PRODUCTION_ITEMS.find(
+                        (p) => p.name === o.outputItemName || p.name === o.bom || p.code === o.outputItemCode,
+                      );
+                      return (
+                        <TableRow
+                          key={o.id}
+                          className={cn(
+                            "hover:bg-muted/30 cursor-pointer",
+                            isSelected && "bg-primary/5",
+                          )}
+                          onClick={() => toggle(o.id)}
+                        >
+                          <TableCell className="text-center">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggle(o.id)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="accent-primary"
+                              aria-label={`Select ${o.id}`}
+                            />
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">{o.id}</TableCell>
+                          <TableCell className="text-xs">
+                            <div className="flex items-center gap-1.5">
+                              {o.outputItemName ?? "—"}
+                              {!hasRecipe && (
+                                <Badge variant="outline" className="text-[9px] border-warning/40 bg-warning/10 text-warning">
+                                  No recipe
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{o.bom}</TableCell>
+                          <TableCell className="text-right tabular-nums text-xs">{target.toLocaleString()}</TableCell>
+                          <TableCell className="text-right tabular-nums text-xs">{o.producedQty.toLocaleString()}</TableCell>
+                          <TableCell className={cn(
+                            "text-right tabular-nums text-xs",
+                            rem > 0 ? "text-warning font-medium" : "text-success",
+                          )}>
+                            {rem.toLocaleString()}
+                          </TableCell>
+                          <TableCell><StatusBadge status={o.status} /></TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {unmatched.length > 0 && (
+              <div className="mt-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-[11px] text-warning-foreground flex items-start gap-2">
+                <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-warning" />
+                <div>
+                  <strong>{unmatched.length}</strong> selected order{unmatched.length === 1 ? "" : "s"} have no recipe in the BOM master:
+                  {" "}{unmatched.map((o) => o.id).join(", ")}. These will be skipped from the requirement calculation.
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── Summary strip ────────────────────────────────────────── */}
+          <div className="px-6 py-3 border-y border-border bg-muted/30">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+              <SummaryCell label="Selected Orders" value={selected.size.toString()} />
+              <SummaryCell label="Units to Produce" value={totalUnits.toLocaleString()} />
+              <SummaryCell
+                label="Distinct Materials"
+                value={enrichedMaterials.length.toString()}
+              />
+              <SummaryCell
+                label="Shortfalls"
+                value={shortfallMaterials.length.toString()}
+                tone={shortfallMaterials.length > 0 ? "warning" : "success"}
+              />
+              <SummaryCell
+                label="Total Cost"
+                value={`৳ ${totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+                tone="primary"
+              />
+            </div>
+            {shortfallMaterials.length > 0 && (
+              <div className="mt-2 text-[11px] text-muted-foreground">
+                Shortfall value:{" "}
+                <span className="font-semibold text-warning tabular-nums">
+                  ৳ {shortfallCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </span>
+                {" "}— will be procured via auto-generated Purchase Requisition{shortfallMaterials.length === 1 ? "" : "s"}.
+              </div>
+            )}
+          </div>
+
+          {/* ── Material requirements ───────────────────────────────── */}
+          <div className="px-6 py-5 space-y-5">
+            {selected.size === 0 ? (
+              <div className="text-center text-sm text-muted-foreground py-10">
+                Tick one or more orders above to compute the material requirement.
+              </div>
+            ) : totalUnits === 0 ? (
+              <div className="rounded-md border border-success/30 bg-success/5 px-4 py-3 text-sm text-success flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4" />
+                All selected orders are already fully produced — no material requirement.
+              </div>
+            ) : (
+              <>
+                <MrpMaterialTable
+                  title="Raw Materials"
+                  icon={Package}
+                  items={enrichedMaterials.filter((m) => m.bucket === "Raw")}
+                  tone="primary"
+                />
+                <MrpMaterialTable
+                  title="Packaging Materials"
+                  icon={PackageOpen}
+                  items={enrichedMaterials.filter((m) => m.bucket === "Packaging")}
+                  tone="navy"
+                />
+                <MrpMaterialTable
+                  title="Other Consumption"
+                  icon={Wrench}
+                  items={enrichedMaterials.filter((m) => m.bucket === "Other")}
+                  tone="muted"
+                />
+              </>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter className="px-6 py-3 border-t border-border bg-muted/20">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+          <Button
+            disabled={selected.size === 0 || totalUnits === 0}
+            onClick={handleGenerate}
+          >
+            <Calculator className="h-4 w-4 mr-1.5" /> Generate Requirement Plan
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SummaryCell({
+  label, value, tone,
+}: { label: string; value: string; tone?: "primary" | "warning" | "success" }) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className={cn(
+        "mt-0.5 text-base font-semibold tabular-nums",
+        tone === "primary" && "text-primary",
+        tone === "warning" && "text-warning",
+        tone === "success" && "text-success",
+        !tone && "text-foreground",
+      )}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function MrpMaterialTable({
+  title, icon: Icon, items, tone,
+}: {
+  title: string;
+  icon: typeof Package;
+  items: WfMrpMaterial[];
+  tone: "primary" | "navy" | "muted";
+}) {
+  const total = items.reduce((s, m) => s + m.totalCost, 0);
+  const shortfallCount = items.filter((m) => m.shortfall > 0).length;
+  const headerTint =
+    tone === "primary" ? "bg-primary/5 text-primary" :
+    tone === "navy"    ? "bg-navy/5 text-navy" :
+    "bg-muted/40 text-muted-foreground";
+
+  return (
+    <div>
+      <div className={cn(
+        "flex items-center justify-between rounded-t-md px-3 py-2 border border-b-0 border-border",
+        headerTint,
+      )}>
+        <div className="flex items-center gap-2">
+          <Icon className="h-3.5 w-3.5" />
+          <span className="text-xs font-semibold uppercase tracking-wider">{title}</span>
+          <Badge variant="outline" className="text-[10px] bg-card">
+            {items.length} item{items.length === 1 ? "" : "s"}
+          </Badge>
+          {shortfallCount > 0 && (
+            <Badge variant="outline" className="text-[10px] border-warning/40 bg-warning/10 text-warning">
+              {shortfallCount} shortfall{shortfallCount === 1 ? "" : "s"}
+            </Badge>
+          )}
+        </div>
+        <div className="text-xs">
+          Subtotal:{" "}
+          <span className="font-semibold tabular-nums">
+            ৳ {total.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+          </span>
+        </div>
+      </div>
+      <div className="border border-border rounded-b-md overflow-hidden">
+        <Table>
+          <TableHeader className="bg-muted/30">
+            <TableRow>
+              <TableHead className="w-8 text-[10px] uppercase tracking-wider">SL</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider w-24">Code</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider">Material</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider w-14">UoM</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider text-right w-24">Req. Qty</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider text-right w-20">On Hand</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider text-right w-24">Shortfall</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider text-right w-24">Total (৳)</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {items.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center text-xs text-muted-foreground py-6">
+                  No {title.toLowerCase()} required for the selected orders.
+                </TableCell>
+              </TableRow>
+            ) : (
+              items.map((m, i) => {
+                const isShort = m.shortfall > 0;
+                return (
+                  <TableRow
+                    key={m.itemCode}
+                    className={cn("hover:bg-muted/20", isShort && "bg-destructive/5")}
+                  >
+                    <TableCell className="text-xs tabular-nums text-muted-foreground">{i + 1}</TableCell>
+                    <TableCell className="font-mono text-xs">{m.itemCode}</TableCell>
+                    <TableCell className="text-sm font-medium">{m.itemName}</TableCell>
+                    <TableCell className="text-xs">{m.uom}</TableCell>
+                    <TableCell className="text-right tabular-nums text-sm font-semibold">
+                      {m.reqQty.toLocaleString(undefined, { maximumFractionDigits: 3 })}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-xs text-muted-foreground">
+                      {m.onHand.toLocaleString()}
+                    </TableCell>
+                    <TableCell className={cn(
+                      "text-right tabular-nums text-sm font-semibold",
+                      isShort ? "text-destructive" : "text-success",
+                    )}>
+                      {isShort ? m.shortfall.toLocaleString(undefined, { maximumFractionDigits: 3 }) : "—"}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-sm font-semibold">
+                      ৳ {m.totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
           </TableBody>
         </Table>
       </div>

@@ -134,7 +134,8 @@ export type WfProductionEntry = {
   bom: string;
   outputItemName?: string;
   outputItemCode?: string;
-  producedQty: number;
+  orderQty?: number;       // planned amount when the production order was created
+  producedQty: number;     // actual produced so far — order is complete when this === orderQty
   status: WfProductionEntryStatus;
   qcLogId?: string;
   qcPassedAt?: string;
@@ -143,6 +144,54 @@ export type WfProductionEntry = {
   inventoryAdded?: boolean;
   officeId?: string;
   warehouseId?: string;
+};
+
+// ── Material Requirement Planning (MRP) run ────────────────────────────────
+// One run captures: which orders were planned, what materials were needed,
+// what was a shortfall, and which downstream artifacts were generated.
+export type WfMrpMaterial = {
+  itemCode: string;
+  itemName: string;
+  uom: string;
+  bucket: "Raw" | "Packaging" | "Other";
+  reqQty: number;
+  onHand: number;
+  shortfall: number;        // max(0, reqQty − onHand)
+  rate: number;
+  totalCost: number;        // reqQty × rate
+  supplier?: string;         // resolved from Price Setup, if available
+};
+
+export type WfMrpRun = {
+  id: string;                // MRP-2026-NNN
+  date: string;              // ISO timestamp
+  runBy: string;
+  basis: "remaining" | "full";
+  orderIds: string[];
+  totalUnits: number;
+  totalCost: number;
+  materials: WfMrpMaterial[];
+  requisitionIds: string[];  // generated PRs (workflow store wfRequisitions)
+  transferIds: string[];     // generated transfer notes (workflow store transferNotes)
+};
+
+// A Production Entry RECORD is the actual production-floor log against a
+// Production Order. Multiple entry records can be made against one order
+// until the order's producedQty reaches its orderQty.
+export type WfProductionEntryRecord = {
+  id: string;                  // PE-2026-NNNNNN
+  date: string;
+  productionOrderId: string;   // WfProductionEntry.id (the order being fulfilled)
+  bom: string;                 // snapshot from the order at entry time
+  outputItemName?: string;
+  outputItemCode?: string;
+  producedQty: number;         // amount produced in this single entry
+  batchNo?: string;
+  shift?: "Morning" | "Evening" | "Night";
+  producedBy: string;
+  remarks?: string;
+  officeId: string;
+  warehouseId: string;
 };
 
 // ── Context type ───────────────────────────────────────────────────────────────
@@ -180,6 +229,14 @@ type WorkflowCtx = {
     status: WfProductionEntryStatus,
     extra?: Partial<WfProductionEntry>,
   ) => void;
+
+  // ── Production Entry RECORDS — actual production-floor logs ───────────────
+  productionEntryRecords: WfProductionEntryRecord[];
+  addProductionEntryRecord: (record: WfProductionEntryRecord) => void;
+
+  // ── MRP run history ───────────────────────────────────────────────────────
+  mrpRuns: WfMrpRun[];
+  addMrpRun: (run: WfMrpRun) => void;
 };
 
 const WorkflowContext = createContext<WorkflowCtx>({
@@ -191,6 +248,8 @@ const WorkflowContext = createContext<WorkflowCtx>({
   stockDeltas: [], applyStockDeltas: () => {},
   prdStatuses: {}, prdProgress: {}, setPRDStatus: () => {},
   productionEntries: [], addProductionEntry: () => {}, updateProductionEntryStatus: () => {},
+  productionEntryRecords: [], addProductionEntryRecord: () => {},
+  mrpRuns: [], addMrpRun: () => {},
 });
 
 // ── Provider ───────────────────────────────────────────────────────────────────
@@ -295,15 +354,52 @@ export function WorkflowProvider({ children }: { children: ReactNode }) {
   const [prdStatuses, setPrdStatuses] = useState<Record<string, string>>({});
   const [prdProgress, setPrdProgress] = useState<Record<string, number>>({});
   const [productionEntries, setProductionEntries] = useState<WfProductionEntry[]>([
-    { id: "PE-2026-000031", date: "2026-05-19", bom: "Chicken Biryani",       outputItemName: "Chicken Biryani",      producedQty: 280, status: "In Preparation", officeId: "OFF-001", warehouseId: "WH-003" },
-    { id: "PE-2026-000030", date: "2026-05-18", bom: "Continental Breakfast", outputItemName: "Continental Breakfast", producedQty: 150, status: "Ready for QC",   officeId: "OFF-001", warehouseId: "WH-003" },
-    { id: "PE-2026-000029", date: "2026-05-17", bom: "Veg Pulao",             outputItemName: "Veg Pulao",            producedQty: 320, status: "Approved",        officeId: "OFF-001", warehouseId: "WH-003" },
-    { id: "PE-2026-000028", date: "2026-05-12", bom: "Chicken Biryani",       outputItemName: "Chicken Biryani",      producedQty: 250, status: "Completed",      qcCheckedBy: "Hygiene Lead", qcPassedAt: "2026-05-12 16:20", completedAt: "2026-05-12 16:22", inventoryAdded: true, officeId: "OFF-001", warehouseId: "WH-003" },
-    { id: "PE-2026-000025", date: "2026-05-10", bom: "Veg Pulao",             outputItemName: "Veg Pulao",            producedQty: 180, status: "Completed",      qcCheckedBy: "F. Begum",     qcPassedAt: "2026-05-10 14:05", completedAt: "2026-05-10 14:07", inventoryAdded: true, officeId: "OFF-001", warehouseId: "WH-004" },
-    { id: "PE-2026-000022", date: "2026-05-08", bom: "Continental Breakfast", outputItemName: "Continental Breakfast", producedQty: 220, status: "Completed",      qcCheckedBy: "T. Islam",     qcPassedAt: "2026-05-08 09:40", completedAt: "2026-05-08 09:42", inventoryAdded: true, officeId: "OFF-001", warehouseId: "WH-003" },
-    { id: "PE-2026-000019", date: "2026-05-05", bom: "Grilled Salmon",        outputItemName: "Grilled Salmon",       producedQty: 130, status: "Completed",      qcCheckedBy: "Hygiene Lead", qcPassedAt: "2026-05-05 12:30", completedAt: "2026-05-05 12:31", inventoryAdded: true, officeId: "OFF-001", warehouseId: "WH-004" },
-    { id: "PE-2026-000016", date: "2026-05-02", bom: "Hindu Meal Special",    outputItemName: "Hindu Meal Special",   producedQty:  80, status: "Pending",         officeId: "OFF-001", warehouseId: "WH-003" },
+    { id: "PO-2026-000031", date: "2026-05-19", bom: "Chicken Biryani",       outputItemName: "Chicken Biryani",      orderQty: 280, producedQty: 140, status: "In Preparation", officeId: "OFF-001", warehouseId: "WH-003" },
+    { id: "PO-2026-000030", date: "2026-05-18", bom: "Continental Breakfast", outputItemName: "Continental Breakfast", orderQty: 150, producedQty: 150, status: "Ready for QC",   officeId: "OFF-001", warehouseId: "WH-003" },
+    { id: "PO-2026-000029", date: "2026-05-17", bom: "Veg Pulao",             outputItemName: "Veg Pulao",            orderQty: 320, producedQty:   0, status: "Approved",        officeId: "OFF-001", warehouseId: "WH-003" },
+    { id: "PO-2026-000028", date: "2026-05-12", bom: "Chicken Biryani",       outputItemName: "Chicken Biryani",      orderQty: 250, producedQty: 250, status: "Completed",      qcCheckedBy: "Hygiene Lead", qcPassedAt: "2026-05-12 16:20", completedAt: "2026-05-12 16:22", inventoryAdded: true, officeId: "OFF-001", warehouseId: "WH-003" },
+    { id: "PO-2026-000025", date: "2026-05-10", bom: "Veg Pulao",             outputItemName: "Veg Pulao",            orderQty: 180, producedQty: 180, status: "Completed",      qcCheckedBy: "F. Begum",     qcPassedAt: "2026-05-10 14:05", completedAt: "2026-05-10 14:07", inventoryAdded: true, officeId: "OFF-001", warehouseId: "WH-004" },
+    { id: "PO-2026-000022", date: "2026-05-08", bom: "Continental Breakfast", outputItemName: "Continental Breakfast", orderQty: 220, producedQty: 220, status: "Completed",      qcCheckedBy: "T. Islam",     qcPassedAt: "2026-05-08 09:40", completedAt: "2026-05-08 09:42", inventoryAdded: true, officeId: "OFF-001", warehouseId: "WH-003" },
+    { id: "PO-2026-000019", date: "2026-05-05", bom: "Grilled Salmon",        outputItemName: "Grilled Salmon",       orderQty: 130, producedQty: 130, status: "Completed",      qcCheckedBy: "Hygiene Lead", qcPassedAt: "2026-05-05 12:30", completedAt: "2026-05-05 12:31", inventoryAdded: true, officeId: "OFF-001", warehouseId: "WH-004" },
+    { id: "PO-2026-000016", date: "2026-05-02", bom: "Hindu Meal Special",    outputItemName: "Hindu Meal Special",   orderQty:  80, producedQty:   0, status: "Pending",         officeId: "OFF-001", warehouseId: "WH-003" },
   ]);
+
+  // Production-floor entry records. The seeds line up with PO-2026-000031's
+  // 280-order which already shows 140 produced — that 140 came from these
+  // two entries (80 + 60). Completed orders' producedQty is treated as
+  // historical; we don't backfill an entry record for every one.
+  const [productionEntryRecords, setProductionEntryRecords] = useState<WfProductionEntryRecord[]>([
+    {
+      id: "PE-2026-000045",
+      date: "2026-05-19 09:30",
+      productionOrderId: "PO-2026-000031",
+      bom: "Chicken Biryani",
+      outputItemName: "Chicken Biryani",
+      producedQty: 80,
+      batchNo: "BCB-19A",
+      shift: "Morning",
+      producedBy: "F. Begum",
+      officeId: "OFF-001",
+      warehouseId: "WH-003",
+      remarks: "Morning batch — yield as expected.",
+    },
+    {
+      id: "PE-2026-000046",
+      date: "2026-05-19 14:15",
+      productionOrderId: "PO-2026-000031",
+      bom: "Chicken Biryani",
+      outputItemName: "Chicken Biryani",
+      producedQty: 60,
+      batchNo: "BCB-19B",
+      shift: "Evening",
+      producedBy: "T. Islam",
+      officeId: "OFF-001",
+      warehouseId: "WH-003",
+      remarks: "Second run after material top-up.",
+    },
+  ]);
+
+  const [mrpRuns, setMrpRuns] = useState<WfMrpRun[]>([]);
 
   return (
     <WorkflowContext.Provider value={{
@@ -337,6 +433,32 @@ export function WorkflowProvider({ children }: { children: ReactNode }) {
       addProductionEntry: (entry) => setProductionEntries(prev => [entry, ...prev]),
       updateProductionEntryStatus: (id, status, extra) =>
         setProductionEntries(prev => prev.map(e => e.id === id ? { ...e, status, ...extra } : e)),
+
+      mrpRuns,
+      addMrpRun: (run) => setMrpRuns((prev) => [run, ...prev]),
+
+      productionEntryRecords,
+      addProductionEntryRecord: (record) => {
+        setProductionEntryRecords(prev => [record, ...prev]);
+        // Credit the linked production order with the newly produced qty.
+        // Auto-advance order status: Approved/Pending → In Preparation when
+        // anything gets produced; In Preparation → Ready for QC when the
+        // order's full quantity is met.
+        setProductionEntries(prev =>
+          prev.map(o => {
+            if (o.id !== record.productionOrderId) return o;
+            const nextProduced = o.producedQty + record.producedQty;
+            const orderTarget = o.orderQty ?? nextProduced;
+            let nextStatus: WfProductionEntryStatus = o.status;
+            if (o.status === "Pending" || o.status === "Approved") {
+              nextStatus = nextProduced >= orderTarget ? "Ready for QC" : "In Preparation";
+            } else if (o.status === "In Preparation" && nextProduced >= orderTarget) {
+              nextStatus = "Ready for QC";
+            }
+            return { ...o, producedQty: nextProduced, status: nextStatus };
+          }),
+        );
+      },
 
       prdStatuses, prdProgress,
       setPRDStatus: (id, status, progress) => {

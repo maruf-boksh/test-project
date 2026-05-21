@@ -17,9 +17,11 @@ import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as ReceiveItemRouteImport } from './routes/receive-item'
 import { Route as PurchaseRequisitionRouteImport } from './routes/purchase-requisition'
 import { Route as ProductionReportsRouteImport } from './routes/production-reports'
+import { Route as ProductionEntryNewRouteImport } from './routes/production-entry-new'
 import { Route as ProductionEntryRouteImport } from './routes/production-entry'
 import { Route as ProcurementRouteImport } from './routes/procurement'
 import { Route as OrderManagementRouteImport } from './routes/order-management'
+import { Route as MrpRouteImport } from './routes/mrp'
 import { Route as MealPlanningRouteImport } from './routes/meal-planning'
 import { Route as MaintenanceRouteImport } from './routes/maintenance'
 import { Route as KitchenRouteImport } from './routes/kitchen'
@@ -89,6 +91,11 @@ const ProductionReportsRoute = ProductionReportsRouteImport.update({
   path: '/production-reports',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProductionEntryNewRoute = ProductionEntryNewRouteImport.update({
+  id: '/production-entry-new',
+  path: '/production-entry-new',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProductionEntryRoute = ProductionEntryRouteImport.update({
   id: '/production-entry',
   path: '/production-entry',
@@ -102,6 +109,11 @@ const ProcurementRoute = ProcurementRouteImport.update({
 const OrderManagementRoute = OrderManagementRouteImport.update({
   id: '/order-management',
   path: '/order-management',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MrpRoute = MrpRouteImport.update({
+  id: '/mrp',
+  path: '/mrp',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MealPlanningRoute = MealPlanningRouteImport.update({
@@ -274,9 +286,11 @@ export interface FileRoutesByFullPath {
   '/kitchen': typeof KitchenRoute
   '/maintenance': typeof MaintenanceRoute
   '/meal-planning': typeof MealPlanningRoute
+  '/mrp': typeof MrpRoute
   '/order-management': typeof OrderManagementRoute
   '/procurement': typeof ProcurementRoute
   '/production-entry': typeof ProductionEntryRoute
+  '/production-entry-new': typeof ProductionEntryNewRoute
   '/production-reports': typeof ProductionReportsRoute
   '/purchase-requisition': typeof PurchaseRequisitionRoute
   '/receive-item': typeof ReceiveItemRoute
@@ -315,9 +329,11 @@ export interface FileRoutesByTo {
   '/kitchen': typeof KitchenRoute
   '/maintenance': typeof MaintenanceRoute
   '/meal-planning': typeof MealPlanningRoute
+  '/mrp': typeof MrpRoute
   '/order-management': typeof OrderManagementRoute
   '/procurement': typeof ProcurementRoute
   '/production-entry': typeof ProductionEntryRoute
+  '/production-entry-new': typeof ProductionEntryNewRoute
   '/production-reports': typeof ProductionReportsRoute
   '/purchase-requisition': typeof PurchaseRequisitionRoute
   '/receive-item': typeof ReceiveItemRoute
@@ -357,9 +373,11 @@ export interface FileRoutesById {
   '/kitchen': typeof KitchenRoute
   '/maintenance': typeof MaintenanceRoute
   '/meal-planning': typeof MealPlanningRoute
+  '/mrp': typeof MrpRoute
   '/order-management': typeof OrderManagementRoute
   '/procurement': typeof ProcurementRoute
   '/production-entry': typeof ProductionEntryRoute
+  '/production-entry-new': typeof ProductionEntryNewRoute
   '/production-reports': typeof ProductionReportsRoute
   '/purchase-requisition': typeof PurchaseRequisitionRoute
   '/receive-item': typeof ReceiveItemRoute
@@ -400,9 +418,11 @@ export interface FileRouteTypes {
     | '/kitchen'
     | '/maintenance'
     | '/meal-planning'
+    | '/mrp'
     | '/order-management'
     | '/procurement'
     | '/production-entry'
+    | '/production-entry-new'
     | '/production-reports'
     | '/purchase-requisition'
     | '/receive-item'
@@ -441,9 +461,11 @@ export interface FileRouteTypes {
     | '/kitchen'
     | '/maintenance'
     | '/meal-planning'
+    | '/mrp'
     | '/order-management'
     | '/procurement'
     | '/production-entry'
+    | '/production-entry-new'
     | '/production-reports'
     | '/purchase-requisition'
     | '/receive-item'
@@ -482,9 +504,11 @@ export interface FileRouteTypes {
     | '/kitchen'
     | '/maintenance'
     | '/meal-planning'
+    | '/mrp'
     | '/order-management'
     | '/procurement'
     | '/production-entry'
+    | '/production-entry-new'
     | '/production-reports'
     | '/purchase-requisition'
     | '/receive-item'
@@ -524,9 +548,11 @@ export interface RootRouteChildren {
   KitchenRoute: typeof KitchenRoute
   MaintenanceRoute: typeof MaintenanceRoute
   MealPlanningRoute: typeof MealPlanningRoute
+  MrpRoute: typeof MrpRoute
   OrderManagementRoute: typeof OrderManagementRoute
   ProcurementRoute: typeof ProcurementRoute
   ProductionEntryRoute: typeof ProductionEntryRoute
+  ProductionEntryNewRoute: typeof ProductionEntryNewRoute
   ProductionReportsRoute: typeof ProductionReportsRoute
   PurchaseRequisitionRoute: typeof PurchaseRequisitionRoute
   ReceiveItemRoute: typeof ReceiveItemRoute
@@ -595,6 +621,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProductionReportsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/production-entry-new': {
+      id: '/production-entry-new'
+      path: '/production-entry-new'
+      fullPath: '/production-entry-new'
+      preLoaderRoute: typeof ProductionEntryNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/production-entry': {
       id: '/production-entry'
       path: '/production-entry'
@@ -614,6 +647,13 @@ declare module '@tanstack/react-router' {
       path: '/order-management'
       fullPath: '/order-management'
       preLoaderRoute: typeof OrderManagementRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mrp': {
+      id: '/mrp'
+      path: '/mrp'
+      fullPath: '/mrp'
+      preLoaderRoute: typeof MrpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/meal-planning': {
@@ -844,9 +884,11 @@ const rootRouteChildren: RootRouteChildren = {
   KitchenRoute: KitchenRoute,
   MaintenanceRoute: MaintenanceRoute,
   MealPlanningRoute: MealPlanningRoute,
+  MrpRoute: MrpRoute,
   OrderManagementRoute: OrderManagementRoute,
   ProcurementRoute: ProcurementRoute,
   ProductionEntryRoute: ProductionEntryRoute,
+  ProductionEntryNewRoute: ProductionEntryNewRoute,
   ProductionReportsRoute: ProductionReportsRoute,
   PurchaseRequisitionRoute: PurchaseRequisitionRoute,
   ReceiveItemRoute: ReceiveItemRoute,

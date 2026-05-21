@@ -411,19 +411,19 @@ export const billOfMaterials: BillOfMaterial[] = _billOfMaterialsRaw.map((b) => 
 const bomAt = (i: number) => billOfMaterials[i % billOfMaterials.length].name;
 
 export const seedProductionEntries = [
-  { id: "PE-2026-000031", date: "2026-05-19", bom: bomAt(0), producedQty: 280, status: "In Preparation" },
-  { id: "PE-2026-000030", date: "2026-05-18", bom: bomAt(2), producedQty: 150, status: "Ready for QC"   },
-  { id: "PE-2026-000029", date: "2026-05-17", bom: bomAt(1), producedQty: 320, status: "Approved"       },
-  { id: "PE-2026-000028", date: "2026-05-12", bom: bomAt(0), producedQty: 250, status: "Closed"         },
-  { id: "PE-2026-000025", date: "2026-05-10", bom: bomAt(1), producedQty: 180, status: "Closed"         },
-  { id: "PE-2026-000022", date: "2026-05-08", bom: bomAt(2), producedQty: 220, status: "Closed"         },
-  { id: "PE-2026-000019", date: "2026-05-05", bom: bomAt(3), producedQty: 130, status: "Closed"         },
-  { id: "PE-2026-000016", date: "2026-05-02", bom: bomAt(4), producedQty: 80,  status: "Closed"         },
-  { id: "PE-2026-000013", date: "2026-04-28", bom: bomAt(5), producedQty: 95,  status: "Closed"         },
-  { id: "PE-2026-000010", date: "2026-04-25", bom: bomAt(0), producedQty: 310, status: "Closed"         },
-  { id: "PE-2026-000007", date: "2026-04-22", bom: bomAt(1), producedQty: 160, status: "Closed"         },
-  { id: "PE-2026-000004", date: "2026-04-18", bom: bomAt(2), producedQty: 200, status: "Closed"         },
-  { id: "PE-2026-000001", date: "2026-04-15", bom: bomAt(3), producedQty: 140, status: "Closed"         },
+  { id: "PO-2026-000031", date: "2026-05-19", bom: bomAt(0), producedQty: 280, status: "In Preparation" },
+  { id: "PO-2026-000030", date: "2026-05-18", bom: bomAt(2), producedQty: 150, status: "Ready for QC"   },
+  { id: "PO-2026-000029", date: "2026-05-17", bom: bomAt(1), producedQty: 320, status: "Approved"       },
+  { id: "PO-2026-000028", date: "2026-05-12", bom: bomAt(0), producedQty: 250, status: "Closed"         },
+  { id: "PO-2026-000025", date: "2026-05-10", bom: bomAt(1), producedQty: 180, status: "Closed"         },
+  { id: "PO-2026-000022", date: "2026-05-08", bom: bomAt(2), producedQty: 220, status: "Closed"         },
+  { id: "PO-2026-000019", date: "2026-05-05", bom: bomAt(3), producedQty: 130, status: "Closed"         },
+  { id: "PO-2026-000016", date: "2026-05-02", bom: bomAt(4), producedQty: 80,  status: "Closed"         },
+  { id: "PO-2026-000013", date: "2026-04-28", bom: bomAt(5), producedQty: 95,  status: "Closed"         },
+  { id: "PO-2026-000010", date: "2026-04-25", bom: bomAt(0), producedQty: 310, status: "Closed"         },
+  { id: "PO-2026-000007", date: "2026-04-22", bom: bomAt(1), producedQty: 160, status: "Closed"         },
+  { id: "PO-2026-000004", date: "2026-04-18", bom: bomAt(2), producedQty: 200, status: "Closed"         },
+  { id: "PO-2026-000001", date: "2026-04-15", bom: bomAt(3), producedQty: 140, status: "Closed"         },
 ];
 
 export type ProductionEntryRow = (typeof seedProductionEntries)[number];

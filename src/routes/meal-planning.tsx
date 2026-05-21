@@ -483,7 +483,7 @@ function MealPlanning() {
     setForwardedTime(timestamp);
     setIsForwarded(true);
     setForwardConfirmOpen(false);
-    toast.success("Meal plan forwarded to Production — opening Production Entry");
+    toast.success("Meal plan forwarded to Production — opening Production Order");
     navigate({ to: "/production-entry" });
   };
 
@@ -1406,7 +1406,7 @@ function MealPlanning() {
                 setTagLog({ name: "Current User", date: todayFormatted, time: timeFormatted });
                 setOrderHistory((prev) => [...prev, { mealsOrdered: gmOrderData.totalMealsToday, orderedBy: "Current User", designation: "Meal Planner", date: todayFormatted, time: timeFormatted, period: "24-hour cycle" }]);
                 setDaySelectionOpen(false);
-                toast.success("Meal plan tagged and forwarded to Production — opening Production Entry");
+                toast.success("Meal plan tagged and forwarded to Production — opening Production Order");
                 navigate({ to: "/production-entry" });
               }}
             >
