@@ -6,7 +6,7 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ThermometerSun, ShieldCheck, AlertOctagon, ClipboardCheck, Factory, Check, X as XIcon, PackageCheck } from "lucide-react";
+import { Plus, ThermometerSun, ShieldCheck, AlertOctagon, ClipboardCheck, Factory, Check, X as XIcon, PackageCheck, Eye } from "lucide-react";
 import { cookingTempLogs } from "@/lib/sample-data";
 import { KpiCard } from "@/components/common/KpiCard";
 import { toast } from "sonner";
@@ -21,21 +21,31 @@ export const Route = createFileRoute("/cooking-temp")({
   component: CookingTemp,
 });
 
-type T = (typeof cookingTempLogs)[number];
+type CookingRecord = (typeof cookingTempLogs)[number] & { date: string };
+type T = CookingRecord;
 
 function CookingTemp() {
   useArrivalFlash();
   const { productionEntries, updateProductionEntryStatus, applyStockDeltas } = useWorkflow();
-  const [records, setRecords] = useState<T[]>(cookingTempLogs);
+  const [records, setRecords] = useState<T[]>(
+    cookingTempLogs.map(r => ({ ...r, date: "2026-05-22" }))
+  );
   const [newRecordOpen, setNewRecordOpen] = useState(false);
   const [newRecordBatch, setNewRecordBatch] = useState("");
   const [newRecordItem, setNewRecordItem] = useState("");
   const [newRecordTime, setNewRecordTime] = useState("00:00");
   const [newRecordTemp, setNewRecordTemp] = useState(0);
   const [newRecordCookedBy, setNewRecordCookedBy] = useState("");
-  const [newRecordCheckedBy, setNewRecordCheckedBy] = useState("");
   const [newRecordSensory, setNewRecordSensory] = useState(true);
   const [newRecordStandardTemp, setNewRecordStandardTemp] = useState(75);
+
+  // Filters
+  const [filterDate, setFilterDate] = useState("");
+  const [filterSensory, setFilterSensory] = useState<"" | "Pass" | "Fail">("");
+  const [filterItem, setFilterItem] = useState("");
+
+  // View record dialog
+  const [viewRecord, setViewRecord] = useState<T | null>(null);
 
   // QC sign-off dialog (from production entries pending QC)
   const [qcOpen, setQcOpen] = useState(false);
@@ -74,6 +84,7 @@ function CookingTemp() {
         cookedBy: qcCookedBy.trim() || "Kitchen Staff",
         sensoryPass: passed,
         checkedBy: qcCheckedBy.trim(),
+        date: new Date().toISOString().slice(0, 10),
       } as T,
       ...curr,
     ]);
@@ -123,6 +134,9 @@ function CookingTemp() {
       toast.error("Please provide item batch and item name.");
       return;
     }
+    const now = new Date();
+    const dateStr = now.toLocaleDateString("en-GB").replace(/\//g, "-");
+    const timeStr = now.toLocaleTimeString("en-GB");
     const newId = `CT-${Date.now()}`;
     setRecords((current) => [
       {
@@ -135,7 +149,8 @@ function CookingTemp() {
         measuredTemp: newRecordTemp,
         cookedBy: newRecordCookedBy || "Kitchen Staff",
         sensoryPass: newRecordSensory,
-        checkedBy: newRecordCheckedBy || "Hygiene Lead",
+        checkedBy: `Senior Executive (Food and Hygiene), ${dateStr}, ${timeStr}`,
+        date: now.toISOString().slice(0, 10),
       } as T,
       ...current,
     ]);
@@ -145,11 +160,21 @@ function CookingTemp() {
     setNewRecordTime("00:00");
     setNewRecordTemp(0);
     setNewRecordCookedBy("");
-    setNewRecordCheckedBy("");
     setNewRecordSensory(true);
     setNewRecordStandardTemp(75);
     toast.success("New test record added.");
   };
+
+  const uniqueItems = Array.from(new Set(records.map(r => r.item))).sort();
+  const uniqueDates = Array.from(new Set(records.map(r => r.date))).sort().reverse();
+
+  const filteredRecords = records.filter(r => {
+    if (filterDate && r.date !== filterDate) return false;
+    if (filterSensory === "Pass" && !r.sensoryPass) return false;
+    if (filterSensory === "Fail" && r.sensoryPass) return false;
+    if (filterItem && r.item !== filterItem) return false;
+    return true;
+  });
 
   const passCount = records.filter((l) => l.sensoryPass).length;
   const passRate = records.length > 0 ? Math.round((passCount / records.length) * 100) : 0;
@@ -203,15 +228,9 @@ function CookingTemp() {
                     <Input type="number" value={newRecordTemp} onChange={(e) => setNewRecordTemp(Number(e.target.value))} />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label>Cooked By</Label>
-                    <Input value={newRecordCookedBy} onChange={(e) => setNewRecordCookedBy(e.target.value)} placeholder="Chef name" />
-                  </div>
-                  <div>
-                    <Label>Checked By</Label>
-                    <Input value={newRecordCheckedBy} onChange={(e) => setNewRecordCheckedBy(e.target.value)} placeholder="Hygiene lead" />
-                  </div>
+                <div>
+                  <Label>Cooked By</Label>
+                  <Input value={newRecordCookedBy} onChange={(e) => setNewRecordCookedBy(e.target.value)} placeholder="Chef name" />
                 </div>
                 <div>
                   <Label>Sensory Result</Label>
@@ -292,14 +311,113 @@ function CookingTemp() {
         </CardContent>
       </Card>
 
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3 mb-3">
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Date</label>
+          <select
+            value={filterDate}
+            onChange={e => setFilterDate(e.target.value)}
+            className="h-8 rounded-md border border-input bg-background px-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <option value="">All</option>
+            {uniqueDates.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Sensory Filter</label>
+          <select
+            value={filterSensory}
+            onChange={e => setFilterSensory(e.target.value as "" | "Pass" | "Fail")}
+            className="h-8 rounded-md border border-input bg-background px-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <option value="">All</option>
+            <option value="Pass">Pass</option>
+            <option value="Fail">Fail</option>
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Item</label>
+          <select
+            value={filterItem}
+            onChange={e => setFilterItem(e.target.value)}
+            className="h-8 rounded-md border border-input bg-background px-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <option value="">All</option>
+            {uniqueItems.map(i => <option key={i} value={i}>{i}</option>)}
+          </select>
+        </div>
+      </div>
+
       <div data-arrival-id="qc-issues">
         <DataTable
           title="cooking-temp"
-          data={records}
+          data={filteredRecords}
           columns={cols}
           searchKeys={["id", "batch", "item", "cookedBy", "checkedBy"]}
+          actions={(row) => (
+            <Button size="sm" variant="outline" onClick={() => setViewRecord(row)}>
+              <Eye className="h-3.5 w-3.5 mr-1" /> View
+            </Button>
+          )}
         />
       </div>
+
+      {/* View Record Dialog */}
+      {viewRecord && (
+        <Dialog open onOpenChange={(open) => { if (!open) setViewRecord(null); }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Test Record — {viewRecord.id}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 py-1 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Item Batch</div>
+                  <div className="font-medium">{viewRecord.batch}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Item</div>
+                  <div className="font-medium">{viewRecord.item}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Cooking Time</div>
+                  <div>{viewRecord.cookingTime}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Standard Temp</div>
+                  <div>{viewRecord.standardTemp}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Measured Temp</div>
+                  <div className={viewRecord.measuredTemp >= viewRecord.standardTempMin ? "text-green-600 font-semibold" : "text-red-600 font-semibold"}>
+                    {viewRecord.measuredTemp}°C
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Sensory Result</div>
+                  <StatusBadge status={viewRecord.sensoryPass ? "Pass" : "Fail"} />
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Cooked By</div>
+                  <div>{viewRecord.cookedBy}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Date</div>
+                  <div>{viewRecord.date}</div>
+                </div>
+              </div>
+              <div className="rounded-md border border-border bg-muted/40 px-3 py-2">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Checked By</div>
+                <div className="text-sm">{viewRecord.checkedBy}</div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       <Dialog open={qcOpen} onOpenChange={setQcOpen}>
         <DialogContent className="max-w-lg">

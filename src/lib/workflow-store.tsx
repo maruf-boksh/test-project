@@ -6,6 +6,7 @@ export type WfDemandStatus =
   | "Pending Store Review"
   | "Partially Available"
   | "Partially Issued"
+  | "Partially Fulfilled"
   | "Escalated to Supply Chain"
   | "Fulfilled";
 
@@ -307,32 +308,16 @@ export function WorkflowProvider({ children }: { children: ReactNode }) {
       demandRef: "DR-9001",
       grnRef: "Direct from Store",
       items: [
-        { id: "INV-1002", name: "Chicken Breast", qty: 80,  uom: "Kg" },
-        { id: "INV-1005", name: "Tomato",         qty: 110, uom: "Kg" },
+        { id: "INV-1002", name: "Chicken Breast", qty: 50, uom: "Kg" },
+        { id: "INV-1008", name: "Salmon Fillet", qty: 10, uom: "Kg" },
       ],
       from: "Store",
       to: "Hot Kitchen",
       issuedBy: "S. Ahmed",
-      date: "2026-05-18 14:30",
+      date: "2025-11-05 11:45",
       status: "Issued",
       officeId: "OFF-001",
       warehouseId: "WH-003",
-    },
-    {
-      id: "TN-50002",
-      demandRef: "DR-9002",
-      grnRef: "Direct from Store",
-      items: [
-        { id: "INV-1010", name: "Basmati Rice",   qty: 150, uom: "Kg" },
-        { id: "INV-1015", name: "Mineral Water 250ml", qty: 600, uom: "Bottle" },
-      ],
-      from: "Store",
-      to: "Cold Kitchen",
-      issuedBy: "M. Hossain",
-      date: "2026-05-19 09:15",
-      status: "Issued",
-      officeId: "OFF-001",
-      warehouseId: "WH-004",
     },
     {
       id: "TN-50003",

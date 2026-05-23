@@ -103,13 +103,15 @@ type ParsedRow = {
   ecMeal?: number;
   chml?: number;
   vgml?: number;
+  returnFlight?: string;
+  returnSector?: string;
 };
 
 const SAMPLE_PARSED_DOM: ParsedRow[] = [
-  { row: 1, id: "ORD-3501", flight: "BS-141", airline: "US-Bangla", sector: "DAC → CXB", etd: "08:15", pax: 72, specialMeals: 4, valid: true,  type: "Domestic", zenLoad: 72, totalMeal: 72, specMeal: 4, crewMeal: 4 },
-  { row: 2, id: "ORD-3502", flight: "BS-203", airline: "US-Bangla", sector: "DAC → CGP", etd: "10:30", pax: 88, specialMeals: 2, valid: true,  type: "Domestic", zenLoad: 88, totalMeal: 88, specMeal: 2, crewMeal: 4 },
+  { row: 1, id: "ORD-3501", flight: "BS-141", airline: "US-Bangla", sector: "DAC → CXB", etd: "08:15", pax: 72, specialMeals: 4, valid: true,  type: "Domestic", zenLoad: 72, totalMeal: 72, specMeal: 4, crewMeal: 4, returnFlight: "BS-142", returnSector: "CXB → DAC" },
+  { row: 2, id: "ORD-3502", flight: "BS-203", airline: "US-Bangla", sector: "DAC → CGP", etd: "10:30", pax: 88, specialMeals: 2, valid: true,  type: "Domestic", zenLoad: 88, totalMeal: 88, specMeal: 2, crewMeal: 4, returnFlight: "BS-204", returnSector: "CGP → DAC" },
   { row: 3, id: "ORD-3503", flight: "AA-101", airline: "Air Astra", sector: "DAC → ZYL", etd: "13:00", pax: 0,  specialMeals: 0, valid: false, type: "Domestic" },
-  { row: 4, id: "ORD-3504", flight: "AA-202", airline: "Air Astra", sector: "DAC → CXB", etd: "15:45", pax: 66, specialMeals: 3, valid: true,  type: "Domestic", zenLoad: 66, totalMeal: 66, specMeal: 3, crewMeal: 4 },
+  { row: 4, id: "ORD-3504", flight: "AA-202", airline: "Air Astra", sector: "DAC → CXB", etd: "15:45", pax: 66, specialMeals: 3, valid: true,  type: "Domestic", zenLoad: 66, totalMeal: 66, specMeal: 3, crewMeal: 4, returnFlight: "AA-203", returnSector: "CXB → DAC" },
 ];
 
 const SAMPLE_PARSED_INTL: ParsedRow[] = [
@@ -2060,15 +2062,24 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
               <Table>
                 <TableHeader className="bg-muted/40">
                   <TableRow>
-                    <TableHead className="w-10 text-xs uppercase tracking-wider">#</TableHead>
+                    <TableHead colSpan={8} className="text-xs uppercase tracking-wider text-center border-r border-border bg-primary/5 text-primary py-1.5">
+                      Departure Flight
+                    </TableHead>
+                    <TableHead colSpan={9} className="text-xs uppercase tracking-wider text-center bg-navy/5 text-navy py-1.5">
+                      Return Flight
+                    </TableHead>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead className="text-xs uppercase tracking-wider">AIRLINE NAME</TableHead>
                     <TableHead className="text-xs uppercase tracking-wider">FLT NO</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider">AIRLINE</TableHead>
                     <TableHead className="text-xs uppercase tracking-wider">SECTOR</TableHead>
                     <TableHead className="text-xs uppercase tracking-wider">DEP TIME</TableHead>
                     <TableHead className="text-xs uppercase tracking-wider text-right">ZEN LOAD</TableHead>
                     <TableHead className="text-xs uppercase tracking-wider text-right">B/C LOAD</TableHead>
                     <TableHead className="text-xs uppercase tracking-wider text-right">E/C LOAD</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-right">TOTAL MEAL</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right border-r border-border">TOTAL MEAL</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider">FLT NO</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider">SECTOR</TableHead>
                     <TableHead className="text-xs uppercase tracking-wider text-right">B/C MEAL</TableHead>
                     <TableHead className="text-xs uppercase tracking-wider text-right">E/C MEAL</TableHead>
                     <TableHead className="text-xs uppercase tracking-wider text-right">CHML</TableHead>
@@ -2080,13 +2091,13 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                 </TableHeader>
                 <TableBody>
                   <TableRow className="bg-primary/5 border-t-2 border-t-primary/40 hover:bg-primary/10">
-                    <TableCell colSpan={16} className="py-2">
+                    <TableCell colSpan={17} className="py-2">
                       <span className="font-semibold text-primary uppercase tracking-wider text-xs">Domestic</span>
                     </TableCell>
                   </TableRow>
                   {domParsed.map((r) => (
                     <TableRow key={`dom-${r.row}`} className={!r.valid ? "bg-destructive/10" : ""}>
-                      <TableCell className="text-xs tabular-nums">{r.row}</TableCell>
+                      <TableCell className="text-xs">{r.airline}</TableCell>
                       <TableCell>
                         <input
                           value={r.flight}
@@ -2094,13 +2105,14 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                           className="bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none w-full text-sm font-medium"
                         />
                       </TableCell>
-                      <TableCell className="text-xs">{r.airline}</TableCell>
                       <TableCell className="text-xs">{r.sector}</TableCell>
                       <TableCell className="text-xs tabular-nums">{r.etd}</TableCell>
                       <TableCell className="text-right tabular-nums text-xs">{r.zenLoad ?? "—"}</TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
-                      <TableCell className="text-right tabular-nums text-xs">{r.totalMeal ?? "—"}</TableCell>
+                      <TableCell className="text-right tabular-nums text-xs border-r border-border">{r.totalMeal ?? "—"}</TableCell>
+                      <TableCell className="text-xs tabular-nums">{r.returnFlight ?? "—"}</TableCell>
+                      <TableCell className="text-xs">{r.returnSector ?? "—"}</TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
@@ -2121,13 +2133,13 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                     </TableRow>
                   ))}
                   <TableRow className="bg-navy/5 border-t-2 border-t-navy/40 hover:bg-navy/10">
-                    <TableCell colSpan={16} className="py-2">
+                    <TableCell colSpan={17} className="py-2">
                       <span className="font-semibold text-navy uppercase tracking-wider text-xs">International</span>
                     </TableCell>
                   </TableRow>
                   {intlParsed.map((r) => (
                     <TableRow key={`intl-${r.row}`} className={!r.valid ? "bg-destructive/10" : ""}>
-                      <TableCell className="text-xs tabular-nums">{r.row}</TableCell>
+                      <TableCell className="text-xs">{r.airline}</TableCell>
                       <TableCell>
                         <input
                           value={r.flight}
@@ -2135,13 +2147,14 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                           className="bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none w-full text-sm font-medium"
                         />
                       </TableCell>
-                      <TableCell className="text-xs">{r.airline}</TableCell>
                       <TableCell className="text-xs">{r.sector}</TableCell>
                       <TableCell className="text-xs tabular-nums">{r.etd}</TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
                       <TableCell className="text-right tabular-nums text-xs">{r.bcLoad ?? "—"}</TableCell>
                       <TableCell className="text-right tabular-nums text-xs">{r.ecLoad ?? "—"}</TableCell>
-                      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+                      <TableCell className="text-right text-xs text-muted-foreground border-r border-border">—</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">—</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">—</TableCell>
                       <TableCell className="text-right tabular-nums text-xs">{r.bcMeal ?? "—"}</TableCell>
                       <TableCell className="text-right tabular-nums text-xs">{r.ecMeal ?? "—"}</TableCell>
                       <TableCell className="text-right tabular-nums text-xs">{r.chml ?? "—"}</TableCell>
@@ -2567,7 +2580,7 @@ function FlightOrderDetailsDialog({
 
   return (
     <Dialog open={!!order} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className={isMulti || hasRoster ? "max-w-3xl" : "max-w-lg"}>
+      <DialogContent className={isMulti || hasRoster ? "max-w-3xl" : "max-w-2xl"}>
         <DialogHeader>
           <DialogTitle>
             Order Details

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Plus, FileText, Clock, Send, ShoppingCart, AlertTriangle,
-  CheckCircle2, ArrowUpRight, PackageCheck, Trash2,
+  CheckCircle2, ArrowUpRight, PackageCheck, Trash2, Eye,
 } from "lucide-react";
 import { inventory, vendors } from "@/lib/sample-data";
 import { KpiCard } from "@/components/common/KpiCard";
@@ -54,6 +54,7 @@ function DemandOrders() {
 
   const [selectedRequest, setSelectedRequest] = useState<WfDemandRequest | null>(null);
   const [needsPurchase, setNeedsPurchase] = useState<Record<string, boolean>>({});
+  const [viewTn, setViewTn] = useState<WfTransferNote | null>(null);
   const [newOpen, setNewOpen] = useState(false);
   const [newBy, setNewBy] = useState("");
   const [newNote, setNewNote] = useState("");
@@ -98,6 +99,8 @@ function DemandOrders() {
   // ── Step 2b: Escalate to Supply Chain → auto-create Requisition ─────────────
   const escalateToSupplyChain = () => {
     if (!selectedRequest) return;
+    const flaggedItems = selectedRequest.items.filter(item => needsPurchase[item.id]);
+    if (flaggedItems.length === 0) return;
     const reqId = `REQ-${Date.now().toString().slice(-5)}`;
     addRequisition({
       id: reqId,
@@ -106,10 +109,10 @@ function DemandOrders() {
       source: "Store",
       date: new Date().toLocaleString(),
       status: "Pending Accounts",
-      items: selectedRequest.items.length,
+      items: flaggedItems.length,
       note: `Escalated from kitchen demand ${selectedRequest.id} — store stock insufficient. Items flagged for purchase.`,
       demandRef: selectedRequest.id,
-      demandItems: selectedRequest.items,
+      demandItems: flaggedItems,
     });
     updateDemandStatus(selectedRequest.id, "Escalated to Supply Chain");
     setSelectedRequest(prev => prev ? { ...prev, status: "Escalated to Supply Chain" } : prev);
@@ -204,7 +207,14 @@ function DemandOrders() {
                 columns={requestCols}
                 searchKeys={["id", "reference", "requestedBy", "role", "status"]}
                 actions={(row) => (
-                  <Button size="sm" onClick={() => { setSelectedRequest(row); setNeedsPurchase({}); }}>
+                  <Button
+                    size="sm"
+                    onClick={() => { setSelectedRequest(row); setNeedsPurchase({}); }}
+                    disabled={
+                      row.status === "Escalated to Supply Chain" ||
+                      row.status === "Fulfilled"
+                    }
+                  >
                     Review
                   </Button>
                 )}
@@ -238,7 +248,22 @@ function DemandOrders() {
                       <span className="text-center">In Stock</span>
                       <span className="text-center">Required</span>
                       <span className="text-center">Shortfall</span>
-                      <span />
+                      <div className="flex justify-center items-center">
+                        <input
+                          type="checkbox"
+                          title="Select all for escalation"
+                          checked={selectedRequest.items.length > 0 && selectedRequest.items.every(i => needsPurchase[i.id])}
+                          onChange={() => {
+                            const allFlagged = selectedRequest.items.every(i => needsPurchase[i.id]);
+                            if (allFlagged) {
+                              setNeedsPurchase({});
+                            } else {
+                              setNeedsPurchase(Object.fromEntries(selectedRequest.items.map(i => [i.id, true])));
+                            }
+                          }}
+                          className="h-4 w-4 accent-amber-500 cursor-pointer"
+                        />
+                      </div>
                     </div>
 
                     {selectedRequest.items.length > 0 ? (
@@ -329,16 +354,20 @@ function DemandOrders() {
                           <CheckCircle2 className="h-4 w-4 mr-1.5" />
                           Fulfill from Store
                         </Button>
-                        <Button
-                          className="bg-amber-500 hover:bg-amber-600 text-white"
-                          onClick={escalateToSupplyChain}
-                        >
-                          <ArrowUpRight className="h-4 w-4 mr-1.5" />
-                          Escalate to Supply Chain
-                        </Button>
-                        <span className="text-xs text-muted-foreground">
-                          {Object.values(needsPurchase).filter(Boolean).length} item(s) flagged
-                        </span>
+                        {Object.values(needsPurchase).some(Boolean) && (
+                          <>
+                            <Button
+                              className="bg-amber-500 hover:bg-amber-600 text-white"
+                              onClick={escalateToSupplyChain}
+                            >
+                              <ArrowUpRight className="h-4 w-4 mr-1.5" />
+                              Escalate to Supply Chain
+                            </Button>
+                            <span className="text-xs text-muted-foreground">
+                              {Object.values(needsPurchase).filter(Boolean).length} item(s) flagged
+                            </span>
+                          </>
+                        )}
                       </div>
                     ) : selectedRequest.status === "Partially Issued" ? (
                       <div className="flex items-center gap-2 flex-wrap">
@@ -354,10 +383,51 @@ function DemandOrders() {
                           Continue Issuing
                         </Button>
                       </div>
+                    ) : selectedRequest.status === "Partially Fulfilled" ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-xs text-blue-700 font-medium">
+                          <PackageCheck className="h-3.5 w-3.5" />
+                          Partially fulfilled — items issued from store; remaining escalated to supply chain.
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Button
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                            onClick={fulfillFromStore}
+                          >
+                            <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                            Fulfill from Store
+                          </Button>
+                          {Object.values(needsPurchase).some(Boolean) && (
+                            <>
+                              <Button
+                                className="bg-amber-500 hover:bg-amber-600 text-white"
+                                onClick={escalateToSupplyChain}
+                              >
+                                <ArrowUpRight className="h-4 w-4 mr-1.5" />
+                                Escalate to Supply Chain
+                              </Button>
+                              <span className="text-xs text-muted-foreground">
+                                {Object.values(needsPurchase).filter(Boolean).length} item(s) flagged
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
                     ) : selectedRequest.status === "Escalated to Supply Chain" ? (
-                      <div className="flex items-center gap-2 text-xs text-amber-700 font-medium">
-                        <Send className="h-3.5 w-3.5" />
-                        Escalated — Requisition created in Supply Chain. Awaiting PO and GRN.
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-xs text-amber-700 font-medium">
+                          <Send className="h-3.5 w-3.5" />
+                          Escalated — Requisition created in Supply Chain. Awaiting PO and GRN.
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Button
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                            onClick={fulfillFromStore}
+                          >
+                            <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                            Fulfill from Store
+                          </Button>
+                        </div>
                       </div>
                     ) : selectedRequest.status === "Fulfilled" ? (
                       <div className="flex items-center gap-2 text-xs text-green-700 font-medium">
@@ -383,7 +453,12 @@ function DemandOrders() {
                       <div key={tn.id} className="rounded-lg border border-border p-3 bg-muted/40">
                         <div className="flex items-center justify-between">
                           <span className="font-medium text-sm">{tn.id}</span>
-                          <StatusBadge status={tn.status} />
+                          <div className="flex items-center gap-2">
+                            <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setViewTn(tn)}>
+                              <Eye className="h-3.5 w-3.5 mr-1" /> View
+                            </Button>
+                            <StatusBadge status={tn.status} />
+                          </div>
                         </div>
                         <div className="text-xs text-muted-foreground mt-1">
                           Store → {tn.to} · Issued by {tn.issuedBy} · {tn.date}
@@ -397,6 +472,86 @@ function DemandOrders() {
           </div>
         </CardContent>
       </Card>
+
+      {/* View Transfer Note Dialog */}
+      {viewTn && (() => {
+        const demand = demands.find(d => d.id === viewTn.demandRef);
+        const tnItemIds = new Set(viewTn.items.map(i => i.id));
+        const escalatedItems = demand?.items.filter(i => !tnItemIds.has(i.id)) ?? [];
+        return (
+          <Dialog open onOpenChange={(open) => { if (!open) setViewTn(null); }}>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Transfer Note — {viewTn.id}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-1">
+                {/* Summary note */}
+                <div className="rounded-md bg-muted/60 border border-border px-3 py-2 text-[11px] text-muted-foreground">
+                  <span className="font-semibold text-green-700">{viewTn.items.length} item{viewTn.items.length !== 1 ? "s" : ""}</span> fulfilled from store
+                  {escalatedItems.length > 0 && (
+                    <> · <span className="font-semibold text-amber-700">{escalatedItems.length} item{escalatedItems.length !== 1 ? "s" : ""}</span> forwarded to supply chain</>
+                  )}
+                  {" "}· Issued by <span className="font-medium">{viewTn.issuedBy}</span> on {viewTn.date}
+                </div>
+
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">
+                    Items Issued from Store (In Stock)
+                  </div>
+                  <div className="space-y-1.5">
+                    {viewTn.items.map(item => {
+                      const inv = inventory.find(i => i.id === item.id);
+                      return (
+                        <div key={item.id} className="flex items-center justify-between rounded-md border border-green-200 bg-green-50 px-3 py-2">
+                          <div>
+                            <div className="text-sm font-medium">{item.name}</div>
+                            <div className="text-[11px] text-muted-foreground">Current stock: {inv?.stock ?? "—"} {item.uom}</div>
+                            <div className="text-[10px] text-green-700 mt-0.5">Fulfilled from store · {viewTn.id}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-semibold text-green-700">{item.qty} {item.uom}</div>
+                            <div className="text-[10px] text-green-600">issued</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                {escalatedItems.length > 0 && (
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">
+                      Forwarded to Supply Chain
+                    </div>
+                    <div className="space-y-1.5">
+                      {escalatedItems.map(item => {
+                        const inv = inventory.find(i => i.id === item.id);
+                        const currentStock = inv?.stock ?? 0;
+                        const shortfall = item.qty - currentStock;
+                        return (
+                          <div key={item.id} className="flex items-center justify-between rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+                            <div>
+                              <div className="text-sm font-medium">{item.name}</div>
+                              <div className="text-[11px] text-muted-foreground">Current stock: {currentStock} {item.uom}</div>
+                              <div className="text-[10px] text-amber-700 mt-0.5">Purchase requisition raised · Awaiting supply chain</div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-sm font-semibold text-amber-700">−{shortfall} {item.uom}</div>
+                              <div className="text-[10px] text-amber-600">short · escalated</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setViewTn(null)}>Close</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
       {/* New Demand Dialog */}
       <Dialog

@@ -176,9 +176,12 @@ function ItemIssuePage() {
       if (fullyCovered) {
         updateDemandStatus(linkedDemand.id, "Fulfilled");
         demandUpdate = ` · ${linkedDemand.id} marked Fulfilled`;
-      } else if (anyPartial || someMissing) {
+      } else if (anyPartial) {
         updateDemandStatus(linkedDemand.id, "Partially Issued");
         demandUpdate = ` · ${linkedDemand.id} marked Partially Issued`;
+      } else if (someMissing) {
+        updateDemandStatus(linkedDemand.id, "Partially Fulfilled");
+        demandUpdate = ` · ${linkedDemand.id} marked Partially Fulfilled`;
       }
     }
 
