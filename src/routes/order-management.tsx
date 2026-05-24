@@ -105,20 +105,21 @@ type ParsedRow = {
   vgml?: number;
   returnFlight?: string;
   returnSector?: string;
+  date?: string;
 };
 
 const SAMPLE_PARSED_DOM: ParsedRow[] = [
-  { row: 1, id: "ORD-3501", flight: "BS-141", airline: "US-Bangla", sector: "DAC → CXB", etd: "08:15", pax: 72, specialMeals: 4, valid: true,  type: "Domestic", zenLoad: 72, totalMeal: 72, specMeal: 4, crewMeal: 4, returnFlight: "BS-142", returnSector: "CXB → DAC" },
-  { row: 2, id: "ORD-3502", flight: "BS-203", airline: "US-Bangla", sector: "DAC → CGP", etd: "10:30", pax: 88, specialMeals: 2, valid: true,  type: "Domestic", zenLoad: 88, totalMeal: 88, specMeal: 2, crewMeal: 4, returnFlight: "BS-204", returnSector: "CGP → DAC" },
-  { row: 3, id: "ORD-3503", flight: "AA-101", airline: "Air Astra", sector: "DAC → ZYL", etd: "13:00", pax: 0,  specialMeals: 0, valid: false, type: "Domestic" },
-  { row: 4, id: "ORD-3504", flight: "AA-202", airline: "Air Astra", sector: "DAC → CXB", etd: "15:45", pax: 66, specialMeals: 3, valid: true,  type: "Domestic", zenLoad: 66, totalMeal: 66, specMeal: 3, crewMeal: 4, returnFlight: "AA-203", returnSector: "CXB → DAC" },
+  { row: 1, id: "ORD-3501", flight: "BS-141", airline: "US-Bangla", sector: "DAC → CXB", etd: "08:15", pax: 72, specialMeals: 4, valid: true,  type: "Domestic", zenLoad: 72, totalMeal: 72, specMeal: 4, crewMeal: 4, returnFlight: "BS-142", returnSector: "CXB → DAC", date: "2026-05-24" },
+  { row: 2, id: "ORD-3502", flight: "BS-203", airline: "US-Bangla", sector: "DAC → CGP", etd: "10:30", pax: 88, specialMeals: 2, valid: true,  type: "Domestic", zenLoad: 88, totalMeal: 88, specMeal: 2, crewMeal: 4, returnFlight: "BS-204", returnSector: "CGP → DAC", date: "2026-05-24" },
+  { row: 3, id: "ORD-3503", flight: "AA-101", airline: "Air Astra", sector: "DAC → ZYL", etd: "13:00", pax: 0,  specialMeals: 0, valid: false, type: "Domestic", date: "2026-05-24" },
+  { row: 4, id: "ORD-3504", flight: "AA-202", airline: "Air Astra", sector: "DAC → CXB", etd: "15:45", pax: 66, specialMeals: 3, valid: true,  type: "Domestic", zenLoad: 66, totalMeal: 66, specMeal: 3, crewMeal: 4, returnFlight: "AA-203", returnSector: "CXB → DAC", date: "2026-05-24" },
 ];
 
 const SAMPLE_PARSED_INTL: ParsedRow[] = [
-  { row: 1, id: "ORD-3601", flight: "BS-225", airline: "US-Bangla", sector: "DAC → DXB", etd: "12:30", pax: 174, specialMeals: 14, valid: true,  type: "International", bcLoad: 12, ecLoad: 162, bcMeal: 12, ecMeal: 162, chml: 8,  vgml: 6 },
-  { row: 2, id: "ORD-3602", flight: "BS-307", airline: "US-Bangla", sector: "DAC → KUL", etd: "23:50", pax: 282, specialMeals: 18, valid: true,  type: "International", bcLoad: 24, ecLoad: 258, bcMeal: 24, ecMeal: 258, chml: 10, vgml: 8 },
-  { row: 3, id: "ORD-3603", flight: "BS-411", airline: "US-Bangla", sector: "CGP → DXB", etd: "18:25", pax: 162, specialMeals: 10, valid: true,  type: "International", bcLoad: 10, ecLoad: 152, bcMeal: 10, ecMeal: 152, chml: 6,  vgml: 4 },
-  { row: 4, id: "ORD-3604", flight: "BS-???", airline: "US-Bangla", sector: "DAC → DOH", etd: "15:00", pax: 0,   specialMeals: 0,  valid: false, type: "International" },
+  { row: 1, id: "ORD-3601", flight: "BS-225", airline: "US-Bangla", sector: "DAC → DXB", etd: "12:30", pax: 174, specialMeals: 14, valid: true,  type: "International", bcLoad: 12, ecLoad: 162, bcMeal: 12, ecMeal: 162, chml: 8,  vgml: 6, date: "2026-05-24" },
+  { row: 2, id: "ORD-3602", flight: "BS-307", airline: "US-Bangla", sector: "DAC → KUL", etd: "23:50", pax: 282, specialMeals: 18, valid: true,  type: "International", bcLoad: 24, ecLoad: 258, bcMeal: 24, ecMeal: 258, chml: 10, vgml: 8, date: "2026-05-24" },
+  { row: 3, id: "ORD-3603", flight: "BS-411", airline: "US-Bangla", sector: "CGP → DXB", etd: "18:25", pax: 162, specialMeals: 10, valid: true,  type: "International", bcLoad: 10, ecLoad: 152, bcMeal: 10, ecMeal: 152, chml: 6,  vgml: 4, date: "2026-05-24" },
+  { row: 4, id: "ORD-3604", flight: "BS-???", airline: "US-Bangla", sector: "DAC → DOH", etd: "15:00", pax: 0,   specialMeals: 0,  valid: false, type: "International", date: "2026-05-24" },
 ];
 
 type MealPlan = Record<string, number>;
@@ -1752,6 +1753,22 @@ function CrewMealCreate({
   );
 }
 
+function groupByDate(rows: ParsedRow[]): { date: string; rows: ParsedRow[] }[] {
+  const map = new Map<string, ParsedRow[]>();
+  for (const r of rows) {
+    const d = r.date ?? "Unknown";
+    if (!map.has(d)) map.set(d, []);
+    map.get(d)!.push(r);
+  }
+  return Array.from(map.entries()).map(([date, rows]) => ({ date, rows }));
+}
+
+function formatDayLabel(dateStr: string) {
+  if (dateStr === "Unknown") return "Unknown Date";
+  const d = new Date(dateStr + "T00:00:00");
+  return d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+}
+
 function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void }) {
   const domFileRef = useRef<HTMLInputElement>(null);
   const [domFile, setDomFile] = useState<File | null>(null);
@@ -1766,6 +1783,7 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
   const [intlParsed, setIntlParsed] = useState<ParsedRow[]>(SAMPLE_PARSED_INTL);
 
   const [importConfirmed, setImportConfirmed] = useState(false);
+  const [showFinalReview, setShowFinalReview] = useState(false);
   const [importedOrders, setImportedOrders] = useState<FlightOrder[]>([]);
   const [orderLoading, setOrderLoading] = useState(false);
   const [orderSent, setOrderSent] = useState(false);
@@ -2042,22 +2060,24 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
         </CardContent>
       </Card>
 
-      {/* Preview & Validate — visible when both slots are done and import not yet confirmed */}
-      {bothDone && !importConfirmed && (
+      {/* Per-file preview — Domestic */}
+      {domDone && !importConfirmed && !showFinalReview && (
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold tracking-wider uppercase text-foreground">
-                Preview & Validate
-              </h3>
-              {allInvalidCount > 0 && (
+              <div className="flex items-center gap-3">
+                <span className="inline-flex items-center rounded-md bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary uppercase tracking-wider">
+                  Domestic Flights
+                </span>
+                <span className="text-xs text-muted-foreground">Parsed · {domParsed.length} rows</span>
+              </div>
+              {domInvalidCount > 0 && (
                 <span className="inline-flex items-center text-xs text-muted-foreground">
                   <AlertCircle className="h-3.5 w-3.5 text-warning mr-1" />
-                  {allInvalidCount} invalid row{allInvalidCount > 1 ? "s" : ""} highlighted
+                  {domInvalidCount} invalid row{domInvalidCount > 1 ? "s" : ""} highlighted
                 </span>
               )}
             </div>
-
             <div className="border border-border rounded-md overflow-hidden overflow-x-auto">
               <Table>
                 <TableHeader className="bg-muted/40">
@@ -2090,21 +2110,228 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  {groupByDate(domParsed).map(({ date, rows: dayRows }) => (
+                    <Fragment key={date}>
+                      <TableRow className="bg-primary/5 border-t border-primary/20 hover:bg-primary/10">
+                        <TableCell colSpan={17} className="py-2">
+                          <span className="font-semibold text-primary text-xs">{formatDayLabel(date)}</span>
+                        </TableCell>
+                      </TableRow>
+                      {dayRows.map((r) => (
+                        <TableRow key={`dom-${r.row}`} className={!r.valid ? "bg-destructive/10" : ""}>
+                          <TableCell className="text-xs">{r.airline}</TableCell>
+                          <TableCell>
+                            <input
+                              value={r.flight}
+                              onChange={(e) => updateDomField(r.row, "flight", e.target.value)}
+                              className="bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none w-full text-sm font-medium"
+                            />
+                          </TableCell>
+                          <TableCell className="text-xs">{r.sector}</TableCell>
+                          <TableCell className="text-xs tabular-nums">{r.etd}</TableCell>
+                          <TableCell className="text-right tabular-nums text-xs">{r.zenLoad ?? "—"}</TableCell>
+                          <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+                          <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+                          <TableCell className="text-right tabular-nums text-xs border-r border-border">{r.totalMeal ?? "—"}</TableCell>
+                          <TableCell className="text-xs tabular-nums">{r.returnFlight ?? "—"}</TableCell>
+                          <TableCell className="text-xs">{r.returnSector ?? "—"}</TableCell>
+                          <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+                          <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+                          <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+                          <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+                          <TableCell className="text-right tabular-nums text-xs">{r.specialMeals > 0 ? r.specialMeals : "—"}</TableCell>
+                          <TableCell className="text-right tabular-nums text-xs">{r.crewMeal ?? "—"}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1.5">
+                              <StatusBadge status={r.valid ? "OK" : "Failed"} />
+                              {!r.valid && (
+                                <Button size="sm" variant="outline" className="h-6 px-2 text-xs"
+                                  onClick={() => setEditRow({ source: "dom", data: { ...r } })}>
+                                  <Pencil className="h-3 w-3 mr-1" />Edit
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </Fragment>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Per-file preview — International */}
+      {intlDone && !importConfirmed && !showFinalReview && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <span className="inline-flex items-center rounded-md bg-navy/10 px-2.5 py-1 text-xs font-semibold text-navy uppercase tracking-wider">
+                  International Flights
+                </span>
+                <span className="text-xs text-muted-foreground">Parsed · {intlParsed.length} rows</span>
+              </div>
+              {intlInvalidCount > 0 && (
+                <span className="inline-flex items-center text-xs text-muted-foreground">
+                  <AlertCircle className="h-3.5 w-3.5 text-warning mr-1" />
+                  {intlInvalidCount} invalid row{intlInvalidCount > 1 ? "s" : ""} highlighted
+                </span>
+              )}
+            </div>
+            <div className="border border-border rounded-md overflow-hidden overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-muted/40">
+                  <TableRow>
+                    <TableHead colSpan={8} className="text-xs uppercase tracking-wider text-center border-r border-border bg-primary/5 text-primary py-1.5">
+                      Departure Flight
+                    </TableHead>
+                    <TableHead colSpan={9} className="text-xs uppercase tracking-wider text-center bg-navy/5 text-navy py-1.5">
+                      Return Flight
+                    </TableHead>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead className="text-xs uppercase tracking-wider">AIRLINE NAME</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider">FLT NO</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider">SECTOR</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider">DEP TIME</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">ZEN LOAD</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">B/C LOAD</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">E/C LOAD</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right border-r border-border">TOTAL MEAL</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider">FLT NO</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider">SECTOR</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">B/C MEAL</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">E/C MEAL</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">CHML</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">VGML</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">SPEC MEAL</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">CREW MEAL</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider">ACTIONS</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {groupByDate(intlParsed).map(({ date, rows: dayRows }) => (
+                    <Fragment key={date}>
+                      <TableRow className="bg-navy/5 border-t border-navy/20 hover:bg-navy/10">
+                        <TableCell colSpan={17} className="py-2">
+                          <span className="font-semibold text-navy text-xs">{formatDayLabel(date)}</span>
+                        </TableCell>
+                      </TableRow>
+                      {dayRows.map((r) => (
+                        <TableRow key={`intl-${r.row}`} className={!r.valid ? "bg-destructive/10" : ""}>
+                          <TableCell className="text-xs">{r.airline}</TableCell>
+                          <TableCell>
+                            <input
+                              value={r.flight}
+                              onChange={(e) => updateIntlField(r.row, "flight", e.target.value)}
+                              className="bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none w-full text-sm font-medium"
+                            />
+                          </TableCell>
+                          <TableCell className="text-xs">{r.sector}</TableCell>
+                          <TableCell className="text-xs tabular-nums">{r.etd}</TableCell>
+                          <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+                          <TableCell className="text-right tabular-nums text-xs">{r.bcLoad ?? "—"}</TableCell>
+                          <TableCell className="text-right tabular-nums text-xs">{r.ecLoad ?? "—"}</TableCell>
+                          <TableCell className="text-right text-xs text-muted-foreground border-r border-border">—</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">—</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">—</TableCell>
+                          <TableCell className="text-right tabular-nums text-xs">{r.bcMeal ?? "—"}</TableCell>
+                          <TableCell className="text-right tabular-nums text-xs">{r.ecMeal ?? "—"}</TableCell>
+                          <TableCell className="text-right tabular-nums text-xs">{r.chml ?? "—"}</TableCell>
+                          <TableCell className="text-right tabular-nums text-xs">{r.vgml ?? "—"}</TableCell>
+                          <TableCell className="text-right tabular-nums text-xs">{r.specialMeals > 0 ? r.specialMeals : "—"}</TableCell>
+                          <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1.5">
+                              <StatusBadge status={r.valid ? "OK" : "Failed"} />
+                              {!r.valid && (
+                                <Button size="sm" variant="outline" className="h-6 px-2 text-xs"
+                                  onClick={() => setEditRow({ source: "intl", data: { ...r } })}>
+                                  <Pencil className="h-3 w-3 mr-1" />Edit
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </Fragment>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Confirm Import — available when both files are done */}
+      {bothDone && !importConfirmed && !showFinalReview && (
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => toast.success("Error report downloaded.")}>
+            <Download className="h-3.5 w-3.5 mr-1.5" /> Error Report
+          </Button>
+          <Button onClick={() => setShowFinalReview(true)}>Confirm Import</Button>
+        </div>
+      )}
+
+      {/* Final review — combined read-only table + Save and Continue */}
+      {showFinalReview && !importConfirmed && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold tracking-wider uppercase text-foreground">
+                Final Review
+              </h3>
+              {allInvalidCount > 0 && (
+                <span className="inline-flex items-center text-xs text-muted-foreground">
+                  <AlertCircle className="h-3.5 w-3.5 text-warning mr-1" />
+                  {allInvalidCount} invalid row{allInvalidCount > 1 ? "s" : ""} highlighted
+                </span>
+              )}
+            </div>
+            <div className="border border-border rounded-md overflow-hidden overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-muted/40">
+                  <TableRow>
+                    <TableHead colSpan={8} className="text-xs uppercase tracking-wider text-center border-r border-border bg-primary/5 text-primary py-1.5">
+                      Departure Flight
+                    </TableHead>
+                    <TableHead colSpan={9} className="text-xs uppercase tracking-wider text-center bg-navy/5 text-navy py-1.5">
+                      Return Flight
+                    </TableHead>
+                  </TableRow>
+                  <TableRow>
+                    <TableHead className="text-xs uppercase tracking-wider">AIRLINE NAME</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider">FLT NO</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider">SECTOR</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider">DEP TIME</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">ZEN LOAD</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">B/C LOAD</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">E/C LOAD</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right border-r border-border">TOTAL MEAL</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider">FLT NO</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider">SECTOR</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">B/C MEAL</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">E/C MEAL</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">CHML</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">VGML</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">SPEC MEAL</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">CREW MEAL</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider">STATUS</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   <TableRow className="bg-primary/5 border-t-2 border-t-primary/40 hover:bg-primary/10">
                     <TableCell colSpan={17} className="py-2">
                       <span className="font-semibold text-primary uppercase tracking-wider text-xs">Domestic</span>
                     </TableCell>
                   </TableRow>
                   {domParsed.map((r) => (
-                    <TableRow key={`dom-${r.row}`} className={!r.valid ? "bg-destructive/10" : ""}>
+                    <TableRow key={`final-dom-${r.row}`} className={!r.valid ? "bg-destructive/10" : ""}>
                       <TableCell className="text-xs">{r.airline}</TableCell>
-                      <TableCell>
-                        <input
-                          value={r.flight}
-                          onChange={(e) => updateDomField(r.row, "flight", e.target.value)}
-                          className="bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none w-full text-sm font-medium"
-                        />
-                      </TableCell>
+                      <TableCell className="text-sm font-medium">{r.flight}</TableCell>
                       <TableCell className="text-xs">{r.sector}</TableCell>
                       <TableCell className="text-xs tabular-nums">{r.etd}</TableCell>
                       <TableCell className="text-right tabular-nums text-xs">{r.zenLoad ?? "—"}</TableCell>
@@ -2119,17 +2346,7 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                       <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
                       <TableCell className="text-right tabular-nums text-xs">{r.specialMeals > 0 ? r.specialMeals : "—"}</TableCell>
                       <TableCell className="text-right tabular-nums text-xs">{r.crewMeal ?? "—"}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5">
-                          <StatusBadge status={r.valid ? "OK" : "Failed"} />
-                          {!r.valid && (
-                            <Button size="sm" variant="outline" className="h-6 px-2 text-xs"
-                              onClick={() => setEditRow({ source: "dom", data: { ...r } })}>
-                              <Pencil className="h-3 w-3 mr-1" />Edit
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
+                      <TableCell><StatusBadge status={r.valid ? "OK" : "Failed"} /></TableCell>
                     </TableRow>
                   ))}
                   <TableRow className="bg-navy/5 border-t-2 border-t-navy/40 hover:bg-navy/10">
@@ -2138,15 +2355,9 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                     </TableCell>
                   </TableRow>
                   {intlParsed.map((r) => (
-                    <TableRow key={`intl-${r.row}`} className={!r.valid ? "bg-destructive/10" : ""}>
+                    <TableRow key={`final-intl-${r.row}`} className={!r.valid ? "bg-destructive/10" : ""}>
                       <TableCell className="text-xs">{r.airline}</TableCell>
-                      <TableCell>
-                        <input
-                          value={r.flight}
-                          onChange={(e) => updateIntlField(r.row, "flight", e.target.value)}
-                          className="bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none w-full text-sm font-medium"
-                        />
-                      </TableCell>
+                      <TableCell className="text-sm font-medium">{r.flight}</TableCell>
                       <TableCell className="text-xs">{r.sector}</TableCell>
                       <TableCell className="text-xs tabular-nums">{r.etd}</TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
@@ -2161,28 +2372,14 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                       <TableCell className="text-right tabular-nums text-xs">{r.vgml ?? "—"}</TableCell>
                       <TableCell className="text-right tabular-nums text-xs">{r.specialMeals > 0 ? r.specialMeals : "—"}</TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5">
-                          <StatusBadge status={r.valid ? "OK" : "Failed"} />
-                          {!r.valid && (
-                            <Button size="sm" variant="outline" className="h-6 px-2 text-xs"
-                              onClick={() => setEditRow({ source: "intl", data: { ...r } })}>
-                              <Pencil className="h-3 w-3 mr-1" />Edit
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
+                      <TableCell><StatusBadge status={r.valid ? "OK" : "Failed"} /></TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </div>
-
-            <div className="flex justify-end gap-2 mt-4">
-              <Button variant="outline" onClick={() => toast.success("Error report downloaded.")}>
-                <Download className="h-3.5 w-3.5 mr-1.5" /> Error Report
-              </Button>
-              <Button onClick={confirmImport}>Confirm Import</Button>
+            <div className="flex justify-end mt-4">
+              <Button onClick={confirmImport}>Save and Continue</Button>
             </div>
           </CardContent>
         </Card>
