@@ -1795,12 +1795,14 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
   const [showFinalReview, setShowFinalReview] = useState(false);
   const [mealEditMode, setMealEditMode] = useState(false);
   const [summaryEdit, setSummaryEdit] = useState<{
-    intlDepMeal: number; intlDepChml: number; intlRetVgml: number;
+    intlDepMeal: number; intlDepChml: number; intlRetMeal: number; intlRetChml: number; intlRetVgml: number;
     usbaZenith: number; usbaPax: number; usbaBreakfast: number; usbaLunch: number;
     aaaZenith: number; aaaPax: number;
     crewHSnacks: number; crewLunch: number; crewDinner: number;
   } | null>(null);
   const [showCrewMenuModal, setShowCrewMenuModal] = useState(false);
+  const [crewMenuContext, setCrewMenuContext] = useState<"intl" | "dom">("dom");
+  const [showViewMenuModal, setShowViewMenuModal] = useState<"intl" | "dom" | null>(null);
   const [crewMenuQty, setCrewMenuQty] = useState({
     hSnacks: 8, lunch: 0, dinner: 4,
     bcBreakfast: 12, bcLunch: 12, ecSnack: 270, ecMeal: 0,
@@ -2485,111 +2487,265 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
         </DialogContent>
       </Dialog>
 
+      {/* View Menu Modal */}
+      <Dialog open={showViewMenuModal !== null} onOpenChange={(open) => { if (!open) setShowViewMenuModal(null); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {showViewMenuModal === "intl" ? "International" : "Domestic"} Meal Configuration — {formatDayLabel(importDate)}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5 py-2">
+            {showViewMenuModal === "intl" ? (
+              <>
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wider text-navy mb-2">Departure Meals</div>
+                  <div className="rounded-md border border-border overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/40">
+                        <tr>
+                          <th className="text-left px-3 py-2 text-xs uppercase tracking-wider font-semibold">Meal Type</th>
+                          <th className="text-left px-3 py-2 text-xs uppercase tracking-wider font-semibold">Menu Item</th>
+                          <th className="text-right px-3 py-2 text-xs uppercase tracking-wider font-semibold">Qty</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        <tr>
+                          <td className="px-3 py-2 text-muted-foreground">B/C Departure</td>
+                          <td className="px-3 py-2">Grilled Chicken + Rice</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{summaryEdit?.intlDepMeal ?? intlDepMeal}</td>
+                        </tr>
+                        <tr>
+                          <td className="px-3 py-2 text-muted-foreground">E/C Departure</td>
+                          <td className="px-3 py-2">Standard Box Meal</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{summaryEdit?.intlDepMeal ?? intlDepMeal}</td>
+                        </tr>
+                        <tr>
+                          <td className="px-3 py-2 text-muted-foreground">Departure CHML</td>
+                          <td className="px-3 py-2">Children's Meal</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{summaryEdit?.intlDepChml ?? intlDepChml}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wider text-navy mb-2">Return Meals</div>
+                  <div className="rounded-md border border-border overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/40">
+                        <tr>
+                          <th className="text-left px-3 py-2 text-xs uppercase tracking-wider font-semibold">Meal Type</th>
+                          <th className="text-left px-3 py-2 text-xs uppercase tracking-wider font-semibold">Menu Item</th>
+                          <th className="text-right px-3 py-2 text-xs uppercase tracking-wider font-semibold">Qty</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        <tr>
+                          <td className="px-3 py-2 text-muted-foreground">Return VGML</td>
+                          <td className="px-3 py-2">Vegetarian Meal</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{summaryEdit?.intlRetVgml ?? intlRetVgml}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wider text-primary mb-2">US-Bangla</div>
+                  <div className="rounded-md border border-border overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/40">
+                        <tr>
+                          <th className="text-left px-3 py-2 text-xs uppercase tracking-wider font-semibold">Meal Type</th>
+                          <th className="text-left px-3 py-2 text-xs uppercase tracking-wider font-semibold">Menu Item</th>
+                          <th className="text-right px-3 py-2 text-xs uppercase tracking-wider font-semibold">Qty</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        <tr>
+                          <td className="px-3 py-2 text-muted-foreground">Breakfast</td>
+                          <td className="px-3 py-2">JBR + CKN Buggati</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{summaryEdit?.usbaBreakfast ?? usbaBreakfast}</td>
+                        </tr>
+                        <tr>
+                          <td className="px-3 py-2 text-muted-foreground">Lunch</td>
+                          <td className="px-3 py-2">Rice + Mutton Curry</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{summaryEdit?.usbaLunch ?? usbaLunch}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Air Astra</div>
+                  <div className="rounded-md border border-border overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/40">
+                        <tr>
+                          <th className="text-left px-3 py-2 text-xs uppercase tracking-wider font-semibold">Meal Type</th>
+                          <th className="text-left px-3 py-2 text-xs uppercase tracking-wider font-semibold">Menu Item</th>
+                          <th className="text-right px-3 py-2 text-xs uppercase tracking-wider font-semibold">Qty</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        <tr>
+                          <td className="px-3 py-2 text-muted-foreground">Zenith Load</td>
+                          <td className="px-3 py-2">Standard Allocation</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{summaryEdit?.aaaZenith ?? aaaZenith}</td>
+                        </tr>
+                        <tr>
+                          <td className="px-3 py-2 text-muted-foreground">Pax Load</td>
+                          <td className="px-3 py-2">Standard Allocation</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{summaryEdit?.aaaPax ?? aaaPax}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            )}
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                setCrewMenuContext(showViewMenuModal === "intl" ? "intl" : "dom");
+                setShowViewMenuModal(null);
+                setShowCrewMenuModal(true);
+              }}
+            >
+              + Add Crew Meal
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowViewMenuModal(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Crew Menu Modal */}
       <Dialog open={showCrewMenuModal} onOpenChange={setShowCrewMenuModal}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Crew Meal Configuration — {importDate}</DialogTitle>
+            <DialogTitle>Crew Meal Configuration — {formatDayLabel(importDate)}</DialogTitle>
           </DialogHeader>
           <div className="space-y-5 py-2">
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wider text-primary mb-2">Domestic Crew Meals</div>
-              <div className="rounded-md border border-border overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/40">
-                    <tr>
-                      <th className="text-left px-3 py-2 text-xs uppercase tracking-wider font-semibold">Meal Type</th>
-                      <th className="text-left px-3 py-2 text-xs uppercase tracking-wider font-semibold">Menu Item</th>
-                      <th className="text-right px-3 py-2 text-xs uppercase tracking-wider font-semibold">Qty</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-t border-border">
-                      <td className="px-3 py-2 text-muted-foreground">H. Snacks</td>
-                      <td className="px-3 py-2">Sandwich + Orange Juice</td>
-                      <td className="px-3 py-2 text-right">
-                        <input type="number" min={0} value={crewMenuQty.hSnacks}
-                          onChange={(e) => setCrewMenuQty((p) => ({ ...p, hSnacks: Number(e.target.value) }))}
-                          className="w-20 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
-                      </td>
-                    </tr>
-                    <tr className="border-t border-border">
-                      <td className="px-3 py-2 text-muted-foreground">Lunch</td>
-                      <td className="px-3 py-2">Rice + Mutton Curry</td>
-                      <td className="px-3 py-2 text-right">
-                        <input type="number" min={0} value={crewMenuQty.lunch}
-                          onChange={(e) => setCrewMenuQty((p) => ({ ...p, lunch: Number(e.target.value) }))}
-                          className="w-20 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
-                      </td>
-                    </tr>
-                    <tr className="border-t border-border">
-                      <td className="px-3 py-2 text-muted-foreground">Dinner</td>
-                      <td className="px-3 py-2">Noodles + Soup + Juice</td>
-                      <td className="px-3 py-2 text-right">
-                        <input type="number" min={0} value={crewMenuQty.dinner}
-                          onChange={(e) => setCrewMenuQty((p) => ({ ...p, dinner: Number(e.target.value) }))}
-                          className="w-20 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+            {crewMenuContext === "dom" && (
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wider text-primary mb-2">Domestic Crew Meals</div>
+                <div className="rounded-md border border-border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/40">
+                      <tr>
+                        <th className="text-left px-3 py-2 text-xs uppercase tracking-wider font-semibold">Meal Type</th>
+                        <th className="text-left px-3 py-2 text-xs uppercase tracking-wider font-semibold">Menu Item</th>
+                        <th className="text-right px-3 py-2 text-xs uppercase tracking-wider font-semibold">Qty</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-t border-border">
+                        <td className="px-3 py-2 text-muted-foreground">H. Snacks</td>
+                        <td className="px-3 py-2">Sandwich + Orange Juice</td>
+                        <td className="px-3 py-2 text-right">
+                          <input type="number" min={0} value={crewMenuQty.hSnacks}
+                            onChange={(e) => setCrewMenuQty((p) => ({ ...p, hSnacks: Number(e.target.value) }))}
+                            className="w-20 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                        </td>
+                      </tr>
+                      <tr className="border-t border-border">
+                        <td className="px-3 py-2 text-muted-foreground">Lunch</td>
+                        <td className="px-3 py-2">Rice + Mutton Curry</td>
+                        <td className="px-3 py-2 text-right">
+                          <input type="number" min={0} value={crewMenuQty.lunch}
+                            onChange={(e) => setCrewMenuQty((p) => ({ ...p, lunch: Number(e.target.value) }))}
+                            className="w-20 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                        </td>
+                      </tr>
+                      <tr className="border-t border-border">
+                        <td className="px-3 py-2 text-muted-foreground">Dinner</td>
+                        <td className="px-3 py-2">Noodles + Soup + Juice</td>
+                        <td className="px-3 py-2 text-right">
+                          <input type="number" min={0} value={crewMenuQty.dinner}
+                            onChange={(e) => setCrewMenuQty((p) => ({ ...p, dinner: Number(e.target.value) }))}
+                            className="w-20 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wider text-navy mb-2">International Crew Meals</div>
-              <div className="rounded-md border border-border overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/40">
-                    <tr>
-                      <th className="text-left px-3 py-2 text-xs uppercase tracking-wider font-semibold">Meal Type</th>
-                      <th className="text-left px-3 py-2 text-xs uppercase tracking-wider font-semibold">Menu Item</th>
-                      <th className="text-right px-3 py-2 text-xs uppercase tracking-wider font-semibold">Qty</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-t border-border">
-                      <td className="px-3 py-2 text-muted-foreground">B/C Breakfast</td>
-                      <td className="px-3 py-2">Continental Breakfast Platter</td>
-                      <td className="px-3 py-2 text-right">
-                        <input type="number" min={0} value={crewMenuQty.bcBreakfast}
-                          onChange={(e) => setCrewMenuQty((p) => ({ ...p, bcBreakfast: Number(e.target.value) }))}
-                          className="w-20 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
-                      </td>
-                    </tr>
-                    <tr className="border-t border-border">
-                      <td className="px-3 py-2 text-muted-foreground">B/C Lunch</td>
-                      <td className="px-3 py-2">Chef's Special — Rice + Fish</td>
-                      <td className="px-3 py-2 text-right">
-                        <input type="number" min={0} value={crewMenuQty.bcLunch}
-                          onChange={(e) => setCrewMenuQty((p) => ({ ...p, bcLunch: Number(e.target.value) }))}
-                          className="w-20 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
-                      </td>
-                    </tr>
-                    <tr className="border-t border-border">
-                      <td className="px-3 py-2 text-muted-foreground">E/C Snack</td>
-                      <td className="px-3 py-2">Biscuit + Coffee / Tea</td>
-                      <td className="px-3 py-2 text-right">
-                        <input type="number" min={0} value={crewMenuQty.ecSnack}
-                          onChange={(e) => setCrewMenuQty((p) => ({ ...p, ecSnack: Number(e.target.value) }))}
-                          className="w-20 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
-                      </td>
-                    </tr>
-                    <tr className="border-t border-border">
-                      <td className="px-3 py-2 text-muted-foreground">E/C Meal</td>
-                      <td className="px-3 py-2">Standard Box Meal</td>
-                      <td className="px-3 py-2 text-right">
-                        <input type="number" min={0} value={crewMenuQty.ecMeal}
-                          onChange={(e) => setCrewMenuQty((p) => ({ ...p, ecMeal: Number(e.target.value) }))}
-                          className="w-20 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+            )}
+            {crewMenuContext === "intl" && (
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wider text-navy mb-2">International Crew Meals</div>
+                <div className="rounded-md border border-border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/40">
+                      <tr>
+                        <th className="text-left px-3 py-2 text-xs uppercase tracking-wider font-semibold">Meal Type</th>
+                        <th className="text-left px-3 py-2 text-xs uppercase tracking-wider font-semibold">Menu Item</th>
+                        <th className="text-right px-3 py-2 text-xs uppercase tracking-wider font-semibold">Qty</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-t border-border">
+                        <td className="px-3 py-2 text-muted-foreground">B/C Breakfast</td>
+                        <td className="px-3 py-2">Continental Breakfast Platter</td>
+                        <td className="px-3 py-2 text-right">
+                          <input type="number" min={0} value={crewMenuQty.bcBreakfast}
+                            onChange={(e) => setCrewMenuQty((p) => ({ ...p, bcBreakfast: Number(e.target.value) }))}
+                            className="w-20 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                        </td>
+                      </tr>
+                      <tr className="border-t border-border">
+                        <td className="px-3 py-2 text-muted-foreground">B/C Lunch</td>
+                        <td className="px-3 py-2">Chef's Special — Rice + Fish</td>
+                        <td className="px-3 py-2 text-right">
+                          <input type="number" min={0} value={crewMenuQty.bcLunch}
+                            onChange={(e) => setCrewMenuQty((p) => ({ ...p, bcLunch: Number(e.target.value) }))}
+                            className="w-20 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                        </td>
+                      </tr>
+                      <tr className="border-t border-border">
+                        <td className="px-3 py-2 text-muted-foreground">E/C Snack</td>
+                        <td className="px-3 py-2">Biscuit + Coffee / Tea</td>
+                        <td className="px-3 py-2 text-right">
+                          <input type="number" min={0} value={crewMenuQty.ecSnack}
+                            onChange={(e) => setCrewMenuQty((p) => ({ ...p, ecSnack: Number(e.target.value) }))}
+                            className="w-20 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                        </td>
+                      </tr>
+                      <tr className="border-t border-border">
+                        <td className="px-3 py-2 text-muted-foreground">E/C Meal</td>
+                        <td className="px-3 py-2">Standard Box Meal</td>
+                        <td className="px-3 py-2 text-right">
+                          <input type="number" min={0} value={crewMenuQty.ecMeal}
+                            onChange={(e) => setCrewMenuQty((p) => ({ ...p, ecMeal: Number(e.target.value) }))}
+                            className="w-20 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCrewMenuModal(false)}>Close</Button>
+            <Button variant="secondary" onClick={() => {
+              if (summaryEdit) {
+                setSummaryEdit((p) => p && { ...p,
+                  crewHSnacks: crewMenuQty.hSnacks,
+                  crewLunch: crewMenuQty.lunch,
+                  crewDinner: crewMenuQty.dinner,
+                });
+              }
+              toast.success("Crew meal quantities saved.");
+            }}>
+              Save
+            </Button>
             <Button onClick={() => {
               if (summaryEdit) {
                 setSummaryEdit((p) => p && { ...p,
@@ -2632,7 +2788,10 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* International column */}
                 <div className="rounded-lg border border-navy/20 bg-navy/5 p-4 space-y-4">
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-navy">International</h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-navy">International</h4>
+                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setShowViewMenuModal("intl")}>View Menu</Button>
+                  </div>
                   <div className="space-y-1.5">
                     <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Departure</div>
                     <div className="flex justify-between text-sm">
@@ -2666,11 +2825,23 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                     <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Return</div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Total Return Meal</span>
-                      <span className="font-medium tabular-nums">0</span>
+                      {mealEditMode && summaryEdit ? (
+                        <input type="number" min={0} value={summaryEdit.intlRetMeal}
+                          onChange={(e) => setSummaryEdit((p) => p && { ...p, intlRetMeal: Number(e.target.value) })}
+                          className="w-24 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                      ) : (
+                        <span className="font-medium tabular-nums">0</span>
+                      )}
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Return CHML</span>
-                      <span className="font-medium tabular-nums">0</span>
+                      {mealEditMode && summaryEdit ? (
+                        <input type="number" min={0} value={summaryEdit.intlRetChml}
+                          onChange={(e) => setSummaryEdit((p) => p && { ...p, intlRetChml: Number(e.target.value) })}
+                          className="w-24 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                      ) : (
+                        <span className="font-medium tabular-nums">0</span>
+                      )}
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Return VGML</span>
@@ -2685,7 +2856,7 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                     <div className="flex justify-between text-sm font-semibold border-t border-navy/20 pt-1">
                       <span>Return Total</span>
                       <span className="tabular-nums">
-                        {mealEditMode && summaryEdit ? summaryEdit.intlRetVgml : intlRetTotal}
+                        {mealEditMode && summaryEdit ? summaryEdit.intlRetMeal + summaryEdit.intlRetChml + summaryEdit.intlRetVgml : intlRetTotal}
                       </span>
                     </div>
                   </div>
@@ -2693,7 +2864,7 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                     <span>Total Meal (Departure+Return)</span>
                     <span className="tabular-nums">
                       {mealEditMode && summaryEdit
-                        ? summaryEdit.intlDepMeal + summaryEdit.intlDepChml + summaryEdit.intlRetVgml
+                        ? summaryEdit.intlDepMeal + summaryEdit.intlDepChml + summaryEdit.intlRetMeal + summaryEdit.intlRetChml + summaryEdit.intlRetVgml
                         : intlGrandTotal}
                     </span>
                   </div>
@@ -2701,7 +2872,10 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
 
                 {/* Domestic column */}
                 <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-4">
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-primary">Domestic</h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-primary">Domestic</h4>
+                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setShowViewMenuModal("dom")}>View Menu</Button>
+                  </div>
                   <div className="space-y-1.5">
                     <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">US-Bangla</div>
                     <div className="flex justify-between text-sm">
@@ -2769,17 +2943,7 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Crew Meals</div>
-                      {mealEditMode && (
-                        <button
-                          onClick={() => setShowCrewMenuModal(true)}
-                          className="text-[11px] font-semibold uppercase tracking-wider text-primary underline underline-offset-2 hover:opacity-80"
-                        >
-                          Crew Menu
-                        </button>
-                      )}
-                    </div>
+                    <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Crew Meals</div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">H. Snacks</span>
                       {mealEditMode && summaryEdit ? (
@@ -2842,7 +3006,7 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                           setSummaryEdit(null);
                         } else {
                           setSummaryEdit({
-                            intlDepMeal, intlDepChml, intlRetVgml,
+                            intlDepMeal, intlDepChml, intlRetMeal: 0, intlRetChml: 0, intlRetVgml,
                             usbaZenith, usbaPax, usbaBreakfast, usbaLunch,
                             aaaZenith, aaaPax,
                             crewHSnacks, crewLunch, crewDinner,

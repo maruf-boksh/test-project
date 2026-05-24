@@ -3,9 +3,7 @@ import { createContext, useContext } from "react";
 export const ROLES = [
   "GM/Admin",
   "Meal Planner",
-  "Flight Kitchen",
-  "Bakery Production",
-  "Amenities",
+  "Production",
   "Packaging & Dispatch",
   "Store & Inventory",
   "Procurement & Supply Chain",
@@ -27,9 +25,7 @@ export const useRole = () => useContext(RoleContext);
 export const ROLE_PERMS: Record<Role, string[] | "*"> = {
   "GM/Admin": "*",
   "Meal Planner": ["dashboard", "order-management", "meal-planning", "production"],
-  "Flight Kitchen": ["dashboard", "production-kitchen", "qc"],
-  "Bakery Production": ["dashboard", "production-bakery", "qc"],
-  "Amenities": ["dashboard", "production-amenities"],
+  "Production": ["dashboard", "production-kitchen", "production-bakery", "production-amenities", "qc"],
   "Packaging & Dispatch": ["dashboard", "production-dispatch"],
   "Store & Inventory": ["dashboard", "inventory", "supply-receive"],
   "Procurement & Supply Chain": ["dashboard", "supply", "inventory-bom"],

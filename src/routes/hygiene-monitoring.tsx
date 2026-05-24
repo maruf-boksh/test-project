@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { ClipboardCheck, Plus, Pencil, Trash2, Lock } from "lucide-react";
@@ -129,6 +129,8 @@ function HygieneMonitoring() {
   const todayStr = new Date().toISOString().split("T")[0];
 
   const [selectedDate, setSelectedDate] = useState(todayStr);
+  const [endDate, setEndDate] = useState(todayStr);
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [allSlots, setAllSlots] = useState<string[]>([...TIME_SLOTS]);
   const [editRows, setEditRows] = useState<ChecklistRow[]>(() => makeRows([...CHECKLIST_ITEMS], [...TIME_SLOTS]));
   const [savedSlots, setSavedSlots] = useState<Record<string, SlotSave>>({});
@@ -195,8 +197,13 @@ function HygieneMonitoring() {
     [logs, selectedDate, currentLogId]
   );
 
+  const rangedLogs = useMemo(
+    () => logs.filter((l) => l.date >= selectedDate && l.date <= endDate).sort((a, b) => a.date.localeCompare(b.date)),
+    [logs, selectedDate, endDate]
+  );
+
   // ── Handlers ─────────────────────────────────────────────────────────────
-  const toggleCell = (rowIdx: number, slot: string) => {
+  const handleCellClick = (rowIdx: number, slot: string) => {
     if (savedSlots[slot] || missedSlots.has(slot) || isSubmitted) return;
     setEditRows((prev) =>
       prev.map((row, i) =>
@@ -395,18 +402,25 @@ function HygieneMonitoring() {
 
       {/* Instruction + Legend */}
       <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm">
-        <p className="text-muted-foreground mb-2 text-[13px]">
-          Checklist must be completed at each scheduled time slot by the QC Executive.
-          Mark each item as Pass or Fail. Save Draft after completing each time slot.
-        </p>
+        <div className="mb-2 space-y-1">
+          <p className="text-[13px] font-medium text-blue-800">
+            How to fill this checklist:
+          </p>
+          <p className="text-[12.5px] text-blue-700">
+            <span className="font-semibold">Step 1 —</span> At each scheduled time, mark every item as Pass (✓) or Fail (✗), then click <span className="font-semibold">Save Draft</span> to lock that time slot.
+          </p>
+          <p className="text-[12.5px] text-blue-700">
+            <span className="font-semibold">Step 2 —</span> After the last time slot of the day is saved, click <span className="font-semibold">Confirm & Submit</span> to record the final checklist for the day.
+          </p>
+        </div>
         <div className="flex items-center gap-5 text-xs flex-wrap">
           <span className="flex items-center gap-1.5">
             <span className="inline-flex w-6 h-6 items-center justify-center rounded bg-green-100 text-green-700 font-bold text-base">✓</span>
-            Pass
+            <span><span className="font-semibold">1st click</span> — Pass</span>
           </span>
           <span className="flex items-center gap-1.5">
             <span className="inline-flex w-6 h-6 items-center justify-center rounded bg-red-100 text-red-700 font-bold text-base">✗</span>
-            Fail
+            <span><span className="font-semibold">2nd click</span> — Fail</span>
           </span>
           <span className="flex items-center gap-1.5">
             <span className="inline-flex w-6 h-6 items-center justify-center rounded bg-muted text-muted-foreground">—</span>
@@ -421,14 +435,27 @@ function HygieneMonitoring() {
         </div>
       </div>
 
-      {/* Date picker */}
-      <div className="mb-4 flex items-end gap-3 flex-wrap">
+      {/* Date range picker */}
+      <div className="mb-4 flex items-end gap-4 flex-wrap">
         <div>
-          <Label className="text-xs mb-1 block">Select Date</Label>
+          <Label className="text-xs mb-1 block">From</Label>
           <Input
             type="date"
             value={selectedDate}
-            onChange={(e) => handleDateChange(e.target.value)}
+            onChange={(e) => {
+              handleDateChange(e.target.value);
+              if (e.target.value > endDate) setEndDate(e.target.value);
+            }}
+            className="w-44"
+          />
+        </div>
+        <div>
+          <Label className="text-xs mb-1 block">To</Label>
+          <Input
+            type="date"
+            value={endDate}
+            min={selectedDate}
+            onChange={(e) => setEndDate(e.target.value)}
             className="w-44"
           />
         </div>
@@ -481,9 +508,9 @@ function HygieneMonitoring() {
                         <button
                           type="button"
                           disabled={locked || missed || isSubmitted}
-                          onClick={() => toggleCell(i, t)}
+                          onClick={() => handleCellClick(i, t)}
                           className={`w-8 h-8 rounded flex items-center justify-center mx-auto transition-colors ${cellCls(v, locked || isSubmitted, missed)}`}
-                          title={locked ? "Slot saved — locked" : missed ? "Slot missed" : "Click to toggle"}
+                          title={locked ? "Slot saved — locked" : missed ? "Slot missed" : "Click: Pass → Fail → Reset"}
                         >
                           {cellContent(v, missed)}
                         </button>
@@ -544,87 +571,56 @@ function HygieneMonitoring() {
         </div>
       </div>
 
-      {/* Log Entry */}
-      {currentDateLog && (
-        <div className="mb-4 rounded-xl border border-border bg-card p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="font-semibold text-sm">📋 Checklist Log — {currentDateLog.date}</span>
-            <Button
-              size="sm" variant="outline"
-              onClick={() => { setSelectedLog(currentDateLog); setViewLogOpen(true); }}
-            >
-              View Full Record
-            </Button>
+      {/* Logs List — date range */}
+      {rangedLogs.length > 0 && (
+        <div className="mb-4 space-y-2">
+          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
+            Submitted Reports ({rangedLogs.length})
           </div>
-          <div className="text-xs text-muted-foreground">
-            Submitted by:{" "}
-            <span className="font-medium text-foreground">{currentDateLog.submittedBy}</span>
-            {" "}— {currentDateLog.submittedAt}
-          </div>
-          <div className="text-xs mt-1">
-            Status:{" "}
-            {currentDateLog.failCount === 0 ? (
-              <span className="text-green-600 font-medium">All items passed ✅</span>
-            ) : (
-              <span className="text-red-600 font-medium">
-                {currentDateLog.failCount} failure{currentDateLog.failCount !== 1 ? "s" : ""} recorded
-                {currentDateLog.failItems.length > 0 && (
-                  <span className="text-muted-foreground font-normal">
-                    {" "}(Items: {currentDateLog.failItems.slice(0, 2).join(", ")}
-                    {currentDateLog.failItems.length > 2 ? ` +${currentDateLog.failItems.length - 2} more` : ""})
+          {rangedLogs.map((log) => (
+            <div key={log.id} className="rounded-xl border border-border bg-card p-4">
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-semibold text-sm">📋 {log.date}</span>
+                <Button
+                  size="sm" variant="outline"
+                  onClick={() => { setSelectedLog(log); setViewLogOpen(true); }}
+                >
+                  View Full Record
+                </Button>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Submitted by:{" "}
+                <span className="font-medium text-foreground">{log.submittedBy}</span>
+                {" "}— {log.submittedAt}
+              </div>
+              <div className="text-xs mt-1">
+                Status:{" "}
+                {log.failCount === 0 ? (
+                  <span className="text-green-600 font-medium">All items passed ✅</span>
+                ) : (
+                  <span className="text-red-600 font-medium">
+                    {log.failCount} failure{log.failCount !== 1 ? "s" : ""} recorded
+                    {log.failItems.length > 0 && (
+                      <span className="text-muted-foreground font-normal">
+                        {" "}(Items: {log.failItems.slice(0, 2).join(", ")}
+                        {log.failItems.length > 2 ? ` +${log.failItems.length - 2} more` : ""})
+                      </span>
+                    )}
                   </span>
                 )}
-              </span>
-            )}
-          </div>
-          {currentDateLog.authorizedBy && (
-            <div className="text-xs text-muted-foreground mt-1">
-              Authorized by:{" "}
-              <span className="font-medium text-foreground">{currentDateLog.authorizedBy}</span>
-              {" "}— {currentDateLog.authorizedAt}
+              </div>
+              {log.authorizedBy && (
+                <div className="text-xs text-muted-foreground mt-1">
+                  Authorized by:{" "}
+                  <span className="font-medium text-foreground">{log.authorizedBy}</span>
+                  {" "}— {log.authorizedAt}
+                </div>
+              )}
             </div>
-          )}
+          ))}
         </div>
       )}
 
-      {/* Authorization Panel */}
-      {authPanelVisible && (
-        <div className="mb-6 rounded-xl border border-border bg-card p-5">
-          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-            Authorized By
-          </div>
-          <div className="grid grid-cols-2 gap-4 max-w-sm">
-            <div className="col-span-2">
-              <Label className="text-xs">Name</Label>
-              <Select value={authName} onValueChange={setAuthName}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Select authorized person" />
-                </SelectTrigger>
-                <SelectContent>
-                  {AUTHORIZED_PERSONNEL.map((p) => (
-                    <SelectItem key={p} value={p}>{p}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Date</Label>
-              <Input value={selectedDate} disabled className="mt-1 bg-muted text-xs h-9" />
-            </div>
-            <div>
-              <Label className="text-xs">Time</Label>
-              <Input
-                value={new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: true })}
-                disabled
-                className="mt-1 bg-muted text-xs h-9"
-              />
-            </div>
-          </div>
-          <Button className="mt-4" onClick={handleAuthorize}>
-            ✅ Authorize & Close
-          </Button>
-        </div>
-      )}
 
       {/* ── Modals ─────────────────────────────────────────────────────────── */}
 
@@ -772,6 +768,7 @@ function HygieneMonitoring() {
             <DialogTitle>Full Record — {selectedLog?.date}</DialogTitle>
           </DialogHeader>
           {selectedLog && (
+            <>
             <div className="overflow-x-auto">
               <div className="text-xs text-muted-foreground mb-3">
                 Submitted by {selectedLog.submittedBy} at {selectedLog.submittedAt}
@@ -813,6 +810,23 @@ function HygieneMonitoring() {
                 </tbody>
               </table>
             </div>
+            <div className="mt-6 rounded-lg border border-border bg-muted/30 px-4 py-3 text-xs space-y-1">
+              <div className="font-semibold text-muted-foreground uppercase tracking-wide mb-2 text-[10px]">Verified By</div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground w-24">Name:</span>
+                <span className="font-medium text-foreground">{selectedLog.submittedBy}</span>
+                <span className="text-muted-foreground ml-1">— Executive (Food Safety &amp; Hygiene)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground w-24">Date:</span>
+                <span className="font-medium text-foreground">{selectedLog.date}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground w-24">Timestamp:</span>
+                <span className="font-medium text-foreground">{selectedLog.submittedAt}</span>
+              </div>
+            </div>
+            </>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setViewLogOpen(false)}>Close</Button>
