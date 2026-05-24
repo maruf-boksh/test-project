@@ -2,6 +2,7 @@ import { Outlet } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import { TopNav } from "./TopNav";
 import { Sidebar } from "./Sidebar";
+import { TourProvider } from "./AppTour";
 import { RoleContext, type Role } from "@/lib/roles";
 import { WorkflowProvider } from "@/lib/workflow-store";
 import { Toaster } from "@/components/ui/sonner";
@@ -24,6 +25,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
   return (
     <RoleContext.Provider value={{ role, setRole }}>
       <WorkflowProvider>
+        <TourProvider>
         <div className="min-h-screen bg-background">
           <TopNav sidebarCollapsed={sidebarCollapsed} onToggleSidebar={toggleSidebar} />
           <Sidebar collapsed={sidebarCollapsed} />
@@ -37,6 +39,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
           </main>
           <Toaster richColors position="top-right" />
         </div>
+        </TourProvider>
       </WorkflowProvider>
     </RoleContext.Provider>
   );

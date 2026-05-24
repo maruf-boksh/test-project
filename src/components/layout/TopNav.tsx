@@ -6,6 +6,7 @@ import { VoiceCommandButton } from "@/components/layout/VoiceCommandButton";
 import { NotificationsButton } from "@/components/layout/NotificationsButton";
 import { GlobalSearch } from "@/components/layout/GlobalSearch";
 import { UserMenu } from "@/components/layout/UserMenu";
+import { useTour } from "@/components/layout/AppTour";
 import { cn } from "@/lib/utils";
 import logo from "@/assets/logo.png";
 
@@ -15,6 +16,7 @@ type TopNavProps = {
 };
 
 export function TopNav({ sidebarCollapsed, onToggleSidebar }: TopNavProps) {
+  const { startTour } = useTour();
   return (
     <header
       className="fixed top-0 left-0 right-0 h-14 z-40 flex items-center px-4 gap-2 shadow-md text-white"
@@ -60,6 +62,13 @@ export function TopNav({ sidebarCollapsed, onToggleSidebar }: TopNavProps) {
       <GlobalSearch />
 
       <div className="ml-auto flex items-center gap-2 shrink-0">
+        <button
+          onClick={startTour}
+          className="h-8 px-3 rounded-md text-sm font-bold transition-colors"
+          style={{ backgroundColor: "#EEF0F8", color: "#0824D9" }}
+        >
+          Take a Tour?
+        </button>
         <ChatbotButton />
         <VoiceCommandButton />
         <NotificationsButton />

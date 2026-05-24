@@ -166,6 +166,7 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
                   key={entry.to}
                   to={entry.to}
                   title={entry.label}
+                  data-tour={`tour-${entry.key}`}
                   className={cn(
                     "mx-2 flex items-center justify-center h-9 rounded-md transition-colors",
                     active
@@ -178,7 +179,7 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
               );
             }
             return (
-              <div key={entry.key}>
+              <div key={entry.key} data-tour={`tour-${entry.key}`}>
                 <div className="mt-2 mb-1 mx-3 border-t border-sidebar-border/40" />
                 {entry.items.map((item) => {
                   const SubIcon = item.icon;
@@ -225,6 +226,7 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
                 <Link
                   key={entry.to}
                   to={entry.to}
+                  data-tour={`tour-${entry.key}`}
                   className={cn(
                     "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
                     active
@@ -244,6 +246,7 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
               <div key={entry.key}>
                 <button
                   type="button"
+                  data-tour={`tour-${entry.key}`}
                   onClick={() => setOpen((s) => ({ ...s, [entry.key]: !isOpen }))}
                   className={cn(
                     "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
