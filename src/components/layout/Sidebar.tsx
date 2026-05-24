@@ -128,7 +128,9 @@ function isGroup(e: Entry): e is Group {
   return (e as Group).items !== undefined;
 }
 
-export function Sidebar() {
+type SidebarProps = { collapsed?: boolean };
+
+export function Sidebar({ collapsed = false }: SidebarProps) {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const { role } = useRole();
   const perms = ROLE_PERMS[role];
@@ -151,8 +153,65 @@ export function Sidebar() {
   });
   const [open, setOpen] = useState<Record<string, boolean>>(initial);
 
+  if (collapsed) {
+    return (
+      <aside className="fixed left-0 top-14 bottom-0 w-14 bg-sidebar text-sidebar-foreground overflow-y-auto border-r border-sidebar-border z-30 transition-[width] duration-200">
+        <nav className="py-2 space-y-0.5">
+          {filtered.map((entry) => {
+            if (!isGroup(entry)) {
+              const Icon = entry.icon;
+              const active = path === entry.to;
+              return (
+                <Link
+                  key={entry.to}
+                  to={entry.to}
+                  title={entry.label}
+                  className={cn(
+                    "mx-2 flex items-center justify-center h-9 rounded-md transition-colors",
+                    active
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                      : "hover:bg-sidebar-accent/50 text-sidebar-foreground/85",
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                </Link>
+              );
+            }
+            return (
+              <div key={entry.key}>
+                <div className="mt-2 mb-1 mx-3 border-t border-sidebar-border/40" />
+                {entry.items.map((item) => {
+                  const SubIcon = item.icon;
+                  const active = path === item.to;
+                  return (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      title={`${entry.label} · ${item.label}`}
+                      className={cn(
+                        "mx-2 flex items-center justify-center h-9 rounded-md transition-colors",
+                        active
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                          : "hover:bg-sidebar-accent/50 text-sidebar-foreground/85",
+                      )}
+                    >
+                      <SubIcon className="h-4 w-4" />
+                    </Link>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </nav>
+        <div className="mt-4 mb-3 flex justify-center" title={`Active role: ${role}`}>
+          <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
+        </div>
+      </aside>
+    );
+  }
+
   return (
-    <aside className="fixed left-0 top-14 bottom-0 w-60 bg-sidebar text-sidebar-foreground overflow-y-auto border-r border-sidebar-border z-30">
+    <aside className="fixed left-0 top-14 bottom-0 w-60 bg-sidebar text-sidebar-foreground overflow-y-auto border-r border-sidebar-border z-30 transition-[width] duration-200">
       <div className="px-3 py-3">
         <div className="px-3 py-2 text-[10px] uppercase tracking-wider text-sidebar-foreground/60 font-semibold">
           Operations Console

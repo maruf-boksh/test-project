@@ -7,7 +7,7 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, ShoppingCart, FileText, Truck, X } from "lucide-react";
-import { vendors } from "@/lib/sample-data";
+import { vendors, activeItems } from "@/lib/sample-data";
 import { KpiCard } from "@/components/common/KpiCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,6 +66,20 @@ function ProcurementPage() {
     setPoDialogOpen(true);
   };
 
+  // Open the same dialog without a backing requisition — for ad-hoc POs.
+  const openBlankPODialog = () => {
+    setSelectedReq(null);
+    setPoVendor(vendors[0]?.name ?? "");
+    setPoDeliveryDate("");
+    setPoNotes("");
+    setPoOfficeId("OFF-001");
+    setPoWarehouseId("WH-001");
+    setPoLines([
+      { id: `line-${Date.now()}`, name: "", qty: 1, uom: "Kg", unitPrice: 0 },
+    ]);
+    setPoDialogOpen(true);
+  };
+
   const updateLinePrice = (id: string, price: number) => {
     setPoLines(prev => prev.map(l => l.id === id ? { ...l, unitPrice: price } : l));
   };
@@ -82,31 +96,40 @@ function ProcurementPage() {
     setPoLines(prev => prev.filter(l => l.id !== id));
   };
 
+  // Pick an item from the Item Profile; prefills name + UoM + cost-price seed.
+  const pickItem = (id: string, itemName: string) => {
+    const it = activeItems.find(i => i.name === itemName);
+    setPoLines(prev => prev.map(l => l.id === id
+      ? { ...l, name: itemName, uom: it?.uom ?? l.uom, unitPrice: l.unitPrice || (it?.costPrice ?? 0) }
+      : l));
+  };
+
   const totalAmount = useMemo(
     () => poLines.reduce((sum, l) => sum + l.qty * l.unitPrice, 0),
     [poLines]
   );
 
   const savePO = (submitForApproval: boolean) => {
-    if (!selectedReq) return;
     if (!poVendor) { toast.error("Please select a vendor."); return; }
     if (!poOfficeId) { toast.error("Office is required."); return; }
     if (!poWarehouseId) { toast.error("Warehouse is required."); return; }
+    const validLines = poLines.filter(l => l.name.trim() && l.qty > 0);
+    if (validLines.length === 0) { toast.error("Add at least one item line with quantity."); return; }
 
     const poId = `PO-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
     const newPO: WfPurchaseOrder = {
       id: poId,
       vendor: poVendor,
-      items: poLines.length,
+      items: validLines.length,
       amount: totalAmount,
       date: new Date().toISOString().slice(0, 10),
       status: submitForApproval ? "Pending Approval" : "Draft",
-      requisitionRef: selectedReq.id,
+      requisitionRef: selectedReq?.id ?? "—",
       deliveryDate: poDeliveryDate,
       notes: poNotes,
       officeId: poOfficeId,
       warehouseId: poWarehouseId,
-      lineItems: poLines.map(l => ({
+      lineItems: validLines.map(l => ({
         itemId: l.id,
         name: l.name,
         qty: l.qty,
@@ -180,6 +203,9 @@ function ProcurementPage() {
             <Button variant="outline" onClick={() => toast.success("Export started.")}>
               <FileText className="h-4 w-4 mr-1" /> Export
             </Button>
+            <Button onClick={openBlankPODialog}>
+              <Plus className="h-4 w-4 mr-1" /> New PO
+            </Button>
           </>
         }
       />
@@ -209,6 +235,7 @@ function ProcurementPage() {
             data={filteredReqs}
             columns={reqCols}
             searchKeys={["id", "reference", "requestedBy", "status"]}
+            selectable={false}
             actions={(r) => (
               <Button
                 size="sm"
@@ -233,6 +260,7 @@ function ProcurementPage() {
           data={filteredPOs}
           columns={poCols}
           searchKeys={["id", "vendor", "status", "requisitionRef"]}
+          selectable={false}
           actions={(r) => <RowActions row={r} actions={["view", "edit", "print", "delete"]} />}
         />
       </div>
@@ -241,7 +269,9 @@ function ProcurementPage() {
       <Dialog open={poDialogOpen} onOpenChange={setPoDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Create Purchase Order — Req: {selectedReq?.id}</DialogTitle>
+            <DialogTitle>
+              {selectedReq ? `Create Purchase Order — Req: ${selectedReq.id}` : "Create Purchase Order — Direct"}
+            </DialogTitle>
           </DialogHeader>
 
           <div className="grid grid-cols-2 gap-4">
@@ -251,7 +281,11 @@ function ProcurementPage() {
             </div>
             <div>
               <Label>Requisition Ref</Label>
-              <Input disabled value={selectedReq?.id ?? ""} className="mt-1 bg-muted/50" />
+              <Input
+                disabled
+                value={selectedReq?.id ?? "— Direct PO —"}
+                className="mt-1 bg-muted/50 text-muted-foreground"
+              />
             </div>
             <div>
               <Label>Vendor *</Label>
@@ -307,7 +341,21 @@ function ProcurementPage() {
                     </tr>
                   ) : poLines.map(line => (
                     <tr key={line.id} className="border-t border-border/50">
-                      <td className="p-2">{line.name || <span className="text-muted-foreground text-xs">unnamed</span>}</td>
+                      <td className="p-2">
+                        <select
+                          value={line.name}
+                          onChange={(e) => pickItem(line.id, e.target.value)}
+                          className="w-full h-7 rounded-md border border-input bg-background px-2 text-xs"
+                        >
+                          <option value="">Select item…</option>
+                          {activeItems.slice(0, 100).map((it) => (
+                            <option key={it.id} value={it.name}>{it.name}</option>
+                          ))}
+                          {line.name && !activeItems.some(i => i.name === line.name) && (
+                            <option value={line.name}>{line.name}</option>
+                          )}
+                        </select>
+                      </td>
                       <td className="p-2">
                         <Input
                           type="number"

@@ -3,9 +3,11 @@ import { useState, type ReactNode } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { KpiCard } from "@/components/common/KpiCard";
 import { useRole } from "@/lib/roles";
-import { Plane, UtensilsCrossed, AlertTriangle, ShoppingCart, ShieldAlert, Truck, DollarSign, Package } from "lucide-react";
+import { Plane, UtensilsCrossed, AlertTriangle, ShoppingCart, ShieldAlert, Truck, DollarSign, Package, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import {
   flights, productionOrders, purchaseOrders, dispatch, qcChecks,
@@ -53,17 +55,20 @@ type ActivityEntry = {
 };
 
 function useDashboardKpis(period: Period) {
-  const { wfRequisitions, productionEntries, productionEntryRecords, transferNotes } = useWorkflow();
+  const { wfRequisitions, wfPurchaseOrders, productionEntries, productionEntryRecords, transferNotes } = useWorkflow();
 
   // Treat the most recent date in seedFlightOrders as "today" so the data is
   // deterministic against the sample set. Previous distinct date = "yesterday".
   const allDates = Array.from(new Set(seedFlightOrders.map((o) => o.date))).sort();
   const today = allDates[allDates.length - 1] ?? "";
   const yesterday = allDates[allDates.length - 2] ?? "";
-  const flightsToday = seedFlightOrders.filter((o) => o.date === today).length;
+  const todayOrders = seedFlightOrders.filter((o) => o.date === today);
+  const flightsToday = todayOrders.length;
   const flightsYesterday = seedFlightOrders.filter((o) => o.date === yesterday).length;
   const flightsWeek = seedFlightOrders.length;
   const flightsDelta = flightsToday - flightsYesterday;
+  const flightsTodayIds = todayOrders.map((o) => o.id);
+  const flightsAllIds = seedFlightOrders.map((o) => o.id);
 
   // Meals prepared = sum of producedQty from production-floor entries.
   const producedTotal = productionEntryRecords.reduce((s, r) => s + r.producedQty, 0);
@@ -72,28 +77,46 @@ function useDashboardKpis(period: Period) {
     0,
   );
   const targetPct = targetTotal > 0 ? Math.round((producedTotal / targetTotal) * 100) : 0;
+  const mealsRowIds = productionEntries.map((p) => p.id);
 
-  // Delayed flights from the live flight roster.
-  const delayed = flights.filter((f) => f.status === "Delayed").length;
+  // Delayed flights from the live flight roster. Cross-reference flight code
+  // to order-management rows so the highlighter can hit visible rows.
+  const delayedFlights = flights.filter((f) => f.status === "Delayed");
+  const delayed = delayedFlights.length;
+  const delayedFlightCodes = new Set(delayedFlights.map((f) => f.flight));
+  const delayedRowIds = seedFlightOrders
+    .filter((o) => delayedFlightCodes.has(o.flight))
+    .map((o) => o.id);
 
   // QC issues = failed checks; resolved = passing checks.
-  const qcOpen = qcChecks.filter((q) => q.result === "Fail").length;
+  const qcFailed = qcChecks.filter((q) => q.result === "Fail");
+  const qcOpen = qcFailed.length;
   const qcResolved = qcChecks.filter((q) => q.result === "Pass").length;
+  const qcRowIds = qcFailed.map((q) => q.id);
 
-  // Pending POs combines hard-coded seed POs and workflow requisitions awaiting accounts.
+  // Pending POs combines hard-coded seed POs and workflow requisitions/POs awaiting accounts.
   const pendingSeedPOs = purchaseOrders.filter((p) => p.status === "Pending Approval");
+  const pendingWfPOs = wfPurchaseOrders.filter((p) => p.status === "Pending Approval");
   const pendingReqs = wfRequisitions.filter((r) => r.status === "Pending Accounts");
   const pendingPOCount = pendingSeedPOs.length + pendingReqs.length;
   const pendingPOAmount = pendingSeedPOs.reduce((s, p) => s + p.amount, 0);
+  const pendingPORowIds = [
+    ...pendingSeedPOs.map((p) => p.id),
+    ...pendingWfPOs.map((p) => p.id),
+    ...pendingReqs.map((r) => r.id),
+  ];
 
   // Inventory alerts come straight from the FEFO-aware inventory list.
-  const lowItems = inventory.filter((i) => i.status === "Low").length;
-  const criticalItems = inventory.filter((i) => i.status === "Critical").length;
-  const invAlerts = lowItems + criticalItems;
+  const lowItems = inventory.filter((i) => i.status === "Low");
+  const criticalItems = inventory.filter((i) => i.status === "Critical");
+  const invAlerts = lowItems.length + criticalItems.length;
+  const invAlertRowIds = [...criticalItems.map((i) => i.id), ...lowItems.map((i) => i.id)];
 
   // Dispatch: anything that isn't Delivered is still in-flight from a logistics view.
-  const dispatchActive = dispatch.filter((d) => d.status !== "Delivered").length;
+  const activeDispatch = dispatch.filter((d) => d.status !== "Delivered");
+  const dispatchActive = activeDispatch.length;
   const dispatchEnRoute = dispatch.filter((d) => d.status === "En Route").length;
+  const dispatchRowIds = activeDispatch.map((d) => d.id);
 
   // Daily cost = total FEFO inventory valuation (proxy for working-capital exposure).
   const stockValue = inventoryValue(inventory);
@@ -126,34 +149,42 @@ function useDashboardKpis(period: Period) {
         sub: isWeek
           ? `${allDates.length} days covered`
           : `${flightsDelta >= 0 ? "+" : ""}${flightsDelta} vs yesterday`,
+        ids: isWeek ? flightsAllIds : flightsTodayIds,
       },
       meals: {
         value: producedTotal.toLocaleString(),
         sub: targetTotal > 0 ? `${targetPct}% of target` : "no targets yet",
+        ids: mealsRowIds,
       },
       delayed: {
         value: delayed,
         sub: delayed > 0 ? `${Math.max(1, Math.floor(delayed * 0.66))} catering related` : "none",
+        ids: delayedRowIds,
       },
       qcIssues: {
         value: qcOpen,
         sub: `${qcOpen} open, ${qcResolved} resolved`,
+        ids: qcRowIds,
       },
       pendingPOs: {
         value: pendingPOCount,
         sub: pendingPOAmount > 0 ? `${formatLakh(pendingPOAmount)} pending` : "no value pending",
+        ids: pendingPORowIds,
       },
       invAlerts: {
         value: invAlerts,
-        sub: `${criticalItems} critical`,
+        sub: `${criticalItems.length} critical`,
+        ids: invAlertRowIds,
       },
       dispatch: {
         value: dispatchActive,
         sub: `${dispatchEnRoute} en route`,
+        ids: dispatchRowIds,
       },
       dailyCost: {
         value: formatLakh(stockValue),
         sub: "FEFO stock value",
+        ids: [] as string[],
       },
     },
     trend: isWeek ? trendWeek : trendToday,
@@ -166,11 +197,9 @@ function useDashboardKpis(period: Period) {
   };
 }
 
-/** Top 5 active flight orders for the dashboard — uses order-management statuses. */
+/** Active flight orders sorted by operational priority — kept long enough to
+ * group into 5 distinct Order # blocks on the dashboard. */
 function pickActiveFlights() {
-  // Surface the most operationally interesting first: anything not yet Completed,
-  // ordered by status priority (Production > Approved > Dispatched > Pending),
-  // then by ETD ascending.
   const priority: Record<string, number> = {
     Production: 0,
     Approved: 1,
@@ -185,7 +214,18 @@ function pickActiveFlights() {
       if (pa !== pb) return pa - pb;
       return a.etd.localeCompare(b.etd);
     })
-    .slice(0, 5);
+    .slice(0, 24);
+}
+
+/** Group flight orders by Order #, preserving original sort, capped to N orders. */
+function groupActiveByOrder(rows: ReturnType<typeof pickActiveFlights>, maxOrders = 5) {
+  const map = new Map<string, typeof rows>();
+  for (const r of rows) {
+    const list = map.get(r.orderNo);
+    if (list) list.push(r);
+    else map.set(r.orderNo, [r]);
+  }
+  return Array.from(map.entries()).slice(0, maxOrders);
 }
 
 /** Production mix grouped by section, derived from productionOrders. */
@@ -333,28 +373,28 @@ function Dashboard() {
       <div className="usb-livery-stripe h-1 rounded-full mb-5" aria-hidden />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiLink to="/order-management" highlight="active-orders">
+        <KpiLink to="/order-management" highlight="active-orders" ids={data.kpis.flights.ids}>
           <KpiCard label="Flights Today"   value={data.kpis.flights.value}  sub={data.kpis.flights.sub}  icon={Plane}            tone="navy"    />
         </KpiLink>
-        <KpiLink to="/production-entry" highlight="production-list">
+        <KpiLink to="/production-entry" highlight="production-list" ids={data.kpis.meals.ids}>
           <KpiCard label="Meals Prepared"  value={data.kpis.meals.value}    sub={data.kpis.meals.sub}    icon={UtensilsCrossed}  tone="success" />
         </KpiLink>
-        <KpiLink to="/order-management" highlight="active-orders">
+        <KpiLink to="/order-management" highlight="active-orders" ids={data.kpis.delayed.ids}>
           <KpiCard label="Delayed Flights" value={data.kpis.delayed.value}  sub={data.kpis.delayed.sub}  icon={AlertTriangle}    tone="warning" />
         </KpiLink>
-        <KpiLink to="/cooking-temp" highlight="qc-issues">
+        <KpiLink to="/cooking-temp" highlight="qc-issues" ids={data.kpis.qcIssues.ids}>
           <KpiCard label="QC Issues"       value={data.kpis.qcIssues.value} sub={data.kpis.qcIssues.sub} icon={ShieldAlert}      tone="red"     />
         </KpiLink>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-        <KpiLink to="/procurement" highlight="po-list">
+        <KpiLink to="/procurement" highlight="po-list" ids={data.kpis.pendingPOs.ids}>
           <KpiCard label="Pending POs"      value={data.kpis.pendingPOs.value} sub={data.kpis.pendingPOs.sub} icon={ShoppingCart} tone="navy"    />
         </KpiLink>
-        <KpiLink to="/inventory" highlight="inv-alerts">
+        <KpiLink to="/inventory" highlight="inv-alerts" ids={data.kpis.invAlerts.ids}>
           <KpiCard label="Inventory Alerts" value={data.kpis.invAlerts.value}  sub={data.kpis.invAlerts.sub}  icon={Package}      tone="red"     />
         </KpiLink>
-        <KpiLink to="/dispatch" highlight="dispatch-list">
+        <KpiLink to="/dispatch" highlight="dispatch-list" ids={data.kpis.dispatch.ids}>
           <KpiCard label="Dispatch Active"  value={data.kpis.dispatch.value}   sub={data.kpis.dispatch.sub}   icon={Truck}        tone="success" />
         </KpiLink>
         <KpiLink to="/inventory" highlight="inv-value">
@@ -365,7 +405,7 @@ function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6">
         <Card className="lg:col-span-2 leaf-accent-border-left">
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Active Flights Orders</CardTitle>
+            <CardTitle>Active Orders</CardTitle>
             <Link
               to="/order-management"
               onClick={() => flagArrival("active-orders")}
@@ -374,28 +414,8 @@ function Dashboard() {
               View all →
             </Link>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {data.activeFlights.map((f) => (
-              <Link
-                key={f.id}
-                to="/order-management"
-                onClick={() => flagArrival("active-orders")}
-                className="flex items-center justify-between p-2 rounded-md hover:bg-muted/40 border border-border transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-md bg-navy text-navy-foreground grid place-items-center text-xs font-bold shadow-sm">
-                    {f.flight.slice(-3)}
-                  </div>
-                  <div>
-                    <div className="font-medium text-sm">{f.flight} — {f.sector}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {f.orderNo} • ETD {f.etd} • {f.pax} pax
-                    </div>
-                  </div>
-                </div>
-                <StatusBadge status={f.status} />
-              </Link>
-            ))}
+          <CardContent>
+            <ActiveOrdersTabs rows={data.activeFlights} />
           </CardContent>
         </Card>
         <Card className="navy-accent-border-left">
@@ -577,19 +597,135 @@ function Dashboard() {
   );
 }
 
+/**
+ * Active-orders panel: groups legs by Order # (matching the Order Management
+ * page) and exposes Flight / Crew tabs so the user can pivot the same orders
+ * between pax-focused and crew-focused views. Sized to match the Meal
+ * Production Trend chart (~260px scroll area).
+ */
+function ActiveOrdersTabs({ rows }: { rows: ReturnType<typeof pickActiveFlights> }) {
+  const [tab, setTab] = useState<"flight" | "crew">("flight");
+  const groups = groupActiveByOrder(rows, 5);
+
+  if (groups.length === 0) {
+    return <div className="py-6 text-center text-xs text-muted-foreground">No active orders.</div>;
+  }
+
+  return (
+    <Tabs value={tab} onValueChange={(v) => setTab(v as "flight" | "crew")}>
+      <TabsList className="h-auto bg-transparent p-0 border-b border-border w-full justify-start rounded-none mb-2">
+        <TabsTrigger
+          value="flight"
+          className="text-[11px] uppercase tracking-wider rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none px-3 pb-1.5"
+        >
+          Flight Orders
+        </TabsTrigger>
+        <TabsTrigger
+          value="crew"
+          className="text-[11px] uppercase tracking-wider rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none px-3 pb-1.5"
+        >
+          Crew Orders
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="flight" className="mt-0">
+        <div className="h-[260px] overflow-y-auto space-y-1.5 pr-1">
+          {groups.map(([orderNo, legs]) => (
+            <OrderGroupCard key={`flight-${orderNo}`} orderNo={orderNo} legs={legs} mode="flight" />
+          ))}
+        </div>
+      </TabsContent>
+
+      <TabsContent value="crew" className="mt-0">
+        <div className="h-[260px] overflow-y-auto space-y-1.5 pr-1">
+          {groups.map(([orderNo, legs]) => (
+            <OrderGroupCard key={`crew-${orderNo}`} orderNo={orderNo} legs={legs} mode="crew" />
+          ))}
+        </div>
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+/** A single Order # block: header line + one leg row per flight. Compact. */
+function OrderGroupCard({
+  orderNo, legs, mode,
+}: {
+  orderNo: string;
+  legs: ReturnType<typeof pickActiveFlights>;
+  mode: "flight" | "crew";
+}) {
+  const status = legs[0]?.status;
+  const legIds = legs.map((l) => l.id);
+  const totalPax = legs.reduce((s, l) => s + l.pax, 0);
+  const totalCrew = legs.reduce((s, l) => s + l.crew, 0);
+
+  return (
+    <div className="rounded-md border border-border overflow-hidden">
+      <Link
+        to="/order-management"
+        onClick={() => flagArrival({ target: "active-orders", ids: legIds })}
+        className="flex items-center justify-between bg-primary/5 hover:bg-primary/10 px-2.5 py-1 border-b border-border transition-colors"
+      >
+        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+          <span className="font-mono text-xs font-semibold text-primary">{orderNo}</span>
+          {legs.length > 1 && (
+            <Badge variant="outline" className="h-4 px-1 text-[9px] tabular-nums border-primary/30 bg-card text-primary">
+              {legs.length} legs
+            </Badge>
+          )}
+          <span className="text-[10px] text-muted-foreground tabular-nums">
+            · {mode === "flight" ? `${totalPax} pax` : `${totalCrew} crew`}
+          </span>
+        </div>
+        {status && <StatusBadge status={status} />}
+      </Link>
+
+      <div className="divide-y divide-border/60">
+        {legs.map((l) => (
+          <Link
+            key={l.id}
+            to="/order-management"
+            onClick={() => flagArrival({ target: "active-orders", ids: [l.id] })}
+            className="flex items-center gap-2 px-2.5 py-1 hover:bg-muted/40 transition-colors"
+          >
+            <div className="h-5 w-9 rounded bg-navy text-navy-foreground grid place-items-center text-[9px] font-bold shadow-sm shrink-0">
+              {l.flight.slice(-3)}
+            </div>
+            <div className="flex-1 min-w-0 text-xs truncate">
+              <span className="font-medium">{l.flight}</span>
+              <span className="text-muted-foreground"> · {l.sector}</span>
+            </div>
+            <div className="text-[10px] text-muted-foreground tabular-nums shrink-0 flex items-center gap-0.5">
+              {l.etd}
+              <span className="text-border mx-0.5">·</span>
+              {mode === "flight"
+                ? `${l.pax}p`
+                : <><Users className="h-2.5 w-2.5" />{l.crew}</>}
+            </div>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** Wraps a KpiCard in a router link so the whole card becomes clickable. */
 function KpiLink({
-  to, highlight, children,
+  to, highlight, ids, children,
 }: {
   to: "/order-management" | "/production-entry" | "/cooking-temp"
     | "/procurement" | "/inventory" | "/dispatch";
   highlight?: string;
+  ids?: string[];
   children: ReactNode;
 }) {
   return (
     <Link
       to={to}
-      onClick={() => highlight && flagArrival(highlight)}
+      onClick={() => {
+        if (highlight) flagArrival({ target: highlight, ids });
+      }}
       className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
     >
       {children}

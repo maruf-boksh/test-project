@@ -403,7 +403,7 @@ function CrewMealsView({ orders }: { orders: FlightOrder[] }) {
                               </TableCell>
                             </TableRow>
                             {legs.map((o) => (
-                              <TableRow key={o.id} className="hover:bg-muted/30">
+                              <TableRow key={o.id} data-arrival-row-id={o.id} className="hover:bg-muted/30">
                                 <TableCell className="font-mono text-xs pl-8">
                                   <span className="inline-flex items-center gap-1.5">
                                     {o.flight}
@@ -701,7 +701,7 @@ function OrdersList({
                   legs.forEach((o) => {
                     const isReturn = o.direction === "Return";
                     rows.push(
-                      <TableRow key={o.id} className="hover:bg-muted/30">
+                      <TableRow key={o.id} data-arrival-row-id={o.id} className="hover:bg-muted/30">
                         <TableCell className="font-medium pl-6">
                           <div className="flex items-center gap-1.5">
                             {o.flight}

@@ -1,4 +1,4 @@
-export const flights = [
+﻿export const flights = [
   { id: "BS-101", flight: "BS-101", sector: "DAC-CGP", aircraft: "ATR 72-600", dep: "08:30", arr: "09:30", pax: 68, adult: 60, child: 6, infant: 2, crew: 4, type: "Domestic", window: "Breakfast", duration: "1h 0m", status: "Scheduled" },
   { id: "BS-203", flight: "BS-203", sector: "DAC-DXB", aircraft: "B737-800", dep: "12:15", arr: "16:45", pax: 168, adult: 150, child: 14, infant: 4, crew: 8, type: "International", window: "Lunch", duration: "4h 30m", status: "Boarding" },
   { id: "BS-307", flight: "BS-307", sector: "DAC-KUL", aircraft: "A330-300", dep: "23:50", arr: "06:20", pax: 282, adult: 260, child: 18, infant: 4, crew: 12, type: "International", window: "Dinner", duration: "5h 30m", status: "Scheduled" },
@@ -8,7 +8,7 @@ export const flights = [
   { id: "BS-411", flight: "BS-411", sector: "CGP-DXB", aircraft: "B737-800", dep: "18:25", arr: "22:10", pax: 162, adult: 144, child: 14, infant: 4, crew: 8, type: "International", window: "Dinner", duration: "5h 15m", status: "Scheduled" },
 ];
 
-// ── FEFO (First-Expiry-First-Out) inventory model ──────────────────────────
+// â”€â”€ FEFO (First-Expiry-First-Out) inventory model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Each inventory item carries one or more batch lots. Consumption draws from
 // the batch with the earliest expiry first (see allocateFefo below). The
 // legacy `batch` / `expiry` / `stock` fields are kept and derived from the
@@ -21,7 +21,7 @@ export type BatchLot = {
   qty: number;
   /** Cost price per UoM in BDT, used for valuation. */
   costPrice: number;
-  /** ISO date YYYY-MM-DD — when this lot was received. */
+  /** ISO date YYYY-MM-DD â€” when this lot was received. */
   receivedOn: string;
   /** Bin / rack / shelf location inside the warehouse. */
   binLocation?: string;
@@ -58,8 +58,8 @@ function makeInventoryItem(
     ...base,
     batches: sorted,
     stock,
-    batch: earliest?.batchNo ?? "—",
-    expiry: earliest?.expiry ?? "—",
+    batch: earliest?.batchNo ?? "â€”",
+    expiry: earliest?.expiry ?? "â€”",
     status,
   };
 }
@@ -134,16 +134,122 @@ const SEED_INVENTORY: InventoryItem[] = [
   }),
 ];
 
+// â”€â”€ Mutable per-item overrides â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Item Profile holds the canonical allocationMethod + batchTracked flag, but
+// the UI lets users flip them per item at runtime. Overrides are keyed by
+// master id (ITM-xxx). A shared pub/sub lets components subscribe via
+// useSyncExternalStore and re-render on either flag changing.
+
+const allocationOverrides = new Map<string, AllocationMethod>();
+const batchTrackedOverrides = new Map<string, boolean>();
+const allocationListeners = new Set<() => void>();
+let allocationVersion = 0;
+
+function notify(): void {
+  allocationVersion++;
+  allocationListeners.forEach((l) => l());
+}
+
+export function setAllocationMethod(masterId: string, method: AllocationMethod): void {
+  if (allocationOverrides.get(masterId) === method) return;
+  allocationOverrides.set(masterId, method);
+  notify();
+}
+
+export function setBatchTracked(masterId: string, value: boolean): void {
+  if (batchTrackedOverrides.get(masterId) === value) return;
+  batchTrackedOverrides.set(masterId, value);
+  notify();
+}
+
+export function subscribeAllocationMethod(listener: () => void): () => void {
+  allocationListeners.add(listener);
+  return () => { allocationListeners.delete(listener); };
+}
+
+export function getAllocationVersion(): number {
+  return allocationVersion;
+}
+
+/** Resolve the Item Profile master that backs an inventory row, if any. */
+export function resolveMasterForInventory(inventoryId: string): ItemMaster | undefined {
+  const inv = inventory.find((i) => i.id === inventoryId);
+  if (!inv) return undefined;
+  return (
+    items.find((m) => `INV-${m.code}` === inventoryId) ??
+    items.find((m) => m.name === inv.name)
+  );
+}
+
 /** Resolve the allocation method for an inventory item by looking up its master. */
 export function getAllocationMethod(itemId: string): AllocationMethod {
-  const inv = inventory.find((i) => i.id === itemId);
-  if (!inv) return "FEFO";
-  // INV-{code} ids reference an Item Profile by code; legacy INV-100x rows
-  // also map by name fallback.
-  const master =
-    items.find((m) => `INV-${m.code}` === itemId) ??
-    items.find((m) => m.name === inv.name);
+  const master = resolveMasterForInventory(itemId);
+  if (master && allocationOverrides.has(master.id)) {
+    return allocationOverrides.get(master.id)!;
+  }
   return master?.allocationMethod ?? "FEFO";
+}
+
+/** Resolve the effective allocation method for an Item Profile master by id. */
+export function getAllocationMethodForMaster(masterId: string): AllocationMethod {
+  if (allocationOverrides.has(masterId)) return allocationOverrides.get(masterId)!;
+  const master = items.find((m) => m.id === masterId);
+  return master?.allocationMethod ?? "FEFO";
+}
+
+/** Whether an Item Profile master is tracked by batch/lot. Defaults true. */
+export function isBatchTrackedForMaster(masterId: string): boolean {
+  if (batchTrackedOverrides.has(masterId)) return batchTrackedOverrides.get(masterId)!;
+  const master = items.find((m) => m.id === masterId);
+  return master?.batchTracked ?? true;
+}
+
+/** Whether an inventory row's underlying master is tracked by batch. */
+export function isBatchTrackedForInventory(inventoryId: string): boolean {
+  const master = resolveMasterForInventory(inventoryId);
+  if (!master) return true; // orphan rows default to batch-tracked
+  if (batchTrackedOverrides.has(master.id)) return batchTrackedOverrides.get(master.id)!;
+  return master.batchTracked ?? true;
+}
+
+// â”€â”€ ALT UOM helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+export type UomOption = {
+  uom: string;
+  /** Number of Primary UOM units this option converts to. Primary = 1. */
+  conversion: number;
+  isPrimary: boolean;
+};
+
+/** All UOM options usable on a transaction for this item: Primary + any Alt UOMs. */
+export function getUomOptionsForMaster(masterId: string): UomOption[] {
+  const master = items.find((m) => m.id === masterId);
+  if (!master) return [];
+  const opts: UomOption[] = [{ uom: master.uom, conversion: 1, isPrimary: true }];
+  for (const alt of master.altUoms ?? []) {
+    if (alt.conversion > 0 && alt.uom !== master.uom) {
+      opts.push({ uom: alt.uom, conversion: alt.conversion, isPrimary: false });
+    }
+  }
+  return opts;
+}
+
+/**
+ * Convert a transaction quantity entered in any UOM (Primary or Alt) to the
+ * item's Primary UOM. Returns the original qty if no matching alt is found.
+ */
+export function toPrimaryQty(masterId: string, qty: number, uom: string): number {
+  const opts = getUomOptionsForMaster(masterId);
+  const opt = opts.find((o) => o.uom === uom);
+  if (!opt) return qty;
+  return qty * opt.conversion;
+}
+
+/** Same as toPrimaryQty but resolves the master from an item NAME (free-text lookup). */
+export function toPrimaryQtyByName(itemName: string, qty: number, uom: string): number {
+  const master = items.find((m) => m.name === itemName);
+  if (!master) return qty;
+  return toPrimaryQty(master.id, qty, uom);
 }
 
 /** Batches sorted by the item's allocation method (FEFO = expiry asc, FIFO = receivedOn asc). */
@@ -208,12 +314,12 @@ export function allocate(itemId: string, qty: number): AllocationResult {
   return { allocations, allocated, shortfall: Math.max(0, remaining), totalCost, method };
 }
 
-/** Backwards-compat alias — prefer `allocate()`. */
+/** Backwards-compat alias â€” prefer `allocate()`. */
 export function allocateFefo(itemId: string, qty: number): AllocationResult {
   return allocate(itemId, qty);
 }
 
-/** Total inventory valuation = Σ (batch.qty × batch.costPrice). */
+/** Total inventory valuation = Î£ (batch.qty Ã— batch.costPrice). */
 export function inventoryValue(items: InventoryItem[] = inventory): number {
   return items.reduce(
     (sum, i) => sum + i.batches.reduce((s, b) => s + b.qty * b.costPrice, 0),
@@ -233,13 +339,75 @@ export function nearExpiryCount(
   ).length;
 }
 
-export const purchaseOrders = [
-  { id: "PO-2025-0451", vendor: "Fresh Farms Ltd", items: 12, amount: 248500, date: "2025-11-04", status: "Pending Approval" },
-  { id: "PO-2025-0450", vendor: "Halal Meats Co.", items: 6, amount: 184000, date: "2025-11-03", status: "Approved" },
-  { id: "PO-2025-0449", vendor: "Aqua Pure BD", items: 3, amount: 92000, date: "2025-11-03", status: "Delivered" },
-  { id: "PO-2025-0448", vendor: "Spice World", items: 18, amount: 64200, date: "2025-11-02", status: "Ordered" },
-  { id: "PO-2025-0447", vendor: "Dhaka Dairy", items: 4, amount: 38500, date: "2025-11-02", status: "Closed" },
-  { id: "PO-2025-0446", vendor: "Royal Bakery Supplies", items: 9, amount: 122700, date: "2025-11-01", status: "Draft" },
+export type SeedPOLineItem = {
+  itemId: string;
+  name: string;
+  qty: number;
+  uom: string;
+  unitPrice: number;
+};
+
+export const purchaseOrders: Array<{
+  id: string;
+  vendor: string;
+  items: number;
+  amount: number;
+  date: string;
+  status: string;
+  lineItems: SeedPOLineItem[];
+}> = [
+  {
+    id: "PO-2025-0451", vendor: "Fresh Farms Ltd", items: 5, amount: 248500, date: "2025-11-04", status: "Pending Approval",
+    lineItems: [
+      { itemId: "RM-VEG-TOM", name: "Tomato",      qty: 180, uom: "Kg", unitPrice: 58 },
+      { itemId: "RM-VEG-ONN", name: "Onion",       qty: 240, uom: "Kg", unitPrice: 48 },
+      { itemId: "RM-VEG-POT", name: "Potato",      qty: 320, uom: "Kg", unitPrice: 38 },
+      { itemId: "RM-VEG-CAR", name: "Carrot",      qty: 90,  uom: "Kg", unitPrice: 52 },
+      { itemId: "RM-VEG-CUC", name: "Cucumber",    qty: 80,  uom: "Kg", unitPrice: 45 },
+    ],
+  },
+  {
+    id: "PO-2025-0450", vendor: "Halal Meats Co.", items: 3, amount: 184000, date: "2025-11-03", status: "Approved",
+    lineItems: [
+      { itemId: "RM-CHK-BRST", name: "Chicken Breast",   qty: 220, uom: "Kg", unitPrice: 378 },
+      { itemId: "RM-CHK-THGH", name: "Chicken Thigh",    qty: 140, uom: "Kg", unitPrice: 340 },
+      { itemId: "RM-BEEF-TLN", name: "Beef Tenderloin",  qty: 60,  uom: "Kg", unitPrice: 850 },
+    ],
+  },
+  {
+    id: "PO-2025-0449", vendor: "Aqua Pure BD", items: 2, amount: 92000, date: "2025-11-03", status: "Delivered",
+    lineItems: [
+      { itemId: "RM-BV-WTR250", name: "Mineral Water 250ml", qty: 2400, uom: "Bottle", unitPrice: 18 },
+      { itemId: "RM-BV-WTR500", name: "Mineral Water 500ml", qty: 1200, uom: "Bottle", unitPrice: 28 },
+    ],
+  },
+  {
+    id: "PO-2025-0448", vendor: "Spice World", items: 5, amount: 64200, date: "2025-11-02", status: "Ordered",
+    lineItems: [
+      { itemId: "RM-SPC-CMN", name: "Cumin Powder",    qty: 22, uom: "Kg", unitPrice: 260 },
+      { itemId: "RM-SPC-TRM", name: "Turmeric Powder", qty: 18, uom: "Kg", unitPrice: 245 },
+      { itemId: "RM-SPC-CHL", name: "Chili Powder",    qty: 25, uom: "Kg", unitPrice: 280 },
+      { itemId: "RM-SPC-GMS", name: "Garam Masala",    qty: 12, uom: "Kg", unitPrice: 320 },
+      { itemId: "RM-SPC-BPP", name: "Black Pepper",    qty: 8,  uom: "Kg", unitPrice: 380 },
+    ],
+  },
+  {
+    id: "PO-2025-0447", vendor: "Dhaka Dairy", items: 3, amount: 38500, date: "2025-11-02", status: "Closed",
+    lineItems: [
+      { itemId: "RM-DRY-BTRS", name: "Butter (Salted)",     qty: 30,  uom: "Kg",    unitPrice: 480 },
+      { itemId: "RM-DRY-MLK",  name: "Milk (Full Cream)",   qty: 120, uom: "Litre", unitPrice: 145 },
+      { itemId: "RM-DRY-YGT",  name: "Yogurt",              qty: 40,  uom: "Kg",    unitPrice: 180 },
+    ],
+  },
+  {
+    id: "PO-2025-0446", vendor: "Royal Bakery Supplies", items: 4, amount: 122700, date: "2025-11-01", status: "Draft",
+    lineItems: [
+      { itemId: "RM-FLR-WHT",  name: "Wheat Flour",        qty: 200, uom: "Kg",   unitPrice: 88  },
+      { itemId: "RM-OTH-YST",  name: "Yeast (Active Dry)", qty: 30,  uom: "Pack", unitPrice: 110 },
+      { itemId: "RM-OTH-BKP",  name: "Baking Powder",      qty: 15,  uom: "Pack", unitPrice: 90  },
+      { itemId: "RM-OTH-CHOC", name: "Chocolate (Dark)",   qty: 18,  uom: "Kg",   unitPrice: 540 },
+    ],
+  },
 ];
 
 export const demandRequests = [
@@ -302,13 +470,13 @@ export const hygieneChecks = [
   { id: "HM-003", time: "10:00", activity: "Wastage has been disposed properly", status: "Completed", remarks: "Waste bins cleared." },
   { id: "HM-004", time: "12:00", activity: "All cooking utensils are clean & good condition", status: "Completed", remarks: "Utensils washed and stored." },
   { id: "HM-005", time: "14:00", activity: "Any food item kept in danger zone", status: "Pending", remarks: "Monitor temperature in hot hold." },
-  { id: "HM-006", time: "16:00", activity: "All chiller/freezer/AC working properly", status: "Completed", remarks: "Chiller stable at 4°C." },
+  { id: "HM-006", time: "16:00", activity: "All chiller/freezer/AC working properly", status: "Completed", remarks: "Chiller stable at 4Â°C." },
   { id: "HM-007", time: "18:00", activity: "Raw & cooked food kept seperatly in Kitchen/Chiller/freezer", status: "Completed", remarks: "Segregation maintained." },
   { id: "HM-008", time: "20:00", activity: "Maintaining FIFO properly in Kitchen/Chiller/Freezer/Pack/Bakery", status: "Completed", remarks: "FIFO labels verified." },
   { id: "HM-009", time: "22:00", activity: "All open food are covered properly with Date code in Kitchen/Chiller/Freezer/Pack/Bakery", status: "Completed", remarks: "Dated and covered." },
   { id: "HM-010", time: "06:00", activity: "Any expired/spoiled product found Kitchen/Chiller/Freezer/Pack/Bakery", status: "Completed", remarks: "No spoiled items found." },
   { id: "HM-011", time: "08:00", activity: "Any Cooked food, RM/PM are kept directly on the floor", status: "Pending", remarks: "Floor placement inspected." },
-  { id: "HM-012", time: "10:00", activity: "Packaging room temp. is below 15°C", status: "Completed", remarks: "Room at 13.8°C." },
+  { id: "HM-012", time: "10:00", activity: "Packaging room temp. is below 15Â°C", status: "Completed", remarks: "Room at 13.8Â°C." },
   { id: "HM-013", time: "12:00", activity: "Date code check in packaging room", status: "Completed", remarks: "Date codes are correct." },
   { id: "HM-014", time: "14:00", activity: "Meal PKT Holding inside packaging room (Max. 10 Baskets)", status: "Completed", remarks: "5 baskets in use." },
   { id: "HM-015", time: "16:00", activity: "Presence of any pest/insects", status: "Completed", remarks: "Inspection clear." },
@@ -361,7 +529,7 @@ export const dispatch = [
 ];
 
 export const qcChecks = [
-  { id: "QC-3301", flight: "BS-203", batch: "PRD-9001", parameter: "Core Temperature", value: "74°C", limit: ">70°C", result: "Pass", inspector: "F. Begum" },
+  { id: "QC-3301", flight: "BS-203", batch: "PRD-9001", parameter: "Core Temperature", value: "74Â°C", limit: ">70Â°C", result: "Pass", inspector: "F. Begum" },
   { id: "QC-3302", flight: "BS-307", batch: "PRD-9003", parameter: "pH Level", value: "5.8", limit: "5.5-6.5", result: "Pass", inspector: "F. Begum" },
   { id: "QC-3303", flight: "BS-225", batch: "PRD-9006", parameter: "Visual Inspection", value: "Discoloration", limit: "Clean", result: "Fail", inspector: "A. Khan" },
   { id: "QC-3304", flight: "BS-101", batch: "PRD-9005", parameter: "Hygiene Audit", value: "98/100", limit: ">90", result: "Pass", inspector: "A. Khan" },
@@ -422,7 +590,7 @@ export const amenitiesCutlery = [
   { id: "AM-CUT-06", item: "Disposable Cup 180ml", uom: "Pcs", stock: 2100, reorder: 3000, status: "Critical" },
 ];
 
-// ── Airline Consumables ────────────────────────────────────────────────────
+// â”€â”€ Airline Consumables â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type ConsumableCategory =
   | "Napkin" | "Cup" | "Cutlery" | "Tissue" | "Amenity Kit"
@@ -473,17 +641,17 @@ export type ConsumableUsage = {
 };
 
 export const consumableUsage: ConsumableUsage[] = [
-  { id: "CU-9001", date: "2026-05-20", flight: "BG-401", sector: "DAC→DXB", cabinClass: "Y", itemId: "CNS-001", itemName: "Dinner Napkin (Y-class)", qty: 186, uom: "Pcs" },
-  { id: "CU-9002", date: "2026-05-20", flight: "BG-401", sector: "DAC→DXB", cabinClass: "Y", itemId: "CNS-006", itemName: "Plastic Spoon (Heavy Duty)", qty: 186, uom: "Pcs" },
-  { id: "CU-9003", date: "2026-05-20", flight: "BG-401", sector: "DAC→DXB", cabinClass: "B", itemId: "CNS-013", itemName: "B-Class Amenity Kit (Long Haul)", qty: 28, uom: "Kit" },
-  { id: "CU-9004", date: "2026-05-20", flight: "BG-522", sector: "DAC→LHR", cabinClass: "Y", itemId: "CNS-016", itemName: "Meal Box (Foil Lid)", qty: 214, uom: "Pcs" },
-  { id: "CU-9005", date: "2026-05-20", flight: "BG-522", sector: "DAC→LHR", cabinClass: "B", itemId: "CNS-005", itemName: "Hot Beverage Cup 220ml (Lid)", qty: 64, uom: "Pcs" },
-  { id: "CU-9006", date: "2026-05-19", flight: "VQ-901", sector: "DAC→KUL", cabinClass: "Y", itemId: "CNS-010", itemName: "Wet Hand Towel (Refresh)", qty: 162, uom: "Pcs" },
-  { id: "CU-9007", date: "2026-05-19", flight: "BS-141", sector: "DAC→CGP", cabinClass: "Y", itemId: "CNS-009", itemName: "Wooden Stirrer", qty: 68, uom: "Pcs" },
-  { id: "CU-9008", date: "2026-05-19", flight: "BS-105", sector: "DAC→CXB", cabinClass: "Y", itemId: "CNS-014", itemName: "Casserole Plastic Tray (Hot)", qty: 72, uom: "Pcs" },
+  { id: "CU-9001", date: "2026-05-20", flight: "BG-401", sector: "DACâ†’DXB", cabinClass: "Y", itemId: "CNS-001", itemName: "Dinner Napkin (Y-class)", qty: 186, uom: "Pcs" },
+  { id: "CU-9002", date: "2026-05-20", flight: "BG-401", sector: "DACâ†’DXB", cabinClass: "Y", itemId: "CNS-006", itemName: "Plastic Spoon (Heavy Duty)", qty: 186, uom: "Pcs" },
+  { id: "CU-9003", date: "2026-05-20", flight: "BG-401", sector: "DACâ†’DXB", cabinClass: "B", itemId: "CNS-013", itemName: "B-Class Amenity Kit (Long Haul)", qty: 28, uom: "Kit" },
+  { id: "CU-9004", date: "2026-05-20", flight: "BG-522", sector: "DACâ†’LHR", cabinClass: "Y", itemId: "CNS-016", itemName: "Meal Box (Foil Lid)", qty: 214, uom: "Pcs" },
+  { id: "CU-9005", date: "2026-05-20", flight: "BG-522", sector: "DACâ†’LHR", cabinClass: "B", itemId: "CNS-005", itemName: "Hot Beverage Cup 220ml (Lid)", qty: 64, uom: "Pcs" },
+  { id: "CU-9006", date: "2026-05-19", flight: "VQ-901", sector: "DACâ†’KUL", cabinClass: "Y", itemId: "CNS-010", itemName: "Wet Hand Towel (Refresh)", qty: 162, uom: "Pcs" },
+  { id: "CU-9007", date: "2026-05-19", flight: "BS-141", sector: "DACâ†’CGP", cabinClass: "Y", itemId: "CNS-009", itemName: "Wooden Stirrer", qty: 68, uom: "Pcs" },
+  { id: "CU-9008", date: "2026-05-19", flight: "BS-105", sector: "DACâ†’CXB", cabinClass: "Y", itemId: "CNS-014", itemName: "Casserole Plastic Tray (Hot)", qty: 72, uom: "Pcs" },
 ];
 
-// ── Airline Equipments ─────────────────────────────────────────────────────
+// â”€â”€ Airline Equipments â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type EquipmentCategory =
   | "Trolley" | "Oven Rack" | "Container" | "Tray" | "Galley Insert" | "Hot Box";
@@ -529,7 +697,7 @@ export const equipmentReturns: EquipmentReturn[] = [
   { id: "ER-7002", date: "2026-05-20 18:42", flight: "BG-402", assetId: "EQP-O-002", assetName: "Standard Oven Rack",     returnedBy: "T. Rahman", condition: "Good" },
   { id: "ER-7003", date: "2026-05-20 22:10", flight: "VQ-903", assetId: "EQP-C-001", assetName: "Meal Tray Container",    returnedBy: "S. Ahmed",  condition: "Minor Issue", remarks: "Latch loose" },
   { id: "ER-7004", date: "2026-05-19 09:30", flight: "BS-142", assetId: "EQP-TR-01", assetName: "Cabin Service Tray",     returnedBy: "M. Karim",  condition: "Good" },
-  { id: "ER-7005", date: "2026-05-18 23:55", flight: "BG-522", assetId: "EQP-O-003", assetName: "Wide Oven Rack",         returnedBy: "T. Rahman", condition: "Damaged",     remarks: "Bent shelf — sent to repair" },
+  { id: "ER-7005", date: "2026-05-18 23:55", flight: "BG-522", assetId: "EQP-O-003", assetName: "Wide Oven Rack",         returnedBy: "T. Rahman", condition: "Damaged",     remarks: "Bent shelf â€” sent to repair" },
 ];
 
 export type DamageReport = {
@@ -547,25 +715,25 @@ export const damageReports: DamageReport[] = [
   { id: "DR-2201", date: "2026-05-18", assetId: "EQP-O-003", assetName: "Wide Oven Rack",         severity: "Severe",   reportedBy: "T. Rahman", description: "Shelf bent during turbulence; cannot hold trays.", status: "Under Repair" },
   { id: "DR-2202", date: "2026-05-17", assetId: "EQP-C-001", assetName: "Meal Tray Container",    severity: "Minor",    reportedBy: "S. Ahmed",  description: "Latch loose, needs adjustment.",                  status: "Open" },
   { id: "DR-2203", date: "2026-05-12", assetId: "EQP-T-003", assetName: "Full Size Meal Trolley", severity: "Moderate", reportedBy: "M. Karim",  description: "Wheel wobble; brake mechanism stiff.",            status: "Under Repair" },
-  { id: "DR-2204", date: "2026-05-05", assetId: "EQP-G-001", assetName: "Galley Insert (Half)",   severity: "Minor",    reportedBy: "F. Begum",  description: "Surface scratched — cosmetic only.",              status: "Repaired" },
+  { id: "DR-2204", date: "2026-05-05", assetId: "EQP-G-001", assetName: "Galley Insert (Half)",   severity: "Minor",    reportedBy: "F. Begum",  description: "Surface scratched â€” cosmetic only.",              status: "Repaired" },
 ];
 
 export const receiveItems = [
-  { id: "GRN-5501", po: "PO-2025-0450", vendor: "Halal Meats Co.", item: "Chicken Breast", qty: 120, uom: "Kg", temp: "3°C", expiry: "2025-11-18", receivedBy: "M. Karim", status: "Accepted" },
+  { id: "GRN-5501", po: "PO-2025-0450", vendor: "Halal Meats Co.", item: "Chicken Breast", qty: 120, uom: "Kg", temp: "3Â°C", expiry: "2025-11-18", receivedBy: "M. Karim", status: "Accepted" },
   { id: "GRN-5502", po: "PO-2025-0449", vendor: "Aqua Pure BD", item: "Mineral Water 250ml", qty: 2400, uom: "Bottle", temp: "Ambient", expiry: "2027-06-01", receivedBy: "M. Karim", status: "Accepted" },
-  { id: "GRN-5503", po: "PO-2025-0451", vendor: "Fresh Farms Ltd", item: "Tomato", qty: 80, uom: "Kg", temp: "8°C", expiry: "2025-11-12", receivedBy: "S. Ahmed", status: "On Hold" },
+  { id: "GRN-5503", po: "PO-2025-0451", vendor: "Fresh Farms Ltd", item: "Tomato", qty: 80, uom: "Kg", temp: "8Â°C", expiry: "2025-11-12", receivedBy: "S. Ahmed", status: "On Hold" },
   { id: "GRN-5504", po: "PO-2025-0448", vendor: "Spice World", item: "Cumin Powder", qty: 22, uom: "Kg", temp: "Ambient", expiry: "2026-08-30", receivedBy: "S. Ahmed", status: "Accepted" },
-  { id: "GRN-5505", po: "PO-2025-0451", vendor: "Fresh Farms Ltd", item: "Lettuce", qty: 35, uom: "Kg", temp: "12°C", expiry: "2025-11-08", receivedBy: "F. Begum", status: "Rejected" },
-  { id: "GRN-5506", po: "PO-2025-0447", vendor: "Dhaka Dairy", item: "Butter Salted", qty: 30, uom: "Kg", temp: "4°C", expiry: "2025-12-20", receivedBy: "F. Begum", status: "Accepted" },
+  { id: "GRN-5505", po: "PO-2025-0451", vendor: "Fresh Farms Ltd", item: "Lettuce", qty: 35, uom: "Kg", temp: "12Â°C", expiry: "2025-11-08", receivedBy: "F. Begum", status: "Rejected" },
+  { id: "GRN-5506", po: "PO-2025-0447", vendor: "Dhaka Dairy", item: "Butter Salted", qty: 30, uom: "Kg", temp: "4Â°C", expiry: "2025-12-20", receivedBy: "F. Begum", status: "Accepted" },
 ];
 
 export const cookingTempLogs = [
-  { id: "CT-8801", batch: "PRD-9001", item: "Chicken Biryani", cookingTime: "45 min", standardTemp: "≥75°C", standardTempMin: 75, measuredTemp: 78, cookedBy: "Chef R. Karim", sensoryPass: true, checkedBy: "F. Begum" },
-  { id: "CT-8802", batch: "PRD-9002", item: "Veg Pulao", cookingTime: "30 min", standardTemp: "≥70°C", standardTempMin: 70, measuredTemp: 73, cookedBy: "Chef N. Hasan", sensoryPass: true, checkedBy: "F. Begum" },
-  { id: "CT-8803", batch: "PRD-9003", item: "Grilled Salmon", cookingTime: "18 min", standardTemp: "≥63°C", standardTempMin: 63, measuredTemp: 68, cookedBy: "Chef A. Rahim", sensoryPass: true, checkedBy: "A. Khan" },
-  { id: "CT-8804", batch: "PRD-9004", item: "Continental Breakfast", cookingTime: "12 min", standardTemp: "≥65°C", standardTempMin: 65, measuredTemp: 60, cookedBy: "Chef T. Hossain", sensoryPass: false, checkedBy: "A. Khan" },
-  { id: "CT-8805", batch: "PRD-9005", item: "Hindu Meal Special", cookingTime: "40 min", standardTemp: "≥75°C", standardTempMin: 75, measuredTemp: 76, cookedBy: "Chef S. Mahmud", sensoryPass: true, checkedBy: "F. Begum" },
-  { id: "CT-8806", batch: "PRD-9006", item: "Heavy Snack Box", cookingTime: "20 min", standardTemp: "≥70°C", standardTempMin: 70, measuredTemp: 72, cookedBy: "Chef N. Hasan", sensoryPass: true, checkedBy: "A. Khan" },
+  { id: "CT-8801", batch: "PRD-9001", item: "Chicken Biryani", cookingTime: "45 min", standardTemp: "â‰¥75Â°C", standardTempMin: 75, measuredTemp: 78, cookedBy: "Chef R. Karim", sensoryPass: true, checkedBy: "F. Begum" },
+  { id: "CT-8802", batch: "PRD-9002", item: "Veg Pulao", cookingTime: "30 min", standardTemp: "â‰¥70Â°C", standardTempMin: 70, measuredTemp: 73, cookedBy: "Chef N. Hasan", sensoryPass: true, checkedBy: "F. Begum" },
+  { id: "CT-8803", batch: "PRD-9003", item: "Grilled Salmon", cookingTime: "18 min", standardTemp: "â‰¥63Â°C", standardTempMin: 63, measuredTemp: 68, cookedBy: "Chef A. Rahim", sensoryPass: true, checkedBy: "A. Khan" },
+  { id: "CT-8804", batch: "PRD-9004", item: "Continental Breakfast", cookingTime: "12 min", standardTemp: "â‰¥65Â°C", standardTempMin: 65, measuredTemp: 60, cookedBy: "Chef T. Hossain", sensoryPass: false, checkedBy: "A. Khan" },
+  { id: "CT-8805", batch: "PRD-9005", item: "Hindu Meal Special", cookingTime: "40 min", standardTemp: "â‰¥75Â°C", standardTempMin: 75, measuredTemp: 76, cookedBy: "Chef S. Mahmud", sensoryPass: true, checkedBy: "F. Begum" },
+  { id: "CT-8806", batch: "PRD-9006", item: "Heavy Snack Box", cookingTime: "20 min", standardTemp: "â‰¥70Â°C", standardTempMin: 70, measuredTemp: 72, cookedBy: "Chef N. Hasan", sensoryPass: true, checkedBy: "A. Khan" },
 ];
 
 export type BomProductionItem = {
@@ -601,7 +769,7 @@ export type BillOfMaterial = {
   date: string;
   itemCode: string;
   itemName: string;
-  department: string;
+  category: string;
   section: string;
   uom: string;
   altUom?: string;
@@ -620,7 +788,7 @@ const _billOfMaterialsRaw: BillOfMaterial[] = [
     id: "BOM-001", name: "Chicken Biryani", components: 9, version: "v3.2",
     yield: "100 portions", lastUpdated: "2025-10-22", status: "Active",
     date: "2026-05-20", itemCode: "FG-27041", itemName: "Chicken Biryani",
-    department: "Hot Kitchen", section: "Main Course", uom: "PCS", altUom: "",
+    category: "Hot Kitchen", section: "Main Course", uom: "PCS", altUom: "",
     lotSize: 1, bomValue: 40.00, createdBy: "JT Jahid Hossain",
     bomType: "Single Output",
     productionItems: [
@@ -635,7 +803,7 @@ const _billOfMaterialsRaw: BillOfMaterial[] = [
     id: "BOM-002", name: "Veg Pulao", components: 7, version: "v2.1",
     yield: "100 portions", lastUpdated: "2025-09-15", status: "Active",
     date: "2026-05-10", itemCode: "FG-27036", itemName: "Veg Pulao",
-    department: "Hot Kitchen", section: "Main Course", uom: "pieces", altUom: "",
+    category: "Hot Kitchen", section: "Main Course", uom: "pieces", altUom: "",
     lotSize: 1, bomValue: 21.50, createdBy: "Omor Siam",
     bomType: "Single Output",
     productionItems: [
@@ -650,7 +818,7 @@ const _billOfMaterialsRaw: BillOfMaterial[] = [
     id: "BOM-003", name: "Continental Breakfast", components: 11, version: "v1.4",
     yield: "Set", lastUpdated: "2025-10-30", status: "Active",
     date: "2026-05-10", itemCode: "FG-27037", itemName: "Continental Breakfast",
-    department: "Cold Kitchen", section: "Breakfast", uom: "pieces", altUom: "",
+    category: "Cold Kitchen", section: "Breakfast", uom: "pieces", altUom: "",
     lotSize: 1, bomValue: 82.18, createdBy: "Munna Idris",
     bomType: "Single Output",
     productionItems: [
@@ -666,7 +834,7 @@ const _billOfMaterialsRaw: BillOfMaterial[] = [
     id: "BOM-004", name: "Grilled Salmon", components: 8, version: "v1.0",
     yield: "100 portions", lastUpdated: "2025-11-01", status: "Draft",
     date: "2026-04-30", itemCode: "FG-27021", itemName: "Grilled Salmon",
-    department: "Hot Kitchen", section: "Main Course", uom: "pieces", altUom: "",
+    category: "Hot Kitchen", section: "Main Course", uom: "pieces", altUom: "",
     lotSize: 1, bomValue: 246.80, createdBy: "Abul Hossain Raju",
     bomType: "Single Output",
     productionItems: [
@@ -682,7 +850,7 @@ const _billOfMaterialsRaw: BillOfMaterial[] = [
     id: "BOM-005", name: "Hindu Meal Special", components: 10, version: "v2.0",
     yield: "50 portions", lastUpdated: "2025-10-12", status: "Active",
     date: "2026-04-23", itemCode: "FG-1010", itemName: "Hindu Meal Special",
-    department: "Special Meal", section: "Religious", uom: "Packet", altUom: "",
+    category: "Special Meal", section: "Religious", uom: "Packet", altUom: "",
     lotSize: 10, bomValue: 285.00, createdBy: "Sujon Khan",
     bomType: "Single Output",
     productionItems: [
@@ -698,7 +866,7 @@ const _billOfMaterialsRaw: BillOfMaterial[] = [
     id: "BOM-006", name: "Crew Combo Meal", components: 6, version: "v1.2",
     yield: "Set", lastUpdated: "2025-08-28", status: "Active",
     date: "2026-04-21", itemCode: "FG-27013", itemName: "Crew Combo Meal",
-    department: "Hot Kitchen", section: "Crew", uom: "PCS", altUom: "",
+    category: "Hot Kitchen", section: "Crew", uom: "PCS", altUom: "",
     lotSize: 1, bomValue: 28.37, createdBy: "Tamim Ehsan",
     bomType: "Single Output",
     productionItems: [
@@ -714,7 +882,7 @@ const _billOfMaterialsRaw: BillOfMaterial[] = [
     id: "BOM-007", name: "Mum 250 ml water", components: 1, version: "v1.0",
     yield: "1 PCS", lastUpdated: "2026-04-21", status: "Active",
     date: "2026-04-21", itemCode: "FG-27013", itemName: "Mum 250 ml water",
-    department: "Beverage", section: "Water", uom: "PCS", altUom: "",
+    category: "Beverage", section: "Water", uom: "PCS", altUom: "",
     lotSize: 1, bomValue: 28.37, createdBy: "Fahim Shahriar Rifat",
     bomType: "Single Output",
     productionItems: [
@@ -730,7 +898,7 @@ const _billOfMaterialsRaw: BillOfMaterial[] = [
     id: "BOM-008", name: "10w40 Lubricant", components: 1, version: "v1.0",
     yield: "1 Litre", lastUpdated: "2026-04-21", status: "Active",
     date: "2026-04-21", itemCode: "343", itemName: "Lubricant",
-    department: "Maintenance", section: "Workshop", uom: "Liter", altUom: "",
+    category: "Maintenance", section: "Workshop", uom: "Liter", altUom: "",
     lotSize: 1, bomValue: 2311.30, createdBy: "AL Mamun",
     bomType: "Single Output",
     productionItems: [
@@ -743,7 +911,7 @@ const _billOfMaterialsRaw: BillOfMaterial[] = [
   },
 ];
 
-// Backfill defaults so existing BOMs report under Head Office Dhaka · Hot Kitchen
+// Backfill defaults so existing BOMs report under Head Office Dhaka Â· Hot Kitchen
 export const billOfMaterials: BillOfMaterial[] = _billOfMaterialsRaw.map((b) => ({
   ...b,
   officeId: b.officeId ?? "OFF-001",
@@ -797,7 +965,7 @@ export function nextFlightStatus(s: FlightOrderStatus): FlightOrderStatus | null
   return FLIGHT_ORDER_STATUS_FLOW[i + 1];
 }
 
-// ── Crew-meal slot helpers ──────────────────────────────────────────────────
+// â”€â”€ Crew-meal slot helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type MealSlot = "Breakfast" | "Heavy Snacks" | "Lunch" | "Dinner";
 
@@ -820,11 +988,11 @@ export function getMealSlot(etd: string): MealSlot {
 const DOMESTIC_AIRPORTS = new Set(["DAC", "CGP", "CXB", "ZYL", "JSR", "RJH", "BZL"]);
 
 export function isDomesticSector(sector: string): boolean {
-  const [from, to] = sector.split(" → ").map((s) => s.trim());
+  const [from, to] = sector.split(" â†’ ").map((s) => s.trim());
   return DOMESTIC_AIRPORTS.has(from) && DOMESTIC_AIRPORTS.has(to);
 }
 
-// ── Special meals (IATA codes) ──────────────────────────────────────────────
+// â”€â”€ Special meals (IATA codes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Master list of special meal codes used by airlines worldwide. Same data is
 // surfaced on the Create form (DDL) and the Details dialog (per-type chips).
 
@@ -864,11 +1032,11 @@ export type SpecialMealEntry = {
   mealCode: string; // matches SPECIAL_MEAL_CODES.code
 };
 
-// Each row is ONE flight. Multiple rows can share an `orderNo` — that's how
+// Each row is ONE flight. Multiple rows can share an `orderNo` â€” that's how
 // a single Order # becomes a multi-leg order. `id` stays unique per row for
 // stable React keys / cross-references. `direction` marks each leg as the
 // outbound or the return flight of the rotation.
-// `specialMealRoster` is the per-passenger manifest of special meals — when
+// `specialMealRoster` is the per-passenger manifest of special meals â€” when
 // present it's the source of truth and `specialMeals` should equal its length.
 export type FlightOrderRow = {
   id: string;
@@ -936,42 +1104,42 @@ const ROSTER_FO_007: SpecialMealEntry[] = [
 ];
 
 export const seedFlightOrders: FlightOrderRow[] = [
-  // ORD-3411 — completed rotation
-  { id: "FO-001", orderNo: "ORD-3411", flight: "BG-401", airline: "Air Astra", sector: "DAC → DXB", date: "2026-05-20", etd: "10:30", pax: 186, crew: 14, specialMeals: 12, status: "Completed",  direction: "Outbound", specialMealRoster: ROSTER_FO_001 },
-  { id: "FO-002", orderNo: "ORD-3411", flight: "BG-402", airline: "Air Astra", sector: "DXB → DAC", date: "2026-05-20", etd: "23:45", pax: 174, crew: 14, specialMeals: 8,  status: "Dispatched", direction: "Return"   },
+  // ORD-3411 â€” completed rotation
+  { id: "FO-001", orderNo: "ORD-3411", flight: "BG-401", airline: "Air Astra", sector: "DAC â†’ DXB", date: "2026-05-20", etd: "10:30", pax: 186, crew: 14, specialMeals: 12, status: "Completed",  direction: "Outbound", specialMealRoster: ROSTER_FO_001 },
+  { id: "FO-002", orderNo: "ORD-3411", flight: "BG-402", airline: "Air Astra", sector: "DXB â†’ DAC", date: "2026-05-20", etd: "23:45", pax: 174, crew: 14, specialMeals: 8,  status: "Dispatched", direction: "Return"   },
 
-  // ORD-3412 — currently in production
-  { id: "FO-003", orderNo: "ORD-3412", flight: "BG-522", airline: "Air Astra", sector: "DAC → LHR", date: "2026-05-20", etd: "14:45", pax: 214, crew: 18, specialMeals: 18, status: "Production", direction: "Outbound", specialMealRoster: ROSTER_FO_003 },
+  // ORD-3412 â€” currently in production
+  { id: "FO-003", orderNo: "ORD-3412", flight: "BG-522", airline: "Air Astra", sector: "DAC â†’ LHR", date: "2026-05-20", etd: "14:45", pax: 214, crew: 18, specialMeals: 18, status: "Production", direction: "Outbound", specialMealRoster: ROSTER_FO_003 },
 
-  // ORD-3413 — full rotation, all legs in production
-  { id: "FO-004", orderNo: "ORD-3413", flight: "VQ-901", airline: "US-Bangla", sector: "DAC → KUL", date: "2026-05-20", etd: "16:20", pax: 162, crew: 12, specialMeals: 8,  status: "Production", direction: "Outbound" },
-  { id: "FO-005", orderNo: "ORD-3413", flight: "VQ-902", airline: "US-Bangla", sector: "KUL → SIN", date: "2026-05-20", etd: "20:40", pax: 158, crew: 12, specialMeals: 10, status: "Production", direction: "Outbound" },
-  { id: "FO-006", orderNo: "ORD-3413", flight: "VQ-903", airline: "US-Bangla", sector: "SIN → DAC", date: "2026-05-20", etd: "23:55", pax: 144, crew: 12, specialMeals: 6,  status: "Approved",   direction: "Return"   },
+  // ORD-3413 â€” full rotation, all legs in production
+  { id: "FO-004", orderNo: "ORD-3413", flight: "VQ-901", airline: "US-Bangla", sector: "DAC â†’ KUL", date: "2026-05-20", etd: "16:20", pax: 162, crew: 12, specialMeals: 8,  status: "Production", direction: "Outbound" },
+  { id: "FO-005", orderNo: "ORD-3413", flight: "VQ-902", airline: "US-Bangla", sector: "KUL â†’ SIN", date: "2026-05-20", etd: "20:40", pax: 158, crew: 12, specialMeals: 10, status: "Production", direction: "Outbound" },
+  { id: "FO-006", orderNo: "ORD-3413", flight: "VQ-903", airline: "US-Bangla", sector: "SIN â†’ DAC", date: "2026-05-20", etd: "23:55", pax: 144, crew: 12, specialMeals: 6,  status: "Approved",   direction: "Return"   },
 
-  // ORD-3414 / ORD-3415 — pending approval / approved
-  { id: "FO-007", orderNo: "ORD-3414", flight: "BS-203", airline: "US-Bangla", sector: "DAC → DOH", date: "2026-05-21", etd: "18:10", pax: 168, crew: 14, specialMeals: 10, status: "Approved",   direction: "Outbound", specialMealRoster: ROSTER_FO_007 },
-  { id: "FO-008", orderNo: "ORD-3415", flight: "BS-307", airline: "US-Bangla", sector: "DAC → BKK", date: "2026-05-21", etd: "20:00", pax: 282, crew: 16, specialMeals: 22, status: "Pending",    direction: "Outbound" },
+  // ORD-3414 / ORD-3415 â€” pending approval / approved
+  { id: "FO-007", orderNo: "ORD-3414", flight: "BS-203", airline: "US-Bangla", sector: "DAC â†’ DOH", date: "2026-05-21", etd: "18:10", pax: 168, crew: 14, specialMeals: 10, status: "Approved",   direction: "Outbound", specialMealRoster: ROSTER_FO_007 },
+  { id: "FO-008", orderNo: "ORD-3415", flight: "BS-307", airline: "US-Bangla", sector: "DAC â†’ BKK", date: "2026-05-21", etd: "20:00", pax: 282, crew: 16, specialMeals: 22, status: "Pending",    direction: "Outbound" },
 
-  // ── Domestic short-haul (Breakfast slot 06:00-11:00)
-  { id: "FO-009", orderNo: "ORD-3416", flight: "BS-141", airline: "US-Bangla", sector: "DAC → CGP", date: "2026-05-20", etd: "06:30", pax: 68,  crew: 4,  specialMeals: 2, status: "Production", direction: "Outbound" },
-  { id: "FO-010", orderNo: "ORD-3416", flight: "BS-142", airline: "US-Bangla", sector: "CGP → DAC", date: "2026-05-20", etd: "08:30", pax: 64,  crew: 4,  specialMeals: 1, status: "Production", direction: "Return"   },
-  { id: "FO-011", orderNo: "ORD-3417", flight: "BS-105", airline: "US-Bangla", sector: "DAC → CXB", date: "2026-05-20", etd: "07:15", pax: 72,  crew: 4,  specialMeals: 2, status: "Approved",   direction: "Outbound" },
-  { id: "FO-012", orderNo: "ORD-3418", flight: "BS-151", airline: "US-Bangla", sector: "DAC → ZYL", date: "2026-05-20", etd: "09:45", pax: 65,  crew: 4,  specialMeals: 1, status: "Pending",    direction: "Outbound" },
+  // â”€â”€ Domestic short-haul (Breakfast slot 06:00-11:00)
+  { id: "FO-009", orderNo: "ORD-3416", flight: "BS-141", airline: "US-Bangla", sector: "DAC â†’ CGP", date: "2026-05-20", etd: "06:30", pax: 68,  crew: 4,  specialMeals: 2, status: "Production", direction: "Outbound" },
+  { id: "FO-010", orderNo: "ORD-3416", flight: "BS-142", airline: "US-Bangla", sector: "CGP â†’ DAC", date: "2026-05-20", etd: "08:30", pax: 64,  crew: 4,  specialMeals: 1, status: "Production", direction: "Return"   },
+  { id: "FO-011", orderNo: "ORD-3417", flight: "BS-105", airline: "US-Bangla", sector: "DAC â†’ CXB", date: "2026-05-20", etd: "07:15", pax: 72,  crew: 4,  specialMeals: 2, status: "Approved",   direction: "Outbound" },
+  { id: "FO-012", orderNo: "ORD-3418", flight: "BS-151", airline: "US-Bangla", sector: "DAC â†’ ZYL", date: "2026-05-20", etd: "09:45", pax: 65,  crew: 4,  specialMeals: 1, status: "Pending",    direction: "Outbound" },
 
-  // ── Domestic (Heavy Snacks 11:00-15:00)
-  { id: "FO-013", orderNo: "ORD-3419", flight: "BS-195", airline: "US-Bangla", sector: "DAC → JSR", date: "2026-05-20", etd: "11:30", pax: 60,  crew: 4,  specialMeals: 2, status: "Production", direction: "Outbound" },
-  { id: "FO-014", orderNo: "ORD-3420", flight: "BS-165", airline: "US-Bangla", sector: "DAC → CXB", date: "2026-05-20", etd: "13:20", pax: 72,  crew: 4,  specialMeals: 3, status: "Approved",   direction: "Outbound" },
+  // â”€â”€ Domestic (Heavy Snacks 11:00-15:00)
+  { id: "FO-013", orderNo: "ORD-3419", flight: "BS-195", airline: "US-Bangla", sector: "DAC â†’ JSR", date: "2026-05-20", etd: "11:30", pax: 60,  crew: 4,  specialMeals: 2, status: "Production", direction: "Outbound" },
+  { id: "FO-014", orderNo: "ORD-3420", flight: "BS-165", airline: "US-Bangla", sector: "DAC â†’ CXB", date: "2026-05-20", etd: "13:20", pax: 72,  crew: 4,  specialMeals: 3, status: "Approved",   direction: "Outbound" },
 
-  // ── Domestic (Lunch 15:00-19:00)
-  { id: "FO-015", orderNo: "ORD-3421", flight: "BS-147", airline: "US-Bangla", sector: "DAC → CGP", date: "2026-05-20", etd: "15:40", pax: 68,  crew: 4,  specialMeals: 2, status: "Production", direction: "Outbound" },
-  { id: "FO-016", orderNo: "ORD-3422", flight: "BS-149", airline: "US-Bangla", sector: "DAC → ZYL", date: "2026-05-20", etd: "17:20", pax: 64,  crew: 4,  specialMeals: 1, status: "Approved",   direction: "Outbound" },
+  // â”€â”€ Domestic (Lunch 15:00-19:00)
+  { id: "FO-015", orderNo: "ORD-3421", flight: "BS-147", airline: "US-Bangla", sector: "DAC â†’ CGP", date: "2026-05-20", etd: "15:40", pax: 68,  crew: 4,  specialMeals: 2, status: "Production", direction: "Outbound" },
+  { id: "FO-016", orderNo: "ORD-3422", flight: "BS-149", airline: "US-Bangla", sector: "DAC â†’ ZYL", date: "2026-05-20", etd: "17:20", pax: 64,  crew: 4,  specialMeals: 1, status: "Approved",   direction: "Outbound" },
 
-  // ── Domestic (Dinner 19:00-24:00)
-  { id: "FO-017", orderNo: "ORD-3423", flight: "BS-115", airline: "US-Bangla", sector: "DAC → CXB", date: "2026-05-20", etd: "19:30", pax: 72,  crew: 4,  specialMeals: 2, status: "Pending",    direction: "Outbound" },
-  { id: "FO-018", orderNo: "ORD-3424", flight: "BS-159", airline: "US-Bangla", sector: "DAC → JSR", date: "2026-05-20", etd: "21:00", pax: 60,  crew: 4,  specialMeals: 1, status: "Pending",    direction: "Outbound" },
+  // â”€â”€ Domestic (Dinner 19:00-24:00)
+  { id: "FO-017", orderNo: "ORD-3423", flight: "BS-115", airline: "US-Bangla", sector: "DAC â†’ CXB", date: "2026-05-20", etd: "19:30", pax: 72,  crew: 4,  specialMeals: 2, status: "Pending",    direction: "Outbound" },
+  { id: "FO-018", orderNo: "ORD-3424", flight: "BS-159", airline: "US-Bangla", sector: "DAC â†’ JSR", date: "2026-05-20", etd: "21:00", pax: 60,  crew: 4,  specialMeals: 1, status: "Pending",    direction: "Outbound" },
 ];
 
-// ── Master Item Profile ──────────────────────────────────────────────────────
+// â”€â”€ Master Item Profile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Single source of truth for items used by all modules (BOM, PR, Transfer,
 // Demand, Item Issue, Inventory, etc). Categories/UoMs etc are intentionally
 // exported alongside the data so any UI dropdown can stay in sync.
@@ -993,10 +1161,37 @@ export type ItemMaster = {
   storage?: "Dry" | "Cold" | "Frozen";
   /** Cost price per UoM in BDT. Used to prefill rate fields across modules. */
   costPrice?: number;
-  /** Per-item allocation method. Perishables → FEFO, shelf-stable → FIFO. */
+  /** Per-item allocation method. Perishables â†’ FEFO, shelf-stable â†’ FIFO. */
   allocationMethod?: AllocationMethod;
   /** Default bin/rack/shelf location for this item. */
   binLocation?: string;
+  /**
+   * Whether the item is tracked as discrete batches/lots (each with their own
+   * expiry, cost, receipt date) or as a single non-batched stock. When false,
+   * the item ignores FIFO/FEFO allocation and shows as a single line on Stock
+   * Overview. Defaults to true.
+   */
+  batchTracked?: boolean;
+  /**
+   * Alternative units of measure. Stock is always kept in the Primary `uom`,
+   * but transactions (Purchase / Production / Transfer / Issue / GRN) may be
+   * entered in any of these alt units; the system converts to primary at save
+   * time. Example for Egg (Primary = Piece):
+   *   altUoms: [
+   *     { uom: "Dozen",  conversion: 12  },
+   *     { uom: "Tray",   conversion: 30  },
+   *     { uom: "Carton", conversion: 360 },
+   *   ]
+   * `conversion` = number of Primary units contained in 1 of this Alt unit.
+   */
+  altUoms?: AltUom[];
+};
+
+export type AltUom = {
+  /** Free-text label, e.g. "Dozen", "Tray", "Carton", "Bag". */
+  uom: string;
+  /** Number of Primary UOM units per 1 of this Alt UOM. Must be > 0. */
+  conversion: number;
 };
 
 export const ITEM_TYPES = [
@@ -1012,12 +1207,29 @@ export const ITEM_SUB_CATEGORIES = ["Fresh", "Frozen", "Dry", "Liquid"] as const
 export const ITEM_UOMS = ["Kg", "Gm", "Litre", "ML", "Piece", "Pack", "Bottle"] as const;
 export const ITEM_STORAGE_OPTIONS = ["Dry", "Cold", "Frozen"] as const;
 
+/** Curated list of common Alt UOM labels â€” picked from the Item Profile DDL. */
+export const ALT_UOM_OPTIONS = [
+  // Container units
+  "Dozen", "Tray", "Carton", "Box", "Case", "Crate", "Pallet",
+  // Bulk packaging (with common sizes)
+  "Bag (25kg)", "Bag (50kg)", "Sack", "Drum", "Bundle",
+  // Pre-packed liquid / dairy
+  "Pack (200ml)", "Pack (500ml)", "Pack (1L)",
+  // Base units (useful when alt unit is finer/coarser than primary)
+  "Piece", "Pack", "Bottle", "Kg", "Gm", "Litre", "ML",
+] as const;
+
 const RAW_ITEMS: Array<Omit<ItemMaster, "id">> = [
-  // ── Raw Material · Grains
+  // â”€â”€ Raw Material Â· Grains
   { code: "RM-RICE-BSMT", name: "Basmati Rice",          itemType: "Raw Material", category: "Grains",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
   { code: "RM-RICE-BRWN", name: "Brown Rice",            itemType: "Raw Material", category: "Grains",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
   { code: "RM-RICE-PARB", name: "Parboiled Rice",        itemType: "Raw Material", category: "Grains",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
-  { code: "RM-FLR-WHT",   name: "Wheat Flour",           itemType: "Raw Material", category: "Grains",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
+  { code: "RM-FLR-WHT",   name: "Wheat Flour",           itemType: "Raw Material", category: "Grains",   subCategory: "Dry",    uom: "Kg",    status: "Active",
+    altUoms: [
+      { uom: "Bag (25kg)", conversion: 25 },
+      { uom: "Bag (50kg)", conversion: 50 },
+    ],
+  },
   { code: "RM-FLR-APRP",  name: "All-Purpose Flour",     itemType: "Raw Material", category: "Grains",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
   { code: "RM-FLR-CORN",  name: "Cornflour",             itemType: "Raw Material", category: "Grains",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
   { code: "RM-FLR-RICE",  name: "Rice Flour",            itemType: "Raw Material", category: "Grains",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
@@ -1025,7 +1237,7 @@ const RAW_ITEMS: Array<Omit<ItemMaster, "id">> = [
   { code: "RM-GRN-OATS",  name: "Rolled Oats",           itemType: "Raw Material", category: "Grains",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
   { code: "RM-PST-SPAG",  name: "Spaghetti Pasta",       itemType: "Raw Material", category: "Grains",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
 
-  // ── Raw Material · Protein
+  // â”€â”€ Raw Material Â· Protein
   { code: "RM-CHK-BRST",  name: "Chicken Breast",        itemType: "Raw Material", category: "Protein",  subCategory: "Frozen", uom: "Kg",    status: "Active" },
   { code: "RM-CHK-THGH",  name: "Chicken Thigh",         itemType: "Raw Material", category: "Protein",  subCategory: "Frozen", uom: "Kg",    status: "Active" },
   { code: "RM-CHK-WHLE",  name: "Whole Chicken",         itemType: "Raw Material", category: "Protein",  subCategory: "Frozen", uom: "Kg",    status: "Active" },
@@ -1035,9 +1247,15 @@ const RAW_ITEMS: Array<Omit<ItemMaster, "id">> = [
   { code: "RM-FSH-SLMN",  name: "Salmon Fillet",         itemType: "Raw Material", category: "Protein",  subCategory: "Frozen", uom: "Kg",    status: "Active" },
   { code: "RM-FSH-TUNA",  name: "Tuna Steak",            itemType: "Raw Material", category: "Protein",  subCategory: "Frozen", uom: "Kg",    status: "Active" },
   { code: "RM-PRWN-LRG",  name: "Prawn (Large)",         itemType: "Raw Material", category: "Protein",  subCategory: "Frozen", uom: "Kg",    status: "Active" },
-  { code: "RM-EGG-CHK",   name: "Chicken Egg",           itemType: "Raw Material", category: "Protein",  subCategory: "Fresh",  uom: "Piece", status: "Active" },
+  { code: "RM-EGG-CHK",   name: "Chicken Egg",           itemType: "Raw Material", category: "Protein",  subCategory: "Fresh",  uom: "Piece", status: "Active",
+    altUoms: [
+      { uom: "Dozen",  conversion: 12  },
+      { uom: "Tray",   conversion: 30  },
+      { uom: "Carton", conversion: 360 },
+    ],
+  },
 
-  // ── Raw Material · Vegetable
+  // â”€â”€ Raw Material Â· Vegetable
   { code: "RM-VEG-TOM",   name: "Tomato",                itemType: "Raw Material", category: "Vegetable",subCategory: "Fresh",  uom: "Kg",    status: "Active" },
   { code: "RM-VEG-ONN",   name: "Onion",                 itemType: "Raw Material", category: "Vegetable",subCategory: "Fresh",  uom: "Kg",    status: "Active" },
   { code: "RM-VEG-POT",   name: "Potato",                itemType: "Raw Material", category: "Vegetable",subCategory: "Fresh",  uom: "Kg",    status: "Active" },
@@ -1053,7 +1271,7 @@ const RAW_ITEMS: Array<Omit<ItemMaster, "id">> = [
   { code: "RM-VEG-CBG",   name: "Cabbage",               itemType: "Raw Material", category: "Vegetable",subCategory: "Fresh",  uom: "Kg",    status: "Active" },
   { code: "RM-VEG-CFL",   name: "Cauliflower",           itemType: "Raw Material", category: "Vegetable",subCategory: "Fresh",  uom: "Kg",    status: "Active" },
 
-  // ── Raw Material · Spices
+  // â”€â”€ Raw Material Â· Spices
   { code: "RM-SPC-CMN",   name: "Cumin Powder",          itemType: "Raw Material", category: "Spices",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
   { code: "RM-SPC-TRM",   name: "Turmeric Powder",       itemType: "Raw Material", category: "Spices",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
   { code: "RM-SPC-CHL",   name: "Chili Powder",          itemType: "Raw Material", category: "Spices",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
@@ -1063,23 +1281,29 @@ const RAW_ITEMS: Array<Omit<ItemMaster, "id">> = [
   { code: "RM-SPC-CIN",   name: "Cinnamon Stick",        itemType: "Raw Material", category: "Spices",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
   { code: "RM-SPC-BYL",   name: "Bay Leaf",              itemType: "Raw Material", category: "Spices",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
 
-  // ── Raw Material · Oil & Fats
+  // â”€â”€ Raw Material Â· Oil & Fats
   { code: "RM-OIL-SOY",   name: "Soyabean Cooking Oil",  itemType: "Raw Material", category: "Oil",      subCategory: "Liquid", uom: "Litre", status: "Active" },
   { code: "RM-OIL-OLV",   name: "Olive Oil",             itemType: "Raw Material", category: "Oil",      subCategory: "Liquid", uom: "Litre", status: "Active" },
   { code: "RM-OIL-SUN",   name: "Sunflower Oil",         itemType: "Raw Material", category: "Oil",      subCategory: "Liquid", uom: "Litre", status: "Active" },
   { code: "RM-OIL-MST",   name: "Mustard Oil",           itemType: "Raw Material", category: "Oil",      subCategory: "Liquid", uom: "Litre", status: "Active" },
   { code: "RM-OIL-GHE",   name: "Ghee",                  itemType: "Raw Material", category: "Oil",      subCategory: "Dry",    uom: "Kg",    status: "Active" },
 
-  // ── Raw Material · Dairy
+  // â”€â”€ Raw Material Â· Dairy
   { code: "RM-DRY-BTRS",  name: "Butter (Salted)",       itemType: "Raw Material", category: "Dairy",    subCategory: "Fresh",  uom: "Kg",    status: "Active" },
   { code: "RM-DRY-BTRU",  name: "Butter (Unsalted)",     itemType: "Raw Material", category: "Dairy",    subCategory: "Fresh",  uom: "Kg",    status: "Active" },
   { code: "RM-DRY-CHED",  name: "Cheese (Cheddar)",      itemType: "Raw Material", category: "Dairy",    subCategory: "Fresh",  uom: "Kg",    status: "Active" },
   { code: "RM-DRY-MOZZ",  name: "Cheese (Mozzarella)",   itemType: "Raw Material", category: "Dairy",    subCategory: "Fresh",  uom: "Kg",    status: "Active" },
-  { code: "RM-DRY-MLK",   name: "Milk (Full Cream)",     itemType: "Raw Material", category: "Dairy",    subCategory: "Liquid", uom: "Litre", status: "Active" },
+  { code: "RM-DRY-MLK",   name: "Milk (Full Cream)",     itemType: "Raw Material", category: "Dairy",    subCategory: "Liquid", uom: "Litre", status: "Active",
+    altUoms: [
+      { uom: "ML",   conversion: 0.001 },
+      { uom: "Pack (200ml)", conversion: 0.2 },
+      { uom: "Pack (1L)",    conversion: 1   },
+    ],
+  },
   { code: "RM-DRY-YGT",   name: "Yogurt",                itemType: "Raw Material", category: "Dairy",    subCategory: "Fresh",  uom: "Kg",    status: "Active" },
   { code: "RM-DRY-CRM",   name: "Heavy Cream",           itemType: "Raw Material", category: "Dairy",    subCategory: "Liquid", uom: "Litre", status: "Active" },
 
-  // ── Raw Material · Beverage / Sundry
+  // â”€â”€ Raw Material Â· Beverage / Sundry
   { code: "RM-BV-WTR250", name: "Mineral Water 250ml",   itemType: "Raw Material", category: "Beverage", subCategory: "Liquid", uom: "Bottle",status: "Active" },
   { code: "RM-BV-WTR500", name: "Mineral Water 500ml",   itemType: "Raw Material", category: "Beverage", subCategory: "Liquid", uom: "Bottle",status: "Active" },
   { code: "RM-BV-TEA",    name: "Tea Leaves",            itemType: "Raw Material", category: "Beverage", subCategory: "Dry",    uom: "Kg",    status: "Active" },
@@ -1091,7 +1315,7 @@ const RAW_ITEMS: Array<Omit<ItemMaster, "id">> = [
   { code: "RM-OTH-BKP",   name: "Baking Powder",         itemType: "Raw Material", category: "Bakery",   subCategory: "Dry",    uom: "Pack",  status: "Active" },
   { code: "RM-OTH-CHOC",  name: "Chocolate (Dark)",      itemType: "Raw Material", category: "Bakery",   subCategory: "Dry",    uom: "Kg",    status: "Active" },
 
-  // ── Packaging
+  // â”€â”€ Packaging
   { code: "PK-BOX-MEAL",  name: "Meal Box (Paper)",      itemType: "Packaging",    category: "Packaging",subCategory: "Dry",    uom: "Piece", status: "Active" },
   { code: "PK-TRY-ALU",   name: "Aluminum Foil Tray",    itemType: "Packaging",    category: "Packaging",subCategory: "Dry",    uom: "Piece", status: "Active" },
   { code: "PK-FIL-ALU",   name: "Aluminum Foil Roll",    itemType: "Packaging",    category: "Packaging",subCategory: "Dry",    uom: "Pack",  status: "Active" },
@@ -1112,7 +1336,7 @@ const RAW_ITEMS: Array<Omit<ItemMaster, "id">> = [
   { code: "PK-BOX-CTN",   name: "Carton Box (Medium)",   itemType: "Packaging",    category: "Packaging",subCategory: "Dry",    uom: "Piece", status: "Active" },
   { code: "PK-TPE-SCH",   name: "Sealing Tape",          itemType: "Packaging",    category: "Packaging",subCategory: "Dry",    uom: "Piece", status: "Active" },
 
-  // ── Semi-Finished Goods
+  // â”€â”€ Semi-Finished Goods
   { code: "SF-CHK-MRN",   name: "Marinated Chicken",     itemType: "Semi-Finished Good", category: "Protein",   subCategory: "Frozen", uom: "Kg",    status: "Active" },
   { code: "SF-RCE-BLD",   name: "Boiled Rice (Plain)",   itemType: "Semi-Finished Good", category: "Grains",    subCategory: "Fresh",  uom: "Kg",    status: "Active" },
   { code: "SF-VEG-CHP",   name: "Chopped Vegetable Mix", itemType: "Semi-Finished Good", category: "Vegetable", subCategory: "Fresh",  uom: "Kg",    status: "Active" },
@@ -1125,7 +1349,7 @@ const RAW_ITEMS: Array<Omit<ItemMaster, "id">> = [
   { code: "SF-BSE-CAK",   name: "Sponge Cake Base",      itemType: "Semi-Finished Good", category: "Bakery",    subCategory: "Fresh",  uom: "Piece",status: "Active" },
   { code: "SF-STK-CHK",   name: "Chicken Stock",         itemType: "Semi-Finished Good", category: "Protein",   subCategory: "Liquid", uom: "Litre",status: "Active" },
 
-  // ── Finished Goods · Meals
+  // â”€â”€ Finished Goods Â· Meals
   { code: "FG-MEAL-CBR",  name: "Chicken Biryani",       itemType: "Finished Good", category: "Meal",      subCategory: "Frozen", uom: "Piece", status: "Active" },
   { code: "FG-MEAL-BCR",  name: "Beef Curry",            itemType: "Finished Good", category: "Meal",      subCategory: "Frozen", uom: "Piece", status: "Active" },
   { code: "FG-MEAL-VPL",  name: "Veg Pulao",             itemType: "Finished Good", category: "Meal",      subCategory: "Frozen", uom: "Piece", status: "Active" },
@@ -1138,7 +1362,7 @@ const RAW_ITEMS: Array<Omit<ItemMaster, "id">> = [
   { code: "FG-MEAL-VML",  name: "Vegetarian Meal",       itemType: "Finished Good", category: "Meal",      subCategory: "Frozen", uom: "Piece", status: "Active" },
   { code: "FG-MEAL-KSH",  name: "Kosher Meal",           itemType: "Finished Good", category: "Meal",      subCategory: "Frozen", uom: "Piece", status: "Active" },
 
-  // ── Finished Goods · Bakery & Snacks
+  // â”€â”€ Finished Goods Â· Bakery & Snacks
   { code: "FG-BK-CROIS",  name: "Croissant",             itemType: "Finished Good", category: "Bakery",    subCategory: "Fresh",  uom: "Piece", status: "Active" },
   { code: "FG-BK-DANSH",  name: "Danish Pastry",         itemType: "Finished Good", category: "Bakery",    subCategory: "Fresh",  uom: "Piece", status: "Active" },
   { code: "FG-BK-MUFF",   name: "Muffin",                itemType: "Finished Good", category: "Bakery",    subCategory: "Fresh",  uom: "Piece", status: "Active" },
@@ -1154,7 +1378,7 @@ const RAW_ITEMS: Array<Omit<ItemMaster, "id">> = [
   { code: "FG-DS-MMS",    name: "Mango Mousse",          itemType: "Finished Good", category: "Bakery",    subCategory: "Fresh",  uom: "Piece", status: "Active" },
   { code: "FG-DS-FRS",    name: "Fruit Salad Cup",       itemType: "Finished Good", category: "Bakery",    subCategory: "Fresh",  uom: "Piece", status: "Active" },
 
-  // ── Finished Goods · Beverages
+  // â”€â”€ Finished Goods Â· Beverages
   { code: "FG-BV-MUM250", name: "Mum Water 250ml",       itemType: "Finished Good", category: "Beverage",  subCategory: "Liquid", uom: "Bottle",status: "Active" },
   { code: "FG-BV-MUM500", name: "Mum Water 500ml",       itemType: "Finished Good", category: "Beverage",  subCategory: "Liquid", uom: "Bottle",status: "Active" },
   { code: "FG-BV-ORJ",    name: "Orange Juice (1L)",     itemType: "Finished Good", category: "Beverage",  subCategory: "Liquid", uom: "Bottle",status: "Active" },
@@ -1191,14 +1415,28 @@ function defaultCostPrice(item: Omit<ItemMaster, "id">): number {
   return base;
 }
 
-/** Default allocation method by item type/category — perishables FEFO, shelf-stable FIFO. */
+/** Default allocation method by item type/category â€” perishables FEFO, shelf-stable FIFO. */
 function defaultAllocationMethod(item: Omit<ItemMaster, "id">): AllocationMethod {
   if (item.itemType === "Packaging" || item.itemType === "Consumable") return "FIFO";
-  // Raw Materials, Finished Goods, Semi-Finished — perishability driven by category
+  // Raw Materials, Finished Goods, Semi-Finished â€” perishability driven by category
   const fefoCats = new Set(["Protein", "Dairy", "Vegetable", "Bakery", "Meal", "Beverage"]);
   if (fefoCats.has(item.category)) return "FEFO";
   if (item.subCategory === "Fresh" || item.subCategory === "Frozen") return "FEFO";
   return "FIFO";
+}
+
+/**
+ * Default batch-tracked flag. Perishables and items with meaningful expiry
+ * default to batch-tracked. Shelf-stable hardware-like packaging (tape, caps,
+ * straws, labels) defaults to single-item (no batch / no FIFO-FEFO).
+ */
+function defaultBatchTracked(item: Omit<ItemMaster, "id">): boolean {
+  if (item.itemType === "Packaging") {
+    // Hardware-like packaging that doesn't carry expiry â†’ single item
+    const singleCodes = new Set(["PK-TPE-SCH", "PK-CAP-PET", "PK-LBL-USB", "PK-LBL-MUM", "PK-STR-PLA"]);
+    if (singleCodes.has(item.code)) return false;
+  }
+  return true;
 }
 
 export const items: ItemMaster[] = RAW_ITEMS.map((row, i) => ({
@@ -1206,6 +1444,7 @@ export const items: ItemMaster[] = RAW_ITEMS.map((row, i) => ({
   ...row,
   costPrice: row.costPrice ?? defaultCostPrice(row),
   allocationMethod: row.allocationMethod ?? defaultAllocationMethod(row),
+  batchTracked: row.batchTracked ?? defaultBatchTracked(row),
 }));
 
 /** Active master items only (use this in pickers/DDLs by default) */
@@ -1215,7 +1454,7 @@ export const activeItems: ItemMaster[] = items.filter((i) => i.status === "Activ
 export const itemsByType = (...types: ItemMaster["itemType"][]): ItemMaster[] =>
   activeItems.filter((i) => types.includes(i.itemType));
 
-// ── Stock Overview: derive inventory rows from the Item Profile ─────────────
+// â”€â”€ Stock Overview: derive inventory rows from the Item Profile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Every active Item Profile entry shows in Stock Overview. Curated batches
 // (SEED_INVENTORY above) override the auto-generated batches for items by name.
 
@@ -1371,7 +1610,7 @@ export function allBatches(): FlatBatch[] {
   return rows;
 }
 
-// ── Org hierarchy: Company → Office → Warehouse ─────────────────────────────
+// â”€â”€ Org hierarchy: Company â†’ Office â†’ Warehouse â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type Company = {
   id: string;
@@ -1415,7 +1654,7 @@ export const companies: Company[] = [
 export const offices: Office[] = [
   { id: "OFF-001", code: "HQ-DAC",  name: "Head Office Dhaka",         companyId: "CMP-001", address: "Madina Bhaban, Turag",   city: "Dhaka",       manager: "R. Hossain", phone: "+880 1700-000001", status: "Active" },
   { id: "OFF-002", code: "REG-CGP", name: "Chittagong Regional Office", companyId: "CMP-001", address: "GEC Circle, Chattogram", city: "Chittagong",  manager: "A. Khan",    phone: "+880 1700-000010", status: "Active" },
-  { id: "OFF-003", code: "REG-CXB", name: "Cox's Bazar Station Office", companyId: "CMP-001", address: "Cox's Bazar Airport",    city: "Cox's Bazar", manager: "—",         phone: "—",                status: "Inactive" },
+  { id: "OFF-003", code: "REG-CXB", name: "Cox's Bazar Station Office", companyId: "CMP-001", address: "Cox's Bazar Airport",    city: "Cox's Bazar", manager: "â€”",         phone: "â€”",                status: "Inactive" },
 ];
 
 export const warehouses: Warehouse[] = [
@@ -1423,11 +1662,11 @@ export const warehouses: Warehouse[] = [
   { id: "WH-002", code: "CS-DAC-01", name: "Cold Storage 1",            officeId: "OFF-001", type: "Cold Store", address: "Catering Block B Annex",  city: "Dhaka",       manager: "M. Karim",  phone: "+880 1700-000005", status: "Active" },
   { id: "WH-003", code: "KIT-HOT",   name: "Hot Kitchen",                officeId: "OFF-001", type: "Kitchen",    address: "Catering Block A",        city: "Dhaka",       manager: "F. Begum",  phone: "+880 1700-000003", status: "Active" },
   { id: "WH-004", code: "KIT-COLD",  name: "Cold Kitchen",               officeId: "OFF-001", type: "Kitchen",    address: "Catering Block B",        city: "Dhaka",       manager: "T. Islam",  phone: "+880 1700-000004", status: "Active" },
-  { id: "WH-005", code: "WH-CXB-01", name: "Regional Warehouse CXB",     officeId: "OFF-003", type: "Warehouse",  address: "Cox's Bazar Airport",     city: "Cox's Bazar", manager: "—",         phone: "—",                status: "Inactive" },
+  { id: "WH-005", code: "WH-CXB-01", name: "Regional Warehouse CXB",     officeId: "OFF-003", type: "Warehouse",  address: "Cox's Bazar Airport",     city: "Cox's Bazar", manager: "â€”",         phone: "â€”",                status: "Inactive" },
 ];
 
-// ── Airlines (customers we cater for) ────────────────────────────────────────
-// Separate from Office — Office is OUR location, Airline is who we serve.
+// â”€â”€ Airlines (customers we cater for) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Separate from Office â€” Office is OUR location, Airline is who we serve.
 export type Airline = {
   id: string;
   code: string;        // short code (e.g. USB, ASTRA)

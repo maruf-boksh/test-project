@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
 import { StatusBadge } from "@/components/common/StatusBadge";
@@ -47,7 +47,6 @@ type PurchaseRequisition = {
   officeId: string;
   warehouseId: string;
   requestedBy: string;
-  department: string;
   requiredBy: string;
   priority: Priority;
   justification: string;
@@ -56,7 +55,6 @@ type PurchaseRequisition = {
   totalAmount: number;
 };
 
-const DEPARTMENTS = ["Hot Kitchen", "Cold Kitchen", "Bakery", "Beverage", "Special Meal", "Maintenance"];
 const PRIORITIES: Priority[] = ["Normal", "Urgent"];
 const UOMS = ["Kg", "Litre", "Pcs", "Box", "Pack", "Unit", "Bottle"];
 
@@ -85,7 +83,7 @@ const ITEM_MASTER = activeItems.map((i) => ({
 const seedRequisitions: PurchaseRequisition[] = [
   {
     id: "PR-2026-005", date: "2026-05-18", officeId: "OFF-001", warehouseId: "WH-003",
-    requestedBy: "S. Ahmed", department: "Hot Kitchen",
+    requestedBy: "S. Ahmed",
     requiredBy: "2026-05-22", priority: "Normal", justification: "Weekly stock replenishment for hot kitchen line.",
     lines: [
       { id: "L1", itemName: "Basmati Rice",   description: "Premium long grain", qty: 200, uom: "Kg",    rate: 120 },
@@ -96,7 +94,7 @@ const seedRequisitions: PurchaseRequisition[] = [
   },
   {
     id: "PR-2026-004", date: "2026-05-17", officeId: "OFF-001", warehouseId: "WH-001",
-    requestedBy: "M. Hossain", department: "Bakery",
+    requestedBy: "M. Hossain",
     requiredBy: "2026-05-21", priority: "Normal", justification: "Production run for the next 4 days.",
     lines: [
       { id: "L1", itemName: "All-Purpose Flour", description: "10kg bag",    qty: 25, uom: "Box",   rate: 1200 },
@@ -107,7 +105,7 @@ const seedRequisitions: PurchaseRequisition[] = [
   },
   {
     id: "PR-2026-003", date: "2026-05-15", officeId: "OFF-001", warehouseId: "WH-004",
-    requestedBy: "F. Begum", department: "Cold Kitchen",
+    requestedBy: "F. Begum",
     requiredBy: "2026-05-19", priority: "Urgent", justification: "Salmon stock fell below reorder level after weekend rush.",
     lines: [
       { id: "L1", itemName: "Salmon Fillet", description: "Frozen, premium grade", qty: 40, uom: "Kg",  rate: 1400 },
@@ -118,7 +116,7 @@ const seedRequisitions: PurchaseRequisition[] = [
   },
   {
     id: "PR-2026-002", date: "2026-05-12", officeId: "OFF-001", warehouseId: "WH-002",
-    requestedBy: "A. Khan", department: "Beverage",
+    requestedBy: "A. Khan",
     requiredBy: "2026-05-18", priority: "Normal", justification: "Replenish beverage stock for international flights.",
     lines: [
       { id: "L1", itemName: "Mineral Water",      description: "500ml",     qty: 50,  uom: "Box",    rate: 480 },
@@ -129,7 +127,7 @@ const seedRequisitions: PurchaseRequisition[] = [
   },
   {
     id: "PR-2026-001", date: "2026-05-10", officeId: "OFF-001", warehouseId: "WH-001",
-    requestedBy: "N. Hasan", department: "Maintenance",
+    requestedBy: "N. Hasan",
     requiredBy: "2026-05-25", priority: "Normal", justification: "Quarterly maintenance consumables.",
     lines: [
       { id: "L1", itemName: "Industrial Detergent", description: "5L jar",      qty: 12, uom: "Bottle", rate: 650 },
@@ -165,7 +163,6 @@ function wfReqToPurchaseRequisition(wf: WfRequisition): PurchaseRequisition {
     officeId: wf.officeId ?? "OFF-001",
     warehouseId: wf.warehouseId ?? "WH-001",
     requestedBy: wf.requestedBy,
-    department: wf.source === "MRP" ? "Production (MRP)" : (wf.source || "Store"),
     requiredBy: "—",
     priority: "Normal",
     justification: wf.note,
@@ -175,6 +172,16 @@ function wfReqToPurchaseRequisition(wf: WfRequisition): PurchaseRequisition {
   };
 }
 
+type PRPrefill = {
+  itemName: string;
+  uom: string;
+  qty: number;
+  rate: number;
+  priority?: Priority;
+  justification?: string;
+  source?: string;
+};
+
 function PurchaseRequisitionPage() {
   useArrivalFlash();
   const { wfRequisitions } = useWorkflow();
@@ -183,10 +190,32 @@ function PurchaseRequisitionPage() {
   const [selected, setSelected] = useState<PurchaseRequisition | null>(null);
   const [filterOffice, setFilterOffice] = useState("");
   const [filterWarehouse, setFilterWarehouse] = useState("");
+  const [prefill, setPrefill] = useState<PRPrefill | null>(null);
+
+  // Auto-open Create view when navigated to from Stock Overview (or any other
+  // page that stashes a "pr-prefill-from-inventory" payload in sessionStorage).
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("pr-prefill-from-inventory");
+      if (!raw) return;
+      sessionStorage.removeItem("pr-prefill-from-inventory");
+      const parsed = JSON.parse(raw) as PRPrefill;
+      setPrefill(parsed);
+      setView("create");
+      toast.success(
+        parsed.source
+          ? `New PR pre-filled from ${parsed.source} — ${parsed.itemName}.`
+          : `New PR pre-filled with ${parsed.itemName}.`,
+      );
+    } catch {
+      /* malformed payload — ignore */
+    }
+  }, []);
 
   const addRequisition = (pr: PurchaseRequisition) => {
     setRequisitions((prev) => [pr, ...prev]);
     setView("list");
+    setPrefill(null);
   };
 
   // Workflow-store requisitions (MRP, kitchen demand, etc.) bridged in for display.
@@ -216,7 +245,6 @@ function PurchaseRequisitionPage() {
       key: "officeId", header: "Office / Warehouse",
       render: (r) => <LocationCell officeId={r.officeId} warehouseId={r.warehouseId} />,
     },
-    { key: "department",  header: "Department" },
     { key: "requestedBy", header: "Requested By" },
     {
       key: "lines", header: "Items", className: "text-right",
@@ -278,7 +306,8 @@ function PurchaseRequisitionPage() {
               title="purchase-requisitions"
               data={filtered}
               columns={cols}
-              searchKeys={["id", "department", "requestedBy", "status"]}
+              searchKeys={["id", "requestedBy", "status"]}
+              selectable={false}
               actions={(r) => (
                 <Button
                   size="sm"
@@ -296,6 +325,7 @@ function PurchaseRequisitionPage() {
         <PurchaseRequisitionCreate
           nextNumber={Math.max(...requisitions.map((r) => Number(r.id.split("-").pop()))) + 1}
           onSave={addRequisition}
+          prefill={prefill}
         />
       )}
 
@@ -308,8 +338,12 @@ function PurchaseRequisitionPage() {
 }
 
 function PurchaseRequisitionCreate({
-  nextNumber, onSave,
-}: { nextNumber: number; onSave: (pr: PurchaseRequisition) => void }) {
+  nextNumber, onSave, prefill,
+}: {
+  nextNumber: number;
+  onSave: (pr: PurchaseRequisition) => void;
+  prefill?: PRPrefill | null;
+}) {
   const today = new Date().toISOString().slice(0, 10);
 
   // Header state
@@ -317,10 +351,9 @@ function PurchaseRequisitionCreate({
   const [officeId, setOfficeId] = useState("OFF-001");
   const [warehouseId, setWarehouseId] = useState("WH-001");
   const [requestedBy, setRequestedBy] = useState("");
-  const [department, setDepartment] = useState(DEPARTMENTS[0]);
   const [requiredBy, setRequiredBy] = useState("");
-  const [priority, setPriority] = useState<Priority>("Normal");
-  const [justification, setJustification] = useState("");
+  const [priority, setPriority] = useState<Priority>(prefill?.priority ?? "Normal");
+  const [justification, setJustification] = useState(prefill?.justification ?? "");
 
   // Line state
   const [itemName, setItemName] = useState("");
@@ -328,7 +361,18 @@ function PurchaseRequisitionCreate({
   const [qty, setQty] = useState("");
   const [uom, setUom] = useState(UOMS[0]);
   const [rate, setRate] = useState("");
-  const [lines, setLines] = useState<PRLineItem[]>([]);
+  const [lines, setLines] = useState<PRLineItem[]>(
+    prefill
+      ? [{
+          id: `LN-PREFILL-${Date.now()}`,
+          itemName: prefill.itemName,
+          description: "",
+          qty: prefill.qty,
+          uom: prefill.uom,
+          rate: prefill.rate,
+        }]
+      : [],
+  );
 
   const totalAmount = lines.reduce((s, l) => s + l.qty * l.rate, 0);
 
@@ -370,7 +414,6 @@ function PurchaseRequisitionCreate({
       date: prDate,
       officeId, warehouseId,
       requestedBy: requestedBy.trim(),
-      department,
       requiredBy: requiredBy || "—",
       priority,
       justification: justification.trim(),
@@ -442,19 +485,6 @@ function PurchaseRequisitionCreate({
               >
                 <option value="">Select requester…</option>
                 {REQUESTERS.map((r) => <option key={r} value={r}>{r}</option>)}
-              </select>
-            </div>
-
-            <div>
-              <Label className="text-xs uppercase tracking-wider text-muted-foreground">
-                Department
-              </Label>
-              <select
-                value={department}
-                onChange={(e) => setDepartment(e.target.value)}
-                className={selectCls}
-              >
-                {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
               </select>
             </div>
 
@@ -672,7 +702,6 @@ function RequisitionDetailsDialog({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3 text-sm">
               <Field label="Date" value={requisition.date} />
               <Field label="Required By" value={requisition.requiredBy} />
-              <Field label="Department" value={requisition.department} />
               <Field label="Requested By" value={requisition.requestedBy} />
               <div>
                 <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Priority</div>

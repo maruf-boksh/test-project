@@ -1,16 +1,19 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useState, useSyncExternalStore } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Boxes, AlertTriangle, Eye, Pencil, FilePlus2 } from "lucide-react";
+import { Boxes, AlertTriangle, Eye, Pencil, FileText } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import {
-  inventory, allocateFefo, getFefoBatches, inventoryValue, nearExpiryCount,
-  getAllocationMethod,
+  inventory, inventoryValue, nearExpiryCount,
+  getAllocationMethod, setAllocationMethod, resolveMasterForInventory,
+  isBatchTrackedForInventory,
+  subscribeAllocationMethod, getAllocationVersion,
   type BatchLot, type AllocationMethod,
 } from "@/lib/sample-data";
 import { KpiCard } from "@/components/common/KpiCard";
@@ -82,7 +85,10 @@ const SELECT_CLS = "w-full mt-1 rounded-md border border-input bg-background px-
 
 function Inventory() {
   useArrivalFlash();
+  // Re-render when any item's FIFO/FEFO method is toggled.
+  useSyncExternalStore(subscribeAllocationMethod, getAllocationVersion, getAllocationVersion);
   const { role } = useRole();
+  const navigate = useNavigate();
   // Backfill existing inventory rows with default Office + Central Warehouse
   const [items, setItems] = useState<Item[]>(
     inventory.map((i) => ({ ...i, officeId: "OFF-001", warehouseId: "WH-001" })),
@@ -90,8 +96,47 @@ function Inventory() {
   const [newItemOpen, setNewItemOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
+  const [batchOpen, setBatchOpen] = useState(false);
   const [selected, setSelected] = useState<Item | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
+
+  const openBatches = (item: Item) => {
+    setSelected(item);
+    setBatchOpen(true);
+  };
+
+  // Stash a pre-filled line for the Purchase Requisition page, then navigate.
+  // Suggested order qty tops up to 150% of reorder level. Suggested rate is the
+  // most recently received batch's cost price (when available).
+  const requestPR = (item: Item) => {
+    const suggestedQty = Math.max(1, Math.ceil(item.reorder * 1.5) - item.stock);
+    const recentBatch = [...item.batches].sort((a, b) =>
+      b.receivedOn.localeCompare(a.receivedOn),
+    )[0];
+    const suggestedRate = recentBatch?.costPrice ?? 0;
+    try {
+      sessionStorage.setItem(
+        "pr-prefill-from-inventory",
+        JSON.stringify({
+          itemName: item.name,
+          uom: item.uom,
+          qty: suggestedQty,
+          rate: suggestedRate,
+          priority: item.status === "Critical" ? "Urgent" : "Normal",
+          justification:
+            item.status === "Critical"
+              ? `Critical stock replenishment for ${item.name} — current stock ${item.stock} ${item.uom} is below reorder level ${item.reorder} ${item.uom}.`
+              : `Low stock replenishment for ${item.name} — top up to safe level.`,
+          source: "Stock Overview",
+          sourceItemId: item.id,
+        }),
+      );
+    } catch {
+      /* sessionStorage unavailable — fall through to navigation */
+    }
+    navigate({ to: "/purchase-requisition" });
+    toast.success(`Pre-filling Purchase Requisition for ${item.name}.`);
+  };
   const [filterOffice, setFilterOffice] = useState("");
   const [filterWarehouse, setFilterWarehouse] = useState("");
 
@@ -214,13 +259,14 @@ function Inventory() {
     { key: "uom", header: "UOM" },
     {
       key: "stock", header: "Stock",
-      render: (r) => (
-        <span className={r.stock < r.reorder ? "text-destructive font-semibold" : ""}>{r.stock}</span>
-      ),
+      render: (r) => <StockCell item={r} onClick={() => openBatches(r)} />,
     },
     { key: "reorder", header: "Reorder Lvl" },
-    { key: "batch", header: "Batch" },
-    { key: "expiry", header: "Expiry" },
+    {
+      key: "id" as keyof Item,
+      header: "Method",
+      render: (r) => <MethodToggle inventoryId={r.id} />,
+    },
     { key: "status", header: "Status", render: (r) => <StatusBadge status={r.status} /> },
   ];
 
@@ -270,7 +316,7 @@ function Inventory() {
         title="inventory"
         data={filteredItems}
         columns={cols}
-        searchKeys={["name", "category", "batch", "status"]}
+        searchKeys={["name", "category", "status"]}
         selectable={false}
         actions={(row) => (
           <div className="flex items-center gap-1">
@@ -299,11 +345,11 @@ function Inventory() {
                 size="icon"
                 variant="ghost"
                 className="h-8 w-8 text-warning-foreground hover:text-warning-foreground hover:bg-warning/15"
-                onClick={() => toast.success(`Demand request created for ${row.name}.`)}
-                aria-label={`Create demand for ${row.name}`}
-                title="Create Demand"
+                onClick={() => requestPR(row)}
+                aria-label={`Raise purchase requisition for ${row.name}`}
+                title="Raise Purchase Requisition"
               >
-                <FilePlus2 className="h-4 w-4" />
+                <FileText className="h-4 w-4" />
               </Button>
             )}
           </div>
@@ -475,11 +521,22 @@ function Inventory() {
                 ))}
               </div>
 
-              <FefoBatchLadder
-                batches={selected.batches}
-                uom={selected.uom}
-                method={getAllocationMethod(selected.id)}
-              />
+              {isBatchTrackedForInventory(selected.id) ? (
+                <FefoBatchLadder
+                  batches={selected.batches}
+                  uom={selected.uom}
+                  method={getAllocationMethod(selected.id)}
+                />
+              ) : (
+                <div className="rounded-md border border-border bg-muted/30 px-3 py-3 text-xs text-muted-foreground">
+                  <div className="font-semibold text-foreground mb-0.5">Single Item Stock</div>
+                  This item is not batch-tracked. Stock is held as one pooled bucket of{" "}
+                  <span className="font-semibold text-foreground tabular-nums">
+                    {selected.stock.toLocaleString()} {selected.uom}
+                  </span>{" "}
+                  — no batch numbers, no expiry, no FIFO/FEFO ordering.
+                </div>
+              )}
 
               {selected.lastEditedBy && (
                 <div className="rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
@@ -496,7 +553,156 @@ function Inventory() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Batch Dialog — opens when the Stock cell is clicked */}
+      <Dialog open={batchOpen} onOpenChange={setBatchOpen}>
+        <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {selected?.name}
+              <span className="ml-2 font-mono text-xs text-muted-foreground font-normal">{selected?.id}</span>
+            </DialogTitle>
+          </DialogHeader>
+          {selected && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-4 text-sm pb-3 border-b border-border">
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total Stock</div>
+                  <div className={cn(
+                    "text-lg font-bold tabular-nums mt-0.5",
+                    selected.stock < selected.reorder && "text-destructive",
+                  )}>
+                    {selected.stock.toLocaleString()} {selected.uom}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Reorder Level</div>
+                  <div className="text-sm mt-0.5 tabular-nums">{selected.reorder.toLocaleString()} {selected.uom}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Status</div>
+                  <div className="mt-0.5"><StatusBadge status={selected.status} /></div>
+                </div>
+              </div>
+
+              {isBatchTrackedForInventory(selected.id) ? (
+                <FefoBatchLadder
+                  batches={selected.batches}
+                  uom={selected.uom}
+                  method={getAllocationMethod(selected.id)}
+                />
+              ) : (
+                <div className="rounded-md border border-border bg-muted/30 px-3 py-3 text-xs text-muted-foreground">
+                  <div className="font-semibold text-foreground mb-0.5">Single Item Stock</div>
+                  This item is not batch-tracked. Stock is held as one pooled bucket of{" "}
+                  <span className="font-semibold text-foreground tabular-nums">
+                    {selected.stock.toLocaleString()} {selected.uom}
+                  </span>{" "}
+                  — no batch numbers, no expiry, no FIFO/FEFO ordering.
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBatchOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
+  );
+}
+
+/**
+ * Stock cell — shows the total qty as a clickable button that opens the batch
+ * popup. For batch-tracked items the small caption summarises how many lots
+ * are held; for Single Items it shows a quiet "single" marker.
+ */
+function StockCell({ item, onClick }: { item: Item; onClick: () => void }) {
+  const batched = isBatchTrackedForInventory(item.id);
+  const lots = batched ? item.batches.filter((b) => b.qty > 0).length : 0;
+  const low = item.stock < item.reorder;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group inline-flex flex-col items-start text-left rounded-sm px-1 py-0.5 -mx-1 hover:bg-primary/5 transition-colors"
+      title={batched
+        ? `Click to see ${lots} batch lot${lots === 1 ? "" : "s"}`
+        : "Single-item stock — click for details"}
+    >
+      <span className={cn(
+        "tabular-nums font-semibold underline decoration-dotted decoration-muted-foreground/40 underline-offset-2 group-hover:decoration-primary",
+        low && "text-destructive",
+      )}>
+        {item.stock.toLocaleString()}
+      </span>
+      <span className="text-[10px] text-muted-foreground -mt-0.5">
+        {batched ? `${lots} lot${lots === 1 ? "" : "s"}` : "single"}
+      </span>
+    </button>
+  );
+}
+
+function MethodToggle({ inventoryId }: { inventoryId: string }) {
+  const master = resolveMasterForInventory(inventoryId);
+  const current = getAllocationMethod(inventoryId);
+  const batched = isBatchTrackedForInventory(inventoryId);
+
+  if (!batched) {
+    return (
+      <span
+        className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border border-border bg-muted/40 text-muted-foreground"
+        title="Single-item — FIFO/FEFO does not apply."
+      >
+        N/A
+      </span>
+    );
+  }
+
+  if (!master) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border border-border bg-muted/40 text-muted-foreground"
+        title="No linked Item Profile — method cannot be customized."
+      >
+        {current}
+      </span>
+    );
+  }
+
+  const setMethod = (m: AllocationMethod) => {
+    if (m === current) return;
+    setAllocationMethod(master.id, m);
+    toast.success(`${master.name} switched to ${m}.`);
+  };
+
+  return (
+    <div
+      className="inline-flex items-center rounded-md border border-input bg-background p-0.5 shadow-sm"
+      role="group"
+      aria-label={`Allocation method for ${master.name}`}
+    >
+      {(["FEFO", "FIFO"] as const).map((m) => {
+        const active = current === m;
+        return (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setMethod(m)}
+            className={cn(
+              "px-2 py-0.5 text-[10px] font-semibold rounded-sm transition-colors",
+              active
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+            title={m === "FEFO" ? "First-Expiry-First-Out" : "First-In-First-Out"}
+          >
+            {m}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

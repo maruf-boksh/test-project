@@ -198,7 +198,7 @@ function BomDetailsDialog({
             <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3 text-sm">
               <Field label="BOM Name" value={bom.name} bold />
               <Field label="Item Type" value={bom.productionItems[0]?.itemType || "—"} />
-              <Field label="Category" value={bom.department || "—"} />
+              <Field label="Category" value={bom.category || "—"} />
               <Field label="Sub Category" value={bom.section || "—"} />
               <Field label="FG/SFG Item" value={`${bom.itemCode} - ${bom.itemName}`} />
               <Field label="Lot Size" value={String(bom.lotSize)} />
@@ -366,7 +366,7 @@ function BomEditForm({ row }: { row: BillOfMaterial }) {
 
   const [bomName, setBomName] = useState(row.name);
   const [itemType, setItemType] = useState("");
-  const [category, setCategory] = useState(row.department);
+  const [category, setCategory] = useState(row.category);
   const [subCategory, setSubCategory] = useState(row.section);
   const [fgSfgItem, setFgSfgItem] = useState("");
   const [lotSize, setLotSize] = useState(initialLotSize);
@@ -730,7 +730,7 @@ function BomCreate({ onSave }: { onSave?: (bom: BillOfMaterial) => void }) {
       date: today,
       itemCode: `FG-${String(Date.now()).slice(-5)}`,
       itemName: first.item,
-      department: first.category !== "—" ? first.category : "N/A",
+      category: first.category !== "—" ? first.category : "N/A",
       section: first.subCategory !== "—" ? first.subCategory : "N/A",
       uom: "PCS",
       altUom: "",

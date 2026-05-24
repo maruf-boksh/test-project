@@ -143,7 +143,7 @@ export function DataTable<T extends { id: string }>({
                 </TableCell>
               </TableRow>
             ) : paged.map((row) => (
-              <TableRow key={row.id} className="hover:bg-muted/40">
+              <TableRow key={row.id} className="hover:bg-muted/40" data-arrival-row-id={row.id}>
                 {selectable && (
                   <TableCell>
                     <Checkbox

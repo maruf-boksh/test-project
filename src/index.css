@@ -347,3 +347,57 @@
     position: relative;
     z-index: 5;
 }
+
+/* ── Arrival row flash ─────────────────────────────────────────────────────
+ * Per-row highlight applied to elements with [data-arrival-row-id] when the
+ * dashboard KPI link passes a list of row ids. Uses an amber tint + left
+ * border so it is visually distinct from the green container ring above.
+ * Cell-level animation is required because <tr> background often does not
+ * paint depending on table layout.
+ */
+@keyframes arrival-row-cell-anim {
+    0%, 100% {
+        background-color: rgba(245, 158, 11, 0) !important;
+    }
+    8% {
+        background-color: rgba(245, 158, 11, 0.45) !important;
+    }
+    35% {
+        background-color: rgba(245, 158, 11, 0.28) !important;
+    }
+    65% {
+        background-color: rgba(245, 158, 11, 0.40) !important;
+    }
+    90% {
+        background-color: rgba(245, 158, 11, 0.18) !important;
+    }
+}
+
+@keyframes arrival-row-border-anim {
+    0%, 100% { box-shadow: inset 4px 0 0 0 rgba(245, 158, 11, 0); }
+    10%      { box-shadow: inset 4px 0 0 0 rgb(245, 158, 11); }
+    90%      { box-shadow: inset 4px 0 0 0 rgba(245, 158, 11, 0.6); }
+}
+
+.arrival-row-flash {
+    scroll-margin-top: 120px;
+    position: relative;
+    z-index: 4;
+}
+
+.arrival-row-flash > * {
+    animation: arrival-row-cell-anim 3.2s ease-in-out forwards !important;
+}
+
+.arrival-row-flash > *:first-child {
+    animation:
+        arrival-row-cell-anim 3.2s ease-in-out forwards,
+        arrival-row-border-anim 3.2s ease-in-out forwards !important;
+}
+
+/* For non-table contexts (divs, links) the row itself paints the tint. */
+.arrival-row-flash:not(tr) {
+    animation: arrival-row-cell-anim 3.2s ease-in-out forwards !important;
+    border-left: 3px solid rgb(245, 158, 11) !important;
+    padding-left: calc(0.5rem - 3px);
+}

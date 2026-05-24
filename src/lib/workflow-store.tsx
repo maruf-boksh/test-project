@@ -298,6 +298,13 @@ export function WorkflowProvider({ children }: { children: ReactNode }) {
       requisitionRef: "",
       officeId: "OFF-001",
       warehouseId: "WH-001",
+      lineItems: p.lineItems?.map(l => ({
+        itemId: l.itemId,
+        name: l.name,
+        qty: l.qty,
+        uom: l.uom,
+        unitPrice: l.unitPrice,
+      })),
     }))
   );
 

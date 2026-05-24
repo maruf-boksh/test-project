@@ -6,11 +6,13 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Plus, Boxes, AlertTriangle, Coffee } from "lucide-react";
+import { Plus, ArrowLeft, Save, Boxes, AlertTriangle, Coffee } from "lucide-react";
+import { toast } from "sonner";
 import {
   consumableItems, items as MASTER_ITEMS,
   type ConsumableCategory, type ConsumableItem,
@@ -25,9 +27,53 @@ export const Route = createFileRoute("/airline-consumables")({
 const CATEGORIES: ConsumableCategory[] = [
   "Napkin", "Cup", "Cutlery", "Tissue", "Amenity Kit", "Plastic Tray", "Packaging",
 ];
+const UOMS = ["Pcs", "Kit", "Box", "Pack", "Roll"];
+
+const selectCls =
+  "w-full mt-1 h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
+
+function computeStatus(stock: number, reorder: number): "OK" | "Low" | "Critical" {
+  if (stock < reorder * 0.5) return "Critical";
+  if (stock < reorder) return "Low";
+  return "OK";
+}
 
 function ConsumableInventoryPage() {
-  const [items] = useState<ConsumableItem[]>(consumableItems);
+  const [view, setView] = useState<"list" | "create">("list");
+  const [items, setItems] = useState<ConsumableItem[]>(consumableItems);
+
+  const nextId = `CNS-${String(items.length + 1).padStart(3, "0")}`;
+
+  const addItem = (it: ConsumableItem) => {
+    setItems((prev) => [it, ...prev]);
+    setView("list");
+  };
+
+  return (
+    <>
+      <PageHeader
+        title="Consumables Inventory"
+        subtitle="Disposable airline service items — napkins, cups, cutlery, tissues, amenity kits, trays and packaging"
+        actions={
+          <Button
+            variant={view === "create" ? "outline" : "default"}
+            onClick={() => setView(view === "create" ? "list" : "create")}
+          >
+            {view === "create"
+              ? <><ArrowLeft className="h-4 w-4 mr-1" /> Back to List</>
+              : <><Plus className="h-4 w-4 mr-1" /> New Item</>}
+          </Button>
+        }
+      />
+
+      {view === "list"
+        ? <ConsumableList items={items} />
+        : <ConsumableCreate nextId={nextId} onSave={addItem} />}
+    </>
+  );
+}
+
+function ConsumableList({ items }: { items: ConsumableItem[] }) {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<ConsumableCategory | "All">("All");
 
@@ -47,16 +93,6 @@ function ConsumableInventoryPage() {
 
   return (
     <>
-      <PageHeader
-        title="Consumables Inventory"
-        subtitle="Disposable airline service items — napkins, cups, cutlery, tissues, amenity kits, trays and packaging"
-        actions={
-          <Button onClick={() => alert("Stock-receipt flow lives in Receive Items.")}>
-            <Plus className="h-4 w-4 mr-1" /> New Receipt
-          </Button>
-        }
-      />
-
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
         <KpiCard label="Total Items" value={totalItems} icon={Boxes} tone="navy" />
         <KpiCard label="Low Stock" value={lowStock} icon={AlertTriangle} tone="warning" />
@@ -170,5 +206,92 @@ function ConsumableInventoryPage() {
         </Table>
       </div>
     </>
+  );
+}
+
+function ConsumableCreate({ nextId, onSave }: { nextId: string; onSave: (it: ConsumableItem) => void }) {
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState<ConsumableCategory>("Napkin");
+  const [uom, setUom] = useState("Pcs");
+  const [stock, setStock] = useState("0");
+  const [reorder, setReorder] = useState("0");
+  const [unitCost, setUnitCost] = useState("");
+  const [binLocation, setBinLocation] = useState("");
+
+  const save = () => {
+    if (!name.trim()) { toast.error("Item name is required."); return; }
+    const s = Number(stock) || 0;
+    const r = Number(reorder) || 0;
+    const c = Number(unitCost) || 0;
+    onSave({
+      id: nextId,
+      name: name.trim(),
+      category,
+      uom,
+      stock: s,
+      reorder: r,
+      unitCost: c,
+      binLocation: binLocation.trim() || undefined,
+      status: computeStatus(s, r),
+    });
+    toast.success(`${name.trim()} added to consumables catalog.`);
+  };
+
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-sm font-semibold uppercase tracking-wider">Register Consumable Item</h3>
+          <Button onClick={save}><Save className="h-4 w-4 mr-1.5" /> Save</Button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Item Code</Label>
+            <Input value={nextId} disabled className="mt-1 font-mono" />
+          </div>
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Item Name *</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Cocktail Napkin" className="mt-1" />
+          </div>
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Category</Label>
+            <select value={category} onChange={(e) => setCategory(e.target.value as ConsumableCategory)} className={selectCls}>
+              {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">UoM</Label>
+            <select value={uom} onChange={(e) => setUom(e.target.value)} className={selectCls}>
+              {UOMS.map((u) => <option key={u}>{u}</option>)}
+            </select>
+          </div>
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Opening Stock</Label>
+            <Input type="number" min={0} value={stock} onChange={(e) => setStock(e.target.value)} className="mt-1 tabular-nums" />
+          </div>
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Reorder Level</Label>
+            <Input type="number" min={0} value={reorder} onChange={(e) => setReorder(e.target.value)} className="mt-1 tabular-nums" />
+          </div>
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Unit Cost (৳)</Label>
+            <Input type="number" min={0} step="0.01" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} placeholder="0.00" className="mt-1 tabular-nums" />
+          </div>
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Bin Location</Label>
+            <Input
+              value={binLocation}
+              onChange={(e) => setBinLocation(e.target.value)}
+              placeholder="e.g. A1-R1-S1"
+              className="mt-1 font-mono"
+            />
+          </div>
+        </div>
+        <div className="mt-4 text-[11px] text-muted-foreground bg-muted/40 border border-border rounded px-3 py-2">
+          Status is auto-computed: <span className="font-semibold text-destructive">Critical</span> when stock &lt; 50% of reorder,
+          {" "}<span className="font-semibold text-warning">Low</span> when stock &lt; reorder, else <span className="font-semibold text-success">OK</span>.
+        </div>
+      </CardContent>
+    </Card>
   );
 }

@@ -6,15 +6,17 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Plus, Boxes, Wrench, ShieldAlert, ScanBarcode, Truck,
+  Plus, ArrowLeft, Save, Boxes, Wrench, ShieldAlert, ScanBarcode, Truck,
 } from "lucide-react";
+import { toast } from "sonner";
 import {
-  equipmentAssets,
+  equipmentAssets as SEED_ASSETS,
   type EquipmentCategory, type EquipmentAsset,
 } from "@/lib/sample-data";
 import { cn } from "@/lib/utils";
@@ -27,9 +29,49 @@ export const Route = createFileRoute("/airline-equipments")({
 const CATEGORIES: EquipmentCategory[] = [
   "Trolley", "Oven Rack", "Container", "Tray", "Galley Insert", "Hot Box",
 ];
+const STATUSES: EquipmentAsset["status"][] = [
+  "In Service", "In Maintenance", "Damaged", "Retired",
+];
+
+const selectCls =
+  "w-full mt-1 h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
 function EquipmentAssetsPage() {
-  const [assets] = useState<EquipmentAsset[]>(equipmentAssets);
+  const [view, setView] = useState<"list" | "create">("list");
+  const [assets, setAssets] = useState<EquipmentAsset[]>(SEED_ASSETS);
+
+  const nextId = useMemo(() => `EQP-NEW-${String(assets.length + 1).padStart(3, "0")}`, [assets]);
+
+  const addAsset = (a: EquipmentAsset) => {
+    setAssets((prev) => [a, ...prev]);
+    setView("list");
+  };
+
+  return (
+    <>
+      <PageHeader
+        title="Equipment Assets"
+        subtitle="Reusable airline equipment register — trolleys, oven racks, containers, trays, galley inserts and hot boxes"
+        actions={
+          <Button
+            variant={view === "create" ? "outline" : "default"}
+            onClick={() => setView(view === "create" ? "list" : "create")}
+          >
+            {view === "create"
+              ? <><ArrowLeft className="h-4 w-4 mr-1" /> Back to List</>
+              : <><Plus className="h-4 w-4 mr-1" /> Register Asset</>}
+          </Button>
+        }
+      />
+
+      {view === "list"
+        ? <AssetList assets={assets} />
+        : <AssetCreate nextId={nextId} onSave={addAsset} />}
+    </>
+  );
+}
+
+function AssetList({ assets }: { assets: EquipmentAsset[] }) {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<EquipmentCategory | "All">("All");
 
@@ -56,16 +98,6 @@ function EquipmentAssetsPage() {
 
   return (
     <>
-      <PageHeader
-        title="Equipment Assets"
-        subtitle="Reusable airline equipment register — trolleys, oven racks, containers, trays, galley inserts and hot boxes"
-        actions={
-          <Button onClick={() => alert("New equipment registration flow — coming soon.")}>
-            <Plus className="h-4 w-4 mr-1" /> Register Asset
-          </Button>
-        }
-      />
-
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
         <KpiCard label="Total Assets" value={totalAssets} icon={Boxes} tone="navy" />
         <KpiCard label="In Service" value={inService} icon={Truck} tone="success" />
@@ -164,5 +196,90 @@ function EquipmentAssetsPage() {
         </Table>
       </div>
     </>
+  );
+}
+
+function AssetCreate({ nextId, onSave }: { nextId: string; onSave: (a: EquipmentAsset) => void }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const sixMonthsOut = new Date(Date.now() + 180 * 86400000).toISOString().slice(0, 10);
+
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState<EquipmentCategory>("Trolley");
+  const [serialNo, setSerialNo] = useState("");
+  const [rfidTag, setRfidTag] = useState("");
+  const [location, setLocation] = useState("");
+  const [lastMaintenance, setLastMaintenance] = useState(today);
+  const [nextMaintenance, setNextMaintenance] = useState(sixMonthsOut);
+  const [status, setStatus] = useState<EquipmentAsset["status"]>("In Service");
+
+  const save = () => {
+    if (!name.trim()) { toast.error("Asset name is required."); return; }
+    if (!serialNo.trim()) { toast.error("Serial number is required."); return; }
+    if (!location.trim()) { toast.error("Location is required."); return; }
+    onSave({
+      id: nextId,
+      name: name.trim(),
+      category,
+      serialNo: serialNo.trim().toUpperCase(),
+      rfidTag: rfidTag.trim() || undefined,
+      location: location.trim(),
+      lastMaintenance,
+      nextMaintenance,
+      status,
+    });
+    toast.success(`${name.trim()} registered as ${nextId}.`);
+  };
+
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-sm font-semibold uppercase tracking-wider">Register Equipment Asset</h3>
+          <Button onClick={save}><Save className="h-4 w-4 mr-1.5" /> Save</Button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Asset ID</Label>
+            <Input value={nextId} disabled className="mt-1 font-mono" />
+          </div>
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Name *</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Full Size Meal Trolley" className="mt-1" />
+          </div>
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Category</Label>
+            <select value={category} onChange={(e) => setCategory(e.target.value as EquipmentCategory)} className={selectCls}>
+              {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Status</Label>
+            <select value={status} onChange={(e) => setStatus(e.target.value as EquipmentAsset["status"])} className={selectCls}>
+              {STATUSES.map((s) => <option key={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Serial No. *</Label>
+            <Input value={serialNo} onChange={(e) => setSerialNo(e.target.value)} placeholder="e.g. TR-004" className="mt-1 font-mono" />
+          </div>
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">RFID Tag</Label>
+            <Input value={rfidTag} onChange={(e) => setRfidTag(e.target.value)} placeholder="e.g. RF-TR0004" className="mt-1 font-mono" />
+          </div>
+          <div className="md:col-span-2">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Current Location *</Label>
+            <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Hot Kitchen, BG-401, Damaged Pool" className="mt-1" />
+          </div>
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Last Maintenance</Label>
+            <Input type="date" value={lastMaintenance} onChange={(e) => setLastMaintenance(e.target.value)} className="mt-1 tabular-nums" />
+          </div>
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Next Maintenance</Label>
+            <Input type="date" value={nextMaintenance} onChange={(e) => setNextMaintenance(e.target.value)} className="mt-1 tabular-nums" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

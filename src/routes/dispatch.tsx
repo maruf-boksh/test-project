@@ -782,6 +782,7 @@ function Dispatch() {
                         return (
                           <tr
                             key={row.id}
+                            data-arrival-row-id={row.id}
                             className={`hover:bg-muted/20 ${isAbsoluteLast ? "border-b-2 border-border" : "border-b border-border/50"}`}
                           >
                             {isFirstInTime && (

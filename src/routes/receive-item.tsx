@@ -100,9 +100,13 @@ function ReceiveItem() {
     [wfPurchaseOrders, selectedPORef]
   );
 
-  // When PO is selected, pre-fill lines from its line items
+  // When PO is selected, pre-fill lines from its line items.
   const handleSelectPO = (poId: string) => {
     setSelectedPORef(poId);
+    if (!poId) {
+      setFormLines([{ id: "l0", name: "", qty: 1, uom: "Kg", temp: "", expiry: "", qcStatus: "Accepted" }]);
+      return;
+    }
     const po = wfPurchaseOrders.find(p => p.id === poId);
     if (po) {
       // Inherit Office + Warehouse from PO if set
@@ -119,6 +123,11 @@ function ReceiveItem() {
         expiry: "",
         qcStatus: "Accepted",
       })));
+      toast.success(`${po.lineItems.length} item${po.lineItems.length === 1 ? "" : "s"} loaded from ${po.id}.`);
+    } else {
+      // PO without line items — start a clean single empty row.
+      setFormLines([{ id: "l0", name: "", qty: 1, uom: "Kg", temp: "", expiry: "", qcStatus: "Accepted" }]);
+      toast.info(`${po?.id ?? poId} has no item details. Add rows manually.`);
     }
   };
 
@@ -256,6 +265,7 @@ function ReceiveItem() {
         data={filteredRows}
         columns={cols}
         searchKeys={["id", "po", "vendor", "item", "status"]}
+        selectable={false}
         actions={(r) => <RowActions row={r} actions={["view", "print"]} />}
       />
 

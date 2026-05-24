@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
 import { RowActions } from "@/components/common/RowActions";
@@ -22,7 +22,16 @@ import {
   ITEM_CATEGORIES,
   ITEM_SUB_CATEGORIES,
   ITEM_UOMS,
+  ALT_UOM_OPTIONS,
+  getAllocationMethodForMaster,
+  setAllocationMethod,
+  isBatchTrackedForMaster,
+  setBatchTracked,
+  subscribeAllocationMethod,
+  getAllocationVersion,
   type ItemMaster,
+  type AllocationMethod,
+  type AltUom,
 } from "@/lib/sample-data";
 
 export const Route = createFileRoute("/config-item")({
@@ -337,14 +346,125 @@ function TreeNode({
   );
 }
 
+function MethodToggle({ master }: { master: ItemRow }) {
+  const current = getAllocationMethodForMaster(master.id);
+  const batched = isBatchTrackedForMaster(master.id);
+
+  if (!batched) {
+    return (
+      <span
+        className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border border-border bg-muted/40 text-muted-foreground"
+        title="Single-item — FIFO/FEFO not applicable."
+      >
+        N/A
+      </span>
+    );
+  }
+
+  const setMethod = (m: AllocationMethod) => {
+    if (m === current) return;
+    setAllocationMethod(master.id, m);
+    toast.success(`${master.name} switched to ${m}.`);
+  };
+  return (
+    <div
+      className="inline-flex items-center rounded-md border border-input bg-background p-0.5 shadow-sm"
+      role="group"
+      aria-label={`Allocation method for ${master.name}`}
+    >
+      {(["FEFO", "FIFO"] as const).map((m) => {
+        const active = current === m;
+        return (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setMethod(m)}
+            className={cn(
+              "px-2 py-0.5 text-[10px] font-semibold rounded-sm transition-colors",
+              active
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+            title={m === "FEFO" ? "First-Expiry-First-Out" : "First-In-First-Out"}
+          >
+            {m}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function BatchToggle({ master }: { master: ItemRow }) {
+  const current = isBatchTrackedForMaster(master.id);
+  const toggle = (next: boolean) => {
+    if (next === current) return;
+    setBatchTracked(master.id, next);
+    toast.success(`${master.name} is now ${next ? "batch-tracked" : "a single item"}.`);
+  };
+  return (
+    <div
+      className="inline-flex items-center rounded-md border border-input bg-background p-0.5 shadow-sm"
+      role="group"
+      aria-label={`Batch tracking for ${master.name}`}
+    >
+      {([
+        { label: "Batch",  value: true  },
+        { label: "Single", value: false },
+      ] as const).map((opt) => {
+        const active = current === opt.value;
+        return (
+          <button
+            key={String(opt.value)}
+            type="button"
+            onClick={() => toggle(opt.value)}
+            className={cn(
+              "px-2 py-0.5 text-[10px] font-semibold rounded-sm transition-colors",
+              active
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+            title={
+              opt.value
+                ? "Tracked as discrete batches with expiry, FIFO/FEFO applies"
+                : "Single non-batched stock; no batch lot, no FIFO/FEFO"
+            }
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function ItemList({ data, onToggle }: { data: ItemRow[]; onToggle: (id: string) => void }) {
+  // Re-render the table when any item's FIFO/FEFO override changes.
+  useSyncExternalStore(subscribeAllocationMethod, getAllocationVersion, getAllocationVersion);
+
   const cols: Column<ItemRow>[] = [
     { key: "id", header: "ID" },
     { key: "code", header: "Code", render: (r) => <span className="font-mono text-xs">{r.code}</span> },
     { key: "name", header: "Item Name" },
     { key: "itemType", header: "Type" },
     { key: "category", header: "Category" },
-    { key: "uom", header: "UOM" },
+    {
+      key: "uom",
+      header: "UOM",
+      render: (r) => (
+        <div className="flex items-center gap-1.5">
+          <span>{r.uom}</span>
+          {r.altUoms && r.altUoms.length > 0 && (
+            <span
+              className="inline-flex items-center rounded border border-primary/30 bg-primary/5 px-1 py-0 text-[9px] font-semibold text-primary"
+              title={r.altUoms.map((a) => `1 ${a.uom} = ${a.conversion} ${r.uom}`).join("\n")}
+            >
+              +{r.altUoms.length} alt
+            </span>
+          )}
+        </div>
+      ),
+    },
     {
       key: "binLocation",
       header: "Bin",
@@ -354,6 +474,16 @@ function ItemList({ data, onToggle }: { data: ItemRow[]; onToggle: (id: string) 
         ) : (
           <span className="text-muted-foreground text-xs">—</span>
         ),
+    },
+    {
+      key: "batchTracked" as keyof ItemRow,
+      header: "Tracking",
+      render: (r) => <BatchToggle master={r} />,
+    },
+    {
+      key: "allocationMethod" as keyof ItemRow,
+      header: "Method",
+      render: (r) => <MethodToggle master={r} />,
     },
     {
       key: "status",
@@ -392,21 +522,51 @@ function ItemCreate({ nextId, onSave }: { nextId: string; onSave: (row: ItemRow)
   const [uom, setUom] = useState<string>(UOMS[0]);
 
   // Stock & storage
-  const [currentStock, setCurrentStock] = useState("0");
   const [reorderLevel, setReorderLevel] = useState("0");
   const [thresholdPct, setThresholdPct] = useState("20");
-  const [batchNo, setBatchNo] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
   const [binLocation, setBinLocation] = useState("");
+  // Allocation method: "Auto" lets the smart default kick in based on item type/category.
+  const [allocationChoice, setAllocationChoice] = useState<"Auto" | AllocationMethod>("Auto");
+  const [batchTrackedChoice, setBatchTrackedChoice] = useState<boolean>(true);
+
+  // ALT UOMs — repeatable rows. Each row has its own draft state until added.
+  const [altUoms, setAltUoms] = useState<AltUom[]>([]);
+  const [altDraftUom, setAltDraftUom] = useState("");
+  const [altDraftConversion, setAltDraftConversion] = useState("");
+
+  const addAltUom = () => {
+    const label = altDraftUom.trim();
+    if (!label) { toast.error("Alt UOM label is required."); return; }
+    if (label.toLowerCase() === uom.toLowerCase()) {
+      toast.error("Alt UOM cannot match the Primary UOM.");
+      return;
+    }
+    if (altUoms.some((a) => a.uom.toLowerCase() === label.toLowerCase())) {
+      toast.error(`"${label}" is already configured.`);
+      return;
+    }
+    const conv = Number(altDraftConversion);
+    if (!conv || conv <= 0) {
+      toast.error("Conversion factor must be a positive number.");
+      return;
+    }
+    setAltUoms((prev) => [...prev, { uom: label, conversion: conv }]);
+    setAltDraftUom("");
+    setAltDraftConversion("");
+  };
+
+  const removeAltUom = (idx: number) => {
+    setAltUoms((prev) => prev.filter((_, i) => i !== idx));
+  };
 
   const save = () => {
     if (!name.trim()) { toast.error("Item name is required."); return; }
     if (!code.trim()) { toast.error("Item code is required."); return; }
-    const stock = Number(currentStock) || 0;
     const reorder = Number(reorderLevel) || 0;
     const threshold = Number(thresholdPct) || 0;
-    if (stock < 0 || reorder < 0 || threshold < 0) {
-      toast.error("Stock, reorder level and threshold must be non-negative.");
+    if (reorder < 0 || threshold < 0) {
+      toast.error("Reorder level and threshold must be non-negative.");
       return;
     }
     onSave({
@@ -416,12 +576,13 @@ function ItemCreate({ nextId, onSave }: { nextId: string; onSave: (row: ItemRow)
       itemType: itemType as ItemRow["itemType"],
       category, subCategory, uom,
       status: "Active",
-      currentStock: stock,
       reorderLevel: reorder,
       thresholdPct: threshold,
-      batchNo: batchNo.trim() || undefined,
       expiryDate: expiryDate || undefined,
       binLocation: binLocation.trim() || undefined,
+      allocationMethod: allocationChoice === "Auto" ? undefined : allocationChoice,
+      batchTracked: batchTrackedChoice,
+      altUoms: altUoms.length > 0 ? altUoms : undefined,
     });
     toast.success(`Item "${name.trim()}" created.`);
   };
@@ -467,10 +628,104 @@ function ItemCreate({ nextId, onSave }: { nextId: string; onSave: (row: ItemRow)
             </select>
           </div>
           <div>
-            <Label className="text-xs uppercase tracking-wider text-muted-foreground">UOM</Label>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Primary UOM</Label>
             <select value={uom} onChange={(e) => setUom(e.target.value)} className={selectCls}>
               {UOMS.map((u) => <option key={u}>{u}</option>)}
             </select>
+            <div className="mt-1 text-[11px] text-muted-foreground">
+              Stock is always kept in this unit. Add ALT UOMs below for transactions in other units.
+            </div>
+          </div>
+
+          {/* ── ALT UOMs ───────────────────────────────────────────────── */}
+          <div className="md:col-span-2 mt-2 pt-4 border-t border-border">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Alternative UOMs <span className="text-muted-foreground/70 normal-case font-normal">(optional)</span>
+              </h4>
+              {altUoms.length > 0 && (
+                <span className="text-[10px] text-muted-foreground tabular-nums">
+                  {altUoms.length} configured
+                </span>
+              )}
+            </div>
+
+            <div className="text-[11px] text-muted-foreground mb-3">
+              ALT UOMs let users transact in different units (e.g. <span className="font-semibold text-foreground">Dozen</span>, <span className="font-semibold text-foreground">Tray</span>, <span className="font-semibold text-foreground">Carton</span>) while inventory stays in <span className="font-semibold text-foreground">{uom}</span>. The system auto-converts at save time.
+            </div>
+
+            {altUoms.length > 0 && (
+              <div className="rounded-md border border-border overflow-hidden mb-3">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/40">
+                    <tr>
+                      <th className="px-3 py-2 text-left text-[10px] uppercase tracking-wider font-semibold">ALT UOM</th>
+                      <th className="px-3 py-2 text-right text-[10px] uppercase tracking-wider font-semibold">Conversion</th>
+                      <th className="px-3 py-2 text-left text-[10px] uppercase tracking-wider font-semibold">Equivalence</th>
+                      <th className="w-10" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {altUoms.map((a, i) => (
+                      <tr key={`${a.uom}-${i}`} className="border-t border-border/50">
+                        <td className="px-3 py-1.5 font-medium">{a.uom}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">{a.conversion}</td>
+                        <td className="px-3 py-1.5 text-xs text-muted-foreground">
+                          1 {a.uom} = <span className="font-semibold text-foreground tabular-nums">{a.conversion}</span> {uom}
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <button
+                            type="button"
+                            onClick={() => removeAltUom(i)}
+                            className="text-muted-foreground hover:text-destructive text-sm"
+                            aria-label={`Remove ${a.uom}`}
+                          >
+                            ×
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Alt UOM Label</Label>
+                <select
+                  value={altDraftUom}
+                  onChange={(e) => setAltDraftUom(e.target.value)}
+                  className={selectCls}
+                >
+                  <option value="">Select alt UOM…</option>
+                  {ALT_UOM_OPTIONS.filter(
+                    (opt) =>
+                      opt.toLowerCase() !== uom.toLowerCase() &&
+                      !altUoms.some((a) => a.uom.toLowerCase() === opt.toLowerCase()),
+                  ).map((opt) => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Conversion to {uom}
+                </Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.001"
+                  value={altDraftConversion}
+                  onChange={(e) => setAltDraftConversion(e.target.value)}
+                  placeholder="e.g. 12"
+                  className="mt-1 tabular-nums"
+                />
+              </div>
+              <Button type="button" variant="outline" onClick={addAltUom}>
+                <Plus className="h-3.5 w-3.5 mr-1" /> Add
+              </Button>
+            </div>
           </div>
 
           <div className="md:col-span-2 mt-2 pt-4 border-t border-border">
@@ -480,12 +735,12 @@ function ItemCreate({ nextId, onSave }: { nextId: string; onSave: (row: ItemRow)
           </div>
 
           <div>
-            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Current Stock</Label>
-            <Input type="number" min={0} value={currentStock} onChange={(e) => setCurrentStock(e.target.value)} className="mt-1 tabular-nums" />
-          </div>
-          <div>
             <Label className="text-xs uppercase tracking-wider text-muted-foreground">Reorder Level</Label>
             <Input type="number" min={0} value={reorderLevel} onChange={(e) => setReorderLevel(e.target.value)} className="mt-1 tabular-nums" />
+          </div>
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Expiry Date</Label>
+            <Input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} className="mt-1 tabular-nums" />
           </div>
 
           <div className="md:col-span-2">
@@ -500,15 +755,6 @@ function ItemCreate({ nextId, onSave }: { nextId: string; onSave: (row: ItemRow)
               </div>
             </div>
           </div>
-
-          <div>
-            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Batch No.</Label>
-            <Input value={batchNo} onChange={(e) => setBatchNo(e.target.value)} className="mt-1 font-mono" placeholder="e.g. BR-2406" />
-          </div>
-          <div>
-            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Expiry Date</Label>
-            <Input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} className="mt-1 tabular-nums" />
-          </div>
           <div className="md:col-span-2">
             <Label className="text-xs uppercase tracking-wider text-muted-foreground">Bin Location</Label>
             <Input
@@ -519,6 +765,85 @@ function ItemCreate({ nextId, onSave }: { nextId: string; onSave: (row: ItemRow)
             />
             <div className="mt-1 text-[11px] text-muted-foreground">
               Default warehouse bin. Used as the picking location across Inventory, Airline Consumables, and FEFO/FIFO lookups.
+            </div>
+          </div>
+
+          <div className="md:col-span-2">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Stock Tracking</Label>
+            <div
+              className="mt-1 inline-flex items-center rounded-md border border-input bg-background p-0.5 shadow-sm"
+              role="group"
+              aria-label="Stock tracking mode"
+            >
+              {([
+                { label: "Batch-Tracked",  value: true  },
+                { label: "Single Item",    value: false },
+              ] as const).map((opt) => {
+                const active = batchTrackedChoice === opt.value;
+                return (
+                  <button
+                    key={String(opt.value)}
+                    type="button"
+                    onClick={() => setBatchTrackedChoice(opt.value)}
+                    className={cn(
+                      "px-3 py-1 text-xs font-semibold rounded-sm transition-colors",
+                      active
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
+              <span className="font-semibold text-foreground">Batch-Tracked</span> means each receipt creates a discrete batch lot with its own expiry and cost. FIFO/FEFO controls which lot is drained first.
+              <br />
+              <span className="font-semibold text-foreground">Single Item</span> means stock is one pooled bucket — no batch numbers, no expiry, no FIFO/FEFO. Use for shelf-stable hardware (tape, caps, labels, etc.).
+            </div>
+          </div>
+
+          <div className="md:col-span-2">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+              Allocation Method
+              {!batchTrackedChoice && (
+                <span className="ml-2 text-[10px] font-normal italic text-muted-foreground/80">
+                  not applicable for Single Item
+                </span>
+              )}
+            </Label>
+            <div
+              className={cn(
+                "mt-1 inline-flex items-center rounded-md border border-input bg-background p-0.5 shadow-sm",
+                !batchTrackedChoice && "opacity-50 pointer-events-none",
+              )}
+              role="group"
+              aria-label="Allocation method"
+            >
+              {(["Auto", "FEFO", "FIFO"] as const).map((m) => {
+                const active = allocationChoice === m;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setAllocationChoice(m)}
+                    className={cn(
+                      "px-3 py-1 text-xs font-semibold rounded-sm transition-colors",
+                      active
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {m}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
+              <span className="font-semibold text-foreground">Auto</span> picks FEFO for perishables (Protein, Dairy, Vegetable, Bakery, Meal, Beverage; Fresh/Frozen) and FIFO for shelf-stable goods (Packaging, Consumables, Dry).
+              <br />
+              <span className="font-semibold text-foreground">FEFO</span> drains the lot with the earliest expiry first; <span className="font-semibold text-foreground">FIFO</span> drains the earliest-received lot.
             </div>
           </div>
         </div>
