@@ -113,6 +113,11 @@ const SAMPLE_PARSED_DOM: ParsedRow[] = [
   { row: 2, id: "ORD-3502", flight: "BS-203", airline: "US-Bangla", sector: "DAC → CGP", etd: "10:30", pax: 88, specialMeals: 2, valid: true,  type: "Domestic", zenLoad: 88, totalMeal: 88, specMeal: 2, crewMeal: 4, returnFlight: "BS-204", returnSector: "CGP → DAC", date: "2026-05-24" },
   { row: 3, id: "ORD-3503", flight: "AA-101", airline: "Air Astra", sector: "DAC → ZYL", etd: "13:00", pax: 0,  specialMeals: 0, valid: false, type: "Domestic", date: "2026-05-24" },
   { row: 4, id: "ORD-3504", flight: "AA-202", airline: "Air Astra", sector: "DAC → CXB", etd: "15:45", pax: 66, specialMeals: 3, valid: true,  type: "Domestic", zenLoad: 66, totalMeal: 66, specMeal: 3, crewMeal: 4, returnFlight: "AA-203", returnSector: "CXB → DAC", date: "2026-05-24" },
+  { row: 5, id: "ORD-3511", flight: "BS-143", airline: "US-Bangla", sector: "DAC → CXB", etd: "07:30", pax: 80, specialMeals: 3, valid: true,  type: "Domestic", zenLoad: 80, totalMeal: 80, specMeal: 3, crewMeal: 4, returnFlight: "BS-144", returnSector: "CXB → DAC", date: "2026-05-25" },
+  { row: 6, id: "ORD-3512", flight: "BS-205", airline: "US-Bangla", sector: "DAC → CGP", etd: "11:00", pax: 76, specialMeals: 2, valid: true,  type: "Domestic", zenLoad: 76, totalMeal: 76, specMeal: 2, crewMeal: 4, returnFlight: "BS-206", returnSector: "CGP → DAC", date: "2026-05-25" },
+  { row: 7, id: "ORD-3513", flight: "AA-103", airline: "Air Astra", sector: "DAC → ZYL", etd: "14:00", pax: 55, specialMeals: 1, valid: true,  type: "Domestic", zenLoad: 55, totalMeal: 55, specMeal: 1, crewMeal: 2, returnFlight: "AA-104", returnSector: "ZYL → DAC", date: "2026-05-25" },
+  { row: 8, id: "ORD-3514", flight: "AA-204", airline: "Air Astra", sector: "DAC → CXB", etd: "16:30", pax: 70, specialMeals: 2, valid: true,  type: "Domestic", zenLoad: 70, totalMeal: 70, specMeal: 2, crewMeal: 4, returnFlight: "AA-205", returnSector: "CXB → DAC", date: "2026-05-25" },
+  { row: 9, id: "ORD-3515", flight: "BS-167", airline: "US-Bangla", sector: "DAC → JSR", etd: "09:45", pax: 0,  specialMeals: 0, valid: false, type: "Domestic", date: "2026-05-25" },
 ];
 
 const SAMPLE_PARSED_INTL: ParsedRow[] = [
@@ -120,6 +125,10 @@ const SAMPLE_PARSED_INTL: ParsedRow[] = [
   { row: 2, id: "ORD-3602", flight: "BS-307", airline: "US-Bangla", sector: "DAC → KUL", etd: "23:50", pax: 282, specialMeals: 18, valid: true,  type: "International", bcLoad: 24, ecLoad: 258, bcMeal: 24, ecMeal: 258, chml: 10, vgml: 8, date: "2026-05-24" },
   { row: 3, id: "ORD-3603", flight: "BS-411", airline: "US-Bangla", sector: "CGP → DXB", etd: "18:25", pax: 162, specialMeals: 10, valid: true,  type: "International", bcLoad: 10, ecLoad: 152, bcMeal: 10, ecMeal: 152, chml: 6,  vgml: 4, date: "2026-05-24" },
   { row: 4, id: "ORD-3604", flight: "BS-???", airline: "US-Bangla", sector: "DAC → DOH", etd: "15:00", pax: 0,   specialMeals: 0,  valid: false, type: "International", date: "2026-05-24" },
+  { row: 5, id: "ORD-3611", flight: "BS-227", airline: "US-Bangla", sector: "DAC → DXB", etd: "10:30", pax: 188, specialMeals: 12, valid: true,  type: "International", bcLoad: 16, ecLoad: 172, bcMeal: 16, ecMeal: 172, chml: 9,  vgml: 5, date: "2026-05-25" },
+  { row: 6, id: "ORD-3612", flight: "BS-309", airline: "US-Bangla", sector: "DAC → KUL", etd: "22:00", pax: 270, specialMeals: 16, valid: true,  type: "International", bcLoad: 20, ecLoad: 250, bcMeal: 20, ecMeal: 250, chml: 8,  vgml: 6, date: "2026-05-25" },
+  { row: 7, id: "ORD-3613", flight: "BS-413", airline: "US-Bangla", sector: "CGP → DXB", etd: "17:50", pax: 150, specialMeals: 8,  valid: true,  type: "International", bcLoad: 8,  ecLoad: 142, bcMeal: 8,  ecMeal: 142, chml: 5,  vgml: 3, date: "2026-05-25" },
+  { row: 8, id: "ORD-3614", flight: "BS-501", airline: "US-Bangla", sector: "DAC → SIN", etd: "20:15", pax: 0,   specialMeals: 0,  valid: false, type: "International", date: "2026-05-25" },
 ];
 
 type MealPlan = Record<string, number>;
@@ -1784,6 +1793,18 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
 
   const [importConfirmed, setImportConfirmed] = useState(false);
   const [showFinalReview, setShowFinalReview] = useState(false);
+  const [mealEditMode, setMealEditMode] = useState(false);
+  const [summaryEdit, setSummaryEdit] = useState<{
+    intlDepMeal: number; intlDepChml: number; intlRetVgml: number;
+    usbaZenith: number; usbaPax: number; usbaBreakfast: number; usbaLunch: number;
+    aaaZenith: number; aaaPax: number;
+    crewHSnacks: number; crewLunch: number; crewDinner: number;
+  } | null>(null);
+  const [showCrewMenuModal, setShowCrewMenuModal] = useState(false);
+  const [crewMenuQty, setCrewMenuQty] = useState({
+    hSnacks: 8, lunch: 0, dinner: 4,
+    bcBreakfast: 12, bcLunch: 12, ecSnack: 270, ecMeal: 0,
+  });
   const [importedOrders, setImportedOrders] = useState<FlightOrder[]>([]);
   const [orderLoading, setOrderLoading] = useState(false);
   const [orderSent, setOrderSent] = useState(false);
@@ -2069,7 +2090,7 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                 <span className="inline-flex items-center rounded-md bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary uppercase tracking-wider">
                   Domestic Flights
                 </span>
-                <span className="text-xs text-muted-foreground">Parsed · {domParsed.length} rows</span>
+                <span className="text-xs text-muted-foreground">Zenith PAX Load</span>
               </div>
               {domInvalidCount > 0 && (
                 <span className="inline-flex items-center text-xs text-muted-foreground">
@@ -2078,45 +2099,43 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                 </span>
               )}
             </div>
-            <div className="border border-border rounded-md overflow-hidden overflow-x-auto">
-              <Table>
-                <TableHeader className="bg-muted/40">
-                  <TableRow>
-                    <TableHead colSpan={8} className="text-xs uppercase tracking-wider text-center border-r border-border bg-primary/5 text-primary py-1.5">
-                      Departure Flight
-                    </TableHead>
-                    <TableHead colSpan={9} className="text-xs uppercase tracking-wider text-center bg-navy/5 text-navy py-1.5">
-                      Return Flight
-                    </TableHead>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead className="text-xs uppercase tracking-wider">AIRLINE NAME</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider">FLT NO</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider">SECTOR</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider">DEP TIME</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-right">ZEN LOAD</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-right">B/C LOAD</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-right">E/C LOAD</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-right border-r border-border">TOTAL MEAL</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider">FLT NO</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider">SECTOR</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-right">B/C MEAL</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-right">E/C MEAL</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-right">CHML</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-right">VGML</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-right">SPEC MEAL</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-right">CREW MEAL</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider">ACTIONS</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {groupByDate(domParsed).map(({ date, rows: dayRows }) => (
-                    <Fragment key={date}>
-                      <TableRow className="bg-primary/5 border-t border-primary/20 hover:bg-primary/10">
-                        <TableCell colSpan={17} className="py-2">
+            <div className="space-y-3">
+              {groupByDate(domParsed).map(({ date, rows: dayRows }) => (
+                <div key={date} className="border border-border rounded-md overflow-hidden overflow-x-auto">
+                  <Table>
+                    <TableHeader className="bg-muted/40">
+                      <TableRow className="bg-primary/5 border-b border-primary/20">
+                        <TableHead colSpan={15} className="py-2">
                           <span className="font-semibold text-primary text-xs">{formatDayLabel(date)}</span>
-                        </TableCell>
+                        </TableHead>
                       </TableRow>
+                      <TableRow>
+                        <TableHead colSpan={7} className="text-xs uppercase tracking-wider text-center border-r border-border bg-primary/5 text-primary py-1.5">
+                          Departure Flight
+                        </TableHead>
+                        <TableHead colSpan={8} className="text-xs uppercase tracking-wider text-center bg-navy/5 text-navy py-1.5">
+                          Return Flight
+                        </TableHead>
+                      </TableRow>
+                      <TableRow>
+                        <TableHead className="text-xs uppercase tracking-wider">AIRLINE NAME</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider">FLT NO</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider">SECTOR</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider">DEP TIME</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider text-right">B/C</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider text-right">E/C</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider text-right border-r border-border">TOTAL MEAL</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider">FLT NO</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider">SECTOR</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider text-right">B/C</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider text-right">E/C</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider text-right">CHML</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider text-right">VGML</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider text-right">CREW MEAL</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider">ACTIONS</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
                       {dayRows.map((r) => (
                         <TableRow key={`dom-${r.row}`} className={!r.valid ? "bg-destructive/10" : ""}>
                           <TableCell className="text-xs">{r.airline}</TableCell>
@@ -2129,7 +2148,6 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                           </TableCell>
                           <TableCell className="text-xs">{r.sector}</TableCell>
                           <TableCell className="text-xs tabular-nums">{r.etd}</TableCell>
-                          <TableCell className="text-right tabular-nums text-xs">{r.zenLoad ?? "—"}</TableCell>
                           <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
                           <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
                           <TableCell className="text-right tabular-nums text-xs border-r border-border">{r.totalMeal ?? "—"}</TableCell>
@@ -2139,7 +2157,6 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                           <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
                           <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
                           <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
-                          <TableCell className="text-right tabular-nums text-xs">{r.specialMeals > 0 ? r.specialMeals : "—"}</TableCell>
                           <TableCell className="text-right tabular-nums text-xs">{r.crewMeal ?? "—"}</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1.5">
@@ -2154,10 +2171,10 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                           </TableCell>
                         </TableRow>
                       ))}
-                    </Fragment>
-                  ))}
-                </TableBody>
-              </Table>
+                    </TableBody>
+                  </Table>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -2172,7 +2189,7 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                 <span className="inline-flex items-center rounded-md bg-navy/10 px-2.5 py-1 text-xs font-semibold text-navy uppercase tracking-wider">
                   International Flights
                 </span>
-                <span className="text-xs text-muted-foreground">Parsed · {intlParsed.length} rows</span>
+                <span className="text-xs text-muted-foreground">Zenith PAX Load</span>
               </div>
               {intlInvalidCount > 0 && (
                 <span className="inline-flex items-center text-xs text-muted-foreground">
@@ -2181,45 +2198,43 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                 </span>
               )}
             </div>
-            <div className="border border-border rounded-md overflow-hidden overflow-x-auto">
-              <Table>
-                <TableHeader className="bg-muted/40">
-                  <TableRow>
-                    <TableHead colSpan={8} className="text-xs uppercase tracking-wider text-center border-r border-border bg-primary/5 text-primary py-1.5">
-                      Departure Flight
-                    </TableHead>
-                    <TableHead colSpan={9} className="text-xs uppercase tracking-wider text-center bg-navy/5 text-navy py-1.5">
-                      Return Flight
-                    </TableHead>
-                  </TableRow>
-                  <TableRow>
-                    <TableHead className="text-xs uppercase tracking-wider">AIRLINE NAME</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider">FLT NO</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider">SECTOR</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider">DEP TIME</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-right">ZEN LOAD</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-right">B/C LOAD</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-right">E/C LOAD</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-right border-r border-border">TOTAL MEAL</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider">FLT NO</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider">SECTOR</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-right">B/C MEAL</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-right">E/C MEAL</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-right">CHML</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-right">VGML</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-right">SPEC MEAL</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-right">CREW MEAL</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider">ACTIONS</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {groupByDate(intlParsed).map(({ date, rows: dayRows }) => (
-                    <Fragment key={date}>
-                      <TableRow className="bg-navy/5 border-t border-navy/20 hover:bg-navy/10">
-                        <TableCell colSpan={17} className="py-2">
+            <div className="space-y-3">
+              {groupByDate(intlParsed).map(({ date, rows: dayRows }) => (
+                <div key={date} className="border border-border rounded-md overflow-hidden overflow-x-auto">
+                  <Table>
+                    <TableHeader className="bg-muted/40">
+                      <TableRow className="bg-navy/5 border-b border-navy/20">
+                        <TableHead colSpan={15} className="py-2">
                           <span className="font-semibold text-navy text-xs">{formatDayLabel(date)}</span>
-                        </TableCell>
+                        </TableHead>
                       </TableRow>
+                      <TableRow>
+                        <TableHead colSpan={7} className="text-xs uppercase tracking-wider text-center border-r border-border bg-primary/5 text-primary py-1.5">
+                          Departure Flight
+                        </TableHead>
+                        <TableHead colSpan={8} className="text-xs uppercase tracking-wider text-center bg-navy/5 text-navy py-1.5">
+                          Return Flight
+                        </TableHead>
+                      </TableRow>
+                      <TableRow>
+                        <TableHead className="text-xs uppercase tracking-wider">AIRLINE NAME</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider">FLT NO</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider">SECTOR</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider">DEP TIME</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider text-right">B/C</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider text-right">E/C</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider text-right border-r border-border">TOTAL MEAL</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider">FLT NO</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider">SECTOR</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider text-right">B/C</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider text-right">E/C</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider text-right">CHML</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider text-right">VGML</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider text-right">CREW MEAL</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider">ACTIONS</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
                       {dayRows.map((r) => (
                         <TableRow key={`intl-${r.row}`} className={!r.valid ? "bg-destructive/10" : ""}>
                           <TableCell className="text-xs">{r.airline}</TableCell>
@@ -2232,7 +2247,6 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                           </TableCell>
                           <TableCell className="text-xs">{r.sector}</TableCell>
                           <TableCell className="text-xs tabular-nums">{r.etd}</TableCell>
-                          <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
                           <TableCell className="text-right tabular-nums text-xs">{r.bcLoad ?? "—"}</TableCell>
                           <TableCell className="text-right tabular-nums text-xs">{r.ecLoad ?? "—"}</TableCell>
                           <TableCell className="text-right text-xs text-muted-foreground border-r border-border">—</TableCell>
@@ -2242,7 +2256,6 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                           <TableCell className="text-right tabular-nums text-xs">{r.ecMeal ?? "—"}</TableCell>
                           <TableCell className="text-right tabular-nums text-xs">{r.chml ?? "—"}</TableCell>
                           <TableCell className="text-right tabular-nums text-xs">{r.vgml ?? "—"}</TableCell>
-                          <TableCell className="text-right tabular-nums text-xs">{r.specialMeals > 0 ? r.specialMeals : "—"}</TableCell>
                           <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1.5">
@@ -2257,10 +2270,10 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                           </TableCell>
                         </TableRow>
                       ))}
-                    </Fragment>
-                  ))}
-                </TableBody>
-              </Table>
+                    </TableBody>
+                  </Table>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -2295,10 +2308,10 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
               <Table>
                 <TableHeader className="bg-muted/40">
                   <TableRow>
-                    <TableHead colSpan={8} className="text-xs uppercase tracking-wider text-center border-r border-border bg-primary/5 text-primary py-1.5">
+                    <TableHead colSpan={7} className="text-xs uppercase tracking-wider text-center border-r border-border bg-primary/5 text-primary py-1.5">
                       Departure Flight
                     </TableHead>
-                    <TableHead colSpan={9} className="text-xs uppercase tracking-wider text-center bg-navy/5 text-navy py-1.5">
+                    <TableHead colSpan={8} className="text-xs uppercase tracking-wider text-center bg-navy/5 text-navy py-1.5">
                       Return Flight
                     </TableHead>
                   </TableRow>
@@ -2307,24 +2320,22 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                     <TableHead className="text-xs uppercase tracking-wider">FLT NO</TableHead>
                     <TableHead className="text-xs uppercase tracking-wider">SECTOR</TableHead>
                     <TableHead className="text-xs uppercase tracking-wider">DEP TIME</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-right">ZEN LOAD</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-right">B/C LOAD</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-right">E/C LOAD</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">B/C</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">E/C</TableHead>
                     <TableHead className="text-xs uppercase tracking-wider text-right border-r border-border">TOTAL MEAL</TableHead>
                     <TableHead className="text-xs uppercase tracking-wider">FLT NO</TableHead>
                     <TableHead className="text-xs uppercase tracking-wider">SECTOR</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-right">B/C MEAL</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-right">E/C MEAL</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">B/C</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-right">E/C</TableHead>
                     <TableHead className="text-xs uppercase tracking-wider text-right">CHML</TableHead>
                     <TableHead className="text-xs uppercase tracking-wider text-right">VGML</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-right">SPEC MEAL</TableHead>
                     <TableHead className="text-xs uppercase tracking-wider text-right">CREW MEAL</TableHead>
                     <TableHead className="text-xs uppercase tracking-wider">STATUS</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   <TableRow className="bg-primary/5 border-t-2 border-t-primary/40 hover:bg-primary/10">
-                    <TableCell colSpan={17} className="py-2">
+                    <TableCell colSpan={15} className="py-2">
                       <span className="font-semibold text-primary uppercase tracking-wider text-xs">Domestic</span>
                     </TableCell>
                   </TableRow>
@@ -2334,7 +2345,6 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                       <TableCell className="text-sm font-medium">{r.flight}</TableCell>
                       <TableCell className="text-xs">{r.sector}</TableCell>
                       <TableCell className="text-xs tabular-nums">{r.etd}</TableCell>
-                      <TableCell className="text-right tabular-nums text-xs">{r.zenLoad ?? "—"}</TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
                       <TableCell className="text-right tabular-nums text-xs border-r border-border">{r.totalMeal ?? "—"}</TableCell>
@@ -2344,13 +2354,12 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                       <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
-                      <TableCell className="text-right tabular-nums text-xs">{r.specialMeals > 0 ? r.specialMeals : "—"}</TableCell>
                       <TableCell className="text-right tabular-nums text-xs">{r.crewMeal ?? "—"}</TableCell>
                       <TableCell><StatusBadge status={r.valid ? "OK" : "Failed"} /></TableCell>
                     </TableRow>
                   ))}
                   <TableRow className="bg-navy/5 border-t-2 border-t-navy/40 hover:bg-navy/10">
-                    <TableCell colSpan={17} className="py-2">
+                    <TableCell colSpan={15} className="py-2">
                       <span className="font-semibold text-navy uppercase tracking-wider text-xs">International</span>
                     </TableCell>
                   </TableRow>
@@ -2360,7 +2369,6 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                       <TableCell className="text-sm font-medium">{r.flight}</TableCell>
                       <TableCell className="text-xs">{r.sector}</TableCell>
                       <TableCell className="text-xs tabular-nums">{r.etd}</TableCell>
-                      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
                       <TableCell className="text-right tabular-nums text-xs">{r.bcLoad ?? "—"}</TableCell>
                       <TableCell className="text-right tabular-nums text-xs">{r.ecLoad ?? "—"}</TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground border-r border-border">—</TableCell>
@@ -2370,7 +2378,6 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                       <TableCell className="text-right tabular-nums text-xs">{r.ecMeal ?? "—"}</TableCell>
                       <TableCell className="text-right tabular-nums text-xs">{r.chml ?? "—"}</TableCell>
                       <TableCell className="text-right tabular-nums text-xs">{r.vgml ?? "—"}</TableCell>
-                      <TableCell className="text-right tabular-nums text-xs">{r.specialMeals > 0 ? r.specialMeals : "—"}</TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
                       <TableCell><StatusBadge status={r.valid ? "OK" : "Failed"} /></TableCell>
                     </TableRow>
@@ -2478,6 +2485,128 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
         </DialogContent>
       </Dialog>
 
+      {/* Crew Menu Modal */}
+      <Dialog open={showCrewMenuModal} onOpenChange={setShowCrewMenuModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Crew Meal Configuration — {importDate}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5 py-2">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-primary mb-2">Domestic Crew Meals</div>
+              <div className="rounded-md border border-border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/40">
+                    <tr>
+                      <th className="text-left px-3 py-2 text-xs uppercase tracking-wider font-semibold">Meal Type</th>
+                      <th className="text-left px-3 py-2 text-xs uppercase tracking-wider font-semibold">Menu Item</th>
+                      <th className="text-right px-3 py-2 text-xs uppercase tracking-wider font-semibold">Qty</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-t border-border">
+                      <td className="px-3 py-2 text-muted-foreground">H. Snacks</td>
+                      <td className="px-3 py-2">Sandwich + Orange Juice</td>
+                      <td className="px-3 py-2 text-right">
+                        <input type="number" min={0} value={crewMenuQty.hSnacks}
+                          onChange={(e) => setCrewMenuQty((p) => ({ ...p, hSnacks: Number(e.target.value) }))}
+                          className="w-20 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                      </td>
+                    </tr>
+                    <tr className="border-t border-border">
+                      <td className="px-3 py-2 text-muted-foreground">Lunch</td>
+                      <td className="px-3 py-2">Rice + Mutton Curry</td>
+                      <td className="px-3 py-2 text-right">
+                        <input type="number" min={0} value={crewMenuQty.lunch}
+                          onChange={(e) => setCrewMenuQty((p) => ({ ...p, lunch: Number(e.target.value) }))}
+                          className="w-20 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                      </td>
+                    </tr>
+                    <tr className="border-t border-border">
+                      <td className="px-3 py-2 text-muted-foreground">Dinner</td>
+                      <td className="px-3 py-2">Noodles + Soup + Juice</td>
+                      <td className="px-3 py-2 text-right">
+                        <input type="number" min={0} value={crewMenuQty.dinner}
+                          onChange={(e) => setCrewMenuQty((p) => ({ ...p, dinner: Number(e.target.value) }))}
+                          className="w-20 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-navy mb-2">International Crew Meals</div>
+              <div className="rounded-md border border-border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/40">
+                    <tr>
+                      <th className="text-left px-3 py-2 text-xs uppercase tracking-wider font-semibold">Meal Type</th>
+                      <th className="text-left px-3 py-2 text-xs uppercase tracking-wider font-semibold">Menu Item</th>
+                      <th className="text-right px-3 py-2 text-xs uppercase tracking-wider font-semibold">Qty</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-t border-border">
+                      <td className="px-3 py-2 text-muted-foreground">B/C Breakfast</td>
+                      <td className="px-3 py-2">Continental Breakfast Platter</td>
+                      <td className="px-3 py-2 text-right">
+                        <input type="number" min={0} value={crewMenuQty.bcBreakfast}
+                          onChange={(e) => setCrewMenuQty((p) => ({ ...p, bcBreakfast: Number(e.target.value) }))}
+                          className="w-20 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                      </td>
+                    </tr>
+                    <tr className="border-t border-border">
+                      <td className="px-3 py-2 text-muted-foreground">B/C Lunch</td>
+                      <td className="px-3 py-2">Chef's Special — Rice + Fish</td>
+                      <td className="px-3 py-2 text-right">
+                        <input type="number" min={0} value={crewMenuQty.bcLunch}
+                          onChange={(e) => setCrewMenuQty((p) => ({ ...p, bcLunch: Number(e.target.value) }))}
+                          className="w-20 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                      </td>
+                    </tr>
+                    <tr className="border-t border-border">
+                      <td className="px-3 py-2 text-muted-foreground">E/C Snack</td>
+                      <td className="px-3 py-2">Biscuit + Coffee / Tea</td>
+                      <td className="px-3 py-2 text-right">
+                        <input type="number" min={0} value={crewMenuQty.ecSnack}
+                          onChange={(e) => setCrewMenuQty((p) => ({ ...p, ecSnack: Number(e.target.value) }))}
+                          className="w-20 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                      </td>
+                    </tr>
+                    <tr className="border-t border-border">
+                      <td className="px-3 py-2 text-muted-foreground">E/C Meal</td>
+                      <td className="px-3 py-2">Standard Box Meal</td>
+                      <td className="px-3 py-2 text-right">
+                        <input type="number" min={0} value={crewMenuQty.ecMeal}
+                          onChange={(e) => setCrewMenuQty((p) => ({ ...p, ecMeal: Number(e.target.value) }))}
+                          className="w-20 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCrewMenuModal(false)}>Close</Button>
+            <Button onClick={() => {
+              if (summaryEdit) {
+                setSummaryEdit((p) => p && { ...p,
+                  crewHSnacks: crewMenuQty.hSnacks,
+                  crewLunch: crewMenuQty.lunch,
+                  crewDinner: crewMenuQty.dinner,
+                });
+              }
+              setShowCrewMenuModal(false);
+              toast.success("Crew meal quantities updated.");
+            }}>
+              Order Meal
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Post-import: success banner, meal summary, order meal action bar */}
       {importConfirmed && (
         <>
@@ -2497,7 +2626,7 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
             <CardContent className="pt-6">
               <h3 className="text-sm font-semibold tracking-wider uppercase text-foreground mb-4">
                 Meal Order Summary — Next 24 Hours
-                <span className="ml-2 text-xs font-normal normal-case tracking-normal text-muted-foreground">{importDate}</span>
+                <span className="ml-2 text-xs font-normal normal-case tracking-normal text-muted-foreground">{importDate} · From Zenith PAX Load</span>
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -2508,15 +2637,29 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                     <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Departure</div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Total Departure Meal</span>
-                      <span className="font-medium tabular-nums">{intlDepMeal}</span>
+                      {mealEditMode && summaryEdit ? (
+                        <input type="number" min={0} value={summaryEdit.intlDepMeal}
+                          onChange={(e) => setSummaryEdit((p) => p && { ...p, intlDepMeal: Number(e.target.value) })}
+                          className="w-24 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                      ) : (
+                        <span className="font-medium tabular-nums">{intlDepMeal}</span>
+                      )}
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Departure CHML</span>
-                      <span className="font-medium tabular-nums">{intlDepChml}</span>
+                      {mealEditMode && summaryEdit ? (
+                        <input type="number" min={0} value={summaryEdit.intlDepChml}
+                          onChange={(e) => setSummaryEdit((p) => p && { ...p, intlDepChml: Number(e.target.value) })}
+                          className="w-24 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                      ) : (
+                        <span className="font-medium tabular-nums">{intlDepChml}</span>
+                      )}
                     </div>
                     <div className="flex justify-between text-sm font-semibold border-t border-navy/20 pt-1">
                       <span>Departure Total</span>
-                      <span className="tabular-nums">{intlDepTotal}</span>
+                      <span className="tabular-nums">
+                        {mealEditMode && summaryEdit ? summaryEdit.intlDepMeal + summaryEdit.intlDepChml : intlDepTotal}
+                      </span>
                     </div>
                   </div>
                   <div className="space-y-1.5">
@@ -2531,16 +2674,28 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Return VGML</span>
-                      <span className="font-medium tabular-nums">{intlRetVgml}</span>
+                      {mealEditMode && summaryEdit ? (
+                        <input type="number" min={0} value={summaryEdit.intlRetVgml}
+                          onChange={(e) => setSummaryEdit((p) => p && { ...p, intlRetVgml: Number(e.target.value) })}
+                          className="w-24 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                      ) : (
+                        <span className="font-medium tabular-nums">{intlRetVgml}</span>
+                      )}
                     </div>
                     <div className="flex justify-between text-sm font-semibold border-t border-navy/20 pt-1">
                       <span>Return Total</span>
-                      <span className="tabular-nums">{intlRetTotal}</span>
+                      <span className="tabular-nums">
+                        {mealEditMode && summaryEdit ? summaryEdit.intlRetVgml : intlRetTotal}
+                      </span>
                     </div>
                   </div>
                   <div className="flex justify-between text-sm font-bold border-t-2 border-navy/30 pt-2 mt-1">
                     <span>Total Meal (Departure+Return)</span>
-                    <span className="tabular-nums">{intlGrandTotal}</span>
+                    <span className="tabular-nums">
+                      {mealEditMode && summaryEdit
+                        ? summaryEdit.intlDepMeal + summaryEdit.intlDepChml + summaryEdit.intlRetVgml
+                        : intlGrandTotal}
+                    </span>
                   </div>
                 </div>
 
@@ -2551,50 +2706,116 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                     <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">US-Bangla</div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Zenith Load</span>
-                      <span className="font-medium tabular-nums">{usbaZenith}</span>
+                      {mealEditMode && summaryEdit ? (
+                        <input type="number" min={0} value={summaryEdit.usbaZenith}
+                          onChange={(e) => setSummaryEdit((p) => p && { ...p, usbaZenith: Number(e.target.value) })}
+                          className="w-24 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                      ) : (
+                        <span className="font-medium tabular-nums">{usbaZenith}</span>
+                      )}
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Pax Load</span>
-                      <span className="font-medium tabular-nums">{usbaPax}</span>
+                      {mealEditMode && summaryEdit ? (
+                        <input type="number" min={0} value={summaryEdit.usbaPax}
+                          onChange={(e) => setSummaryEdit((p) => p && { ...p, usbaPax: Number(e.target.value) })}
+                          className="w-24 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                      ) : (
+                        <span className="font-medium tabular-nums">{usbaPax}</span>
+                      )}
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Breakfast (JBR + CKN Buggati)</span>
-                      <span className="font-medium tabular-nums">{usbaBreakfast}</span>
+                      {mealEditMode && summaryEdit ? (
+                        <input type="number" min={0} value={summaryEdit.usbaBreakfast}
+                          onChange={(e) => setSummaryEdit((p) => p && { ...p, usbaBreakfast: Number(e.target.value) })}
+                          className="w-24 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                      ) : (
+                        <span className="font-medium tabular-nums">{usbaBreakfast}</span>
+                      )}
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Lunch</span>
-                      <span className="font-medium tabular-nums">{usbaLunch}</span>
+                      {mealEditMode && summaryEdit ? (
+                        <input type="number" min={0} value={summaryEdit.usbaLunch}
+                          onChange={(e) => setSummaryEdit((p) => p && { ...p, usbaLunch: Number(e.target.value) })}
+                          className="w-24 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                      ) : (
+                        <span className="font-medium tabular-nums">{usbaLunch}</span>
+                      )}
                     </div>
                   </div>
                   <div className="space-y-1.5">
                     <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Air Astra</div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Zenith Load</span>
-                      <span className="font-medium tabular-nums">{aaaZenith}</span>
+                      {mealEditMode && summaryEdit ? (
+                        <input type="number" min={0} value={summaryEdit.aaaZenith}
+                          onChange={(e) => setSummaryEdit((p) => p && { ...p, aaaZenith: Number(e.target.value) })}
+                          className="w-24 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                      ) : (
+                        <span className="font-medium tabular-nums">{aaaZenith}</span>
+                      )}
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Pax Load</span>
-                      <span className="font-medium tabular-nums">{aaaPax}</span>
+                      {mealEditMode && summaryEdit ? (
+                        <input type="number" min={0} value={summaryEdit.aaaPax}
+                          onChange={(e) => setSummaryEdit((p) => p && { ...p, aaaPax: Number(e.target.value) })}
+                          className="w-24 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                      ) : (
+                        <span className="font-medium tabular-nums">{aaaPax}</span>
+                      )}
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Crew Meals</div>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Crew Meals</div>
+                      {mealEditMode && (
+                        <button
+                          onClick={() => setShowCrewMenuModal(true)}
+                          className="text-[11px] font-semibold uppercase tracking-wider text-primary underline underline-offset-2 hover:opacity-80"
+                        >
+                          Crew Menu
+                        </button>
+                      )}
+                    </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">H. Snacks</span>
-                      <span className="font-medium tabular-nums">{crewHSnacks}</span>
+                      {mealEditMode && summaryEdit ? (
+                        <input type="number" min={0} value={summaryEdit.crewHSnacks}
+                          onChange={(e) => setSummaryEdit((p) => p && { ...p, crewHSnacks: Number(e.target.value) })}
+                          className="w-24 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                      ) : (
+                        <span className="font-medium tabular-nums">{crewHSnacks}</span>
+                      )}
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Lunch</span>
-                      <span className="font-medium tabular-nums">{crewLunch}</span>
+                      {mealEditMode && summaryEdit ? (
+                        <input type="number" min={0} value={summaryEdit.crewLunch}
+                          onChange={(e) => setSummaryEdit((p) => p && { ...p, crewLunch: Number(e.target.value) })}
+                          className="w-24 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                      ) : (
+                        <span className="font-medium tabular-nums">{crewLunch}</span>
+                      )}
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Dinner</span>
-                      <span className="font-medium tabular-nums">{crewDinner}</span>
+                      {mealEditMode && summaryEdit ? (
+                        <input type="number" min={0} value={summaryEdit.crewDinner}
+                          onChange={(e) => setSummaryEdit((p) => p && { ...p, crewDinner: Number(e.target.value) })}
+                          className="w-24 h-7 rounded border border-input bg-background text-right text-sm px-2 tabular-nums" />
+                      ) : (
+                        <span className="font-medium tabular-nums">{crewDinner}</span>
+                      )}
                     </div>
                   </div>
                   <div className="flex justify-between text-sm font-semibold border-t border-primary/20 pt-2">
                     <span>Total Zenith (USBA + Air Astra)</span>
-                    <span className="tabular-nums">{totalZenith}</span>
+                    <span className="tabular-nums">
+                      {mealEditMode && summaryEdit ? summaryEdit.usbaZenith + summaryEdit.aaaZenith : totalZenith}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -2611,15 +2832,38 @@ function BulkUpload({ onImport }: { onImport: (orders: FlightOrder[]) => void })
                   <span className="mx-2">·</span>
                   <span>{totalMeals.toLocaleString()} meals</span>
                 </div>
-                <Button
-                  onClick={handleOrderMeal}
-                  disabled={orderLoading || orderSent}
-                  className={cn(orderSent && "bg-success hover:bg-success text-white")}
-                >
-                  {orderLoading ? "Sending…" : orderSent ? (
-                    <><CheckCircle2 className="h-4 w-4 mr-1.5" />Sent</>
-                  ) : "Order meal"}
-                </Button>
+                <div className="flex items-center gap-2">
+                  {!orderSent && (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        if (mealEditMode) {
+                          setMealEditMode(false);
+                          setSummaryEdit(null);
+                        } else {
+                          setSummaryEdit({
+                            intlDepMeal, intlDepChml, intlRetVgml,
+                            usbaZenith, usbaPax, usbaBreakfast, usbaLunch,
+                            aaaZenith, aaaPax,
+                            crewHSnacks, crewLunch, crewDinner,
+                          });
+                          setMealEditMode(true);
+                        }
+                      }}
+                    >
+                      {mealEditMode ? "Cancel Editing" : "Set Meal Numbers"}
+                    </Button>
+                  )}
+                  <Button
+                    onClick={handleOrderMeal}
+                    disabled={orderLoading || orderSent}
+                    className={cn(orderSent && "bg-success hover:bg-success text-white")}
+                  >
+                    {orderLoading ? "Sending…" : orderSent ? (
+                      <><CheckCircle2 className="h-4 w-4 mr-1.5" />Sent</>
+                    ) : "Order meal"}
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
