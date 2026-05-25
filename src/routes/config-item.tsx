@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "react-router-dom";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -45,11 +45,6 @@ import {
   type AltUom,
 } from "@/lib/sample-data";
 
-export const Route = createFileRoute("/config-item")({
-  head: () => ({ meta: [{ title: "Configuration · Item" }] }),
-  component: ConfigItemPage,
-});
-
 type ItemRow = ItemMaster;
 
 const CATEGORIES = ITEM_CATEGORIES;
@@ -60,7 +55,7 @@ const selectCls =
   "w-full mt-1 h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
 
-function ConfigItemPage() {
+export default function ConfigItemPage() {
   const [rows, setRows] = useState<ItemRow[]>(MASTER_ITEMS);
   const [view, setView] = useState<"list" | "create">("list");
   const [tab, setTab] = useState<"items" | "category">("items");
@@ -542,7 +537,7 @@ function ItemList({ data, onToggle }: { data: ItemRow[]; onToggle: (id: string) 
           return (
             <button
               type="button"
-              onClick={() => navigate({ to: "/bom" })}
+              onClick={() => navigate("/bom")}
               className="inline-flex items-center gap-1.5 rounded border border-success/30 bg-success/5 px-1.5 py-0.5 text-[10px] font-semibold text-success hover:bg-success/10"
               title={`Linked to ${bom.name} (${bom.version})`}
             >
@@ -558,7 +553,7 @@ function ItemList({ data, onToggle }: { data: ItemRow[]; onToggle: (id: string) 
             </span>
             <button
               type="button"
-              onClick={() => navigate({ to: "/bom" })}
+              onClick={() => navigate("/bom")}
               className="text-[10px] font-semibold text-primary hover:underline"
             >
               Create BOM
@@ -739,7 +734,7 @@ function ItemCreate({ nextId, onSave }: { nextId: string; onSave: (row: ItemRow)
 
     if (fgWithoutBom) {
       toast.warning(`"${name.trim()}" saved as Inactive — every Finished Good needs a BOM.`, {
-        action: { label: "Create BOM", onClick: () => navigate({ to: "/bom" }) },
+        action: { label: "Create BOM", onClick: () => navigate("/bom") },
         duration: 8000,
       });
     } else {

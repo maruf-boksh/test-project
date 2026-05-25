@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { KpiCard } from "@/components/common/KpiCard";
@@ -18,11 +17,6 @@ import { toast } from "sonner";
 import { purchaseOrders, vendors } from "@/lib/sample-data";
 import { useWorkflow } from "@/lib/workflow-store";
 import { cn } from "@/lib/utils";
-
-export const Route = createFileRoute("/purchase-reports")({
-  head: () => ({ meta: [{ title: "Purchase Reports" }] }),
-  component: PurchaseReportsPage,
-});
 
 type Period = "month" | "quarter" | "year" | "all";
 const PERIOD_OPTS: { value: Period; label: string }[] = [
@@ -57,7 +51,7 @@ const STATUS_COLORS: Record<string, string> = {
 const BAR_COLOR = "#1E3A8A";
 const ACCENT = "#22C55E";
 
-function PurchaseReportsPage() {
+export default function PurchaseReportsPage() {
   const [period, setPeriod] = useState<Period>("year");
   const { wfPurchaseOrders } = useWorkflow();
 

@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -16,11 +15,6 @@ import {
 } from "recharts";
 import { toast } from "sonner";
 import { seedProductionEntries, type ProductionEntryRow } from "@/lib/sample-data";
-
-export const Route = createFileRoute("/production-reports")({
-  head: () => ({ meta: [{ title: "Production Reports" }] }),
-  component: ProductionReports,
-});
 
 const TODAY = new Date("2026-05-19");
 const STATUS_COLORS: Record<string, string> = {
@@ -50,7 +44,7 @@ function inPeriod(dateStr: string, period: Period): boolean {
   return d >= weekAgo && d <= TODAY;
 }
 
-function ProductionReports() {
+export default function ProductionReports() {
   const [period, setPeriod] = useState<Period>("month");
 
   const filtered = useMemo(

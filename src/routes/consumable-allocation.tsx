@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { Fragment } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { KpiCard } from "@/components/common/KpiCard";
@@ -10,12 +9,7 @@ import {
 import { Plane, Layers, Coins } from "lucide-react";
 import { consumableUsage, consumableItems } from "@/lib/sample-data";
 
-export const Route = createFileRoute("/consumable-allocation")({
-  head: () => ({ meta: [{ title: "Flight Allocation" }] }),
-  component: FlightAllocationPage,
-});
-
-function FlightAllocationPage() {
+export default function FlightAllocationPage() {
   // Group usage by flight
   const byFlight = new Map<string, typeof consumableUsage>();
   for (const u of consumableUsage) {

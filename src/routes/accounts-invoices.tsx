@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -11,11 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { KpiCard } from "@/components/common/KpiCard";
 import { Plus, Download, ChevronUp, ChevronDown, Receipt, Clock, CheckCircle2, Banknote } from "lucide-react";
 import { toast } from "sonner";
-
-export const Route = createFileRoute("/accounts-invoices")({
-  head: () => ({ meta: [{ title: "Invoices & Payments" }] }),
-  component: InvoicesPayments,
-});
 
 type InvStatus = "Pending" | "Approved" | "Paid" | "Rejected";
 
@@ -75,7 +69,7 @@ const COLS: { key: keyof Invoice; label: string }[] = [
   { key: "status", label: "Status" },
 ];
 
-function InvoicesPayments() {
+export default function InvoicesPayments() {
   const [invoices, setInvoices] = useState<Invoice[]>(INITIAL_INVOICES);
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<keyof Invoice>("date");

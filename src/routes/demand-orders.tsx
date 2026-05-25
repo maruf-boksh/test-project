@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "react-router-dom";
 import { useState, useMemo } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -22,11 +22,6 @@ import { useWorkflow, type WfDemandRequest, type WfDemandItem, type WfTransferNo
 import { useRole } from "@/lib/roles";
 import { LocationPicker, LocationFilter, LocationCell } from "@/components/common/LocationPicker";
 
-export const Route = createFileRoute("/demand-orders")({
-  head: () => ({ meta: [{ title: "Demand Requests" }] }),
-  component: DemandOrders,
-});
-
 const KITCHEN_SECTIONS = ["Hot Kitchen", "Cold Kitchen", "Veg Section", "Special Meal", "Bakery", "Packaging"];
 
 const REQUESTERS = [
@@ -43,7 +38,7 @@ const REQUESTERS = [
 const selectCls =
   "w-full mt-1 h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
-function DemandOrders() {
+export default function DemandOrders() {
   const { role } = useRole();
   const wf = useWorkflow();
   const {
@@ -93,7 +88,7 @@ function DemandOrders() {
   // ── Step 2a: Fulfill from Store → route to Item Issue with this demand ─────
   const fulfillFromStore = () => {
     if (!selectedRequest) return;
-    navigate({ to: "/item-issue", search: { demand: selectedRequest.id } });
+    navigate("/item-issue");
   };
 
   // ── Step 2b: Escalate to Supply Chain → auto-create Requisition ─────────────

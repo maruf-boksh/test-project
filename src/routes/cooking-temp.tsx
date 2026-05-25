@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -16,15 +15,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useWorkflow, type WfProductionEntry } from "@/lib/workflow-store";
 import { useArrivalFlash } from "@/lib/arrival-flash";
 
-export const Route = createFileRoute("/cooking-temp")({
-  head: () => ({ meta: [{ title: "Cooking Temp & Sensory Test" }] }),
-  component: CookingTemp,
-});
-
 type CookingRecord = (typeof cookingTempLogs)[number] & { date: string };
 type T = CookingRecord;
 
-function CookingTemp() {
+export default function CookingTemp() {
   useArrivalFlash();
   const { productionEntries, updateProductionEntryStatus, applyStockDeltas } = useWorkflow();
   const [records, setRecords] = useState<T[]>(

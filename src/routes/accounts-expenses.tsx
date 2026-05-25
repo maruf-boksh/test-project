@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -6,11 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { KpiCard } from "@/components/common/KpiCard";
 import { Download, Wallet, TrendingUp, Clock, XCircle } from "lucide-react";
 import { toast } from "sonner";
-
-export const Route = createFileRoute("/accounts-expenses")({
-  head: () => ({ meta: [{ title: "Expense Overview" }] }),
-  component: ExpenseOverview,
-});
 
 type InvStatus = "Pending" | "Approved" | "Paid" | "Rejected";
 
@@ -45,7 +39,7 @@ function statusColor(status: string) {
   }
 }
 
-function ExpenseOverview() {
+export default function ExpenseOverview() {
   const totalInvoiced = useMemo(() => INVOICES.reduce((s, i) => s + i.amount, 0), []);
   const totalPaid = useMemo(() => INVOICES.filter(i => i.status === "Paid").reduce((s, i) => s + i.amount, 0), []);
   const totalOutstanding = useMemo(() =>

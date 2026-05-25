@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -19,11 +18,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-
-export const Route = createFileRoute("/audit")({
-  head: () => ({ meta: [{ title: "Audit Logs" }] }),
-  component: Audit,
-});
 
 // ── Types & taxonomies ────────────────────────────────────────────────────
 
@@ -375,7 +369,7 @@ function relativeTime(at: string, now: Date): string {
 
 // ── Page ──────────────────────────────────────────────────────────────────
 
-function Audit() {
+export default function Audit() {
   const now = useMemo(() => new Date("2026-05-24T10:00:00"), []);
   const [moduleFilter, setModuleFilter] = useState<Module | "All">("All");
   const [actionFilter, setActionFilter] = useState<ActionKind | "All">("All");

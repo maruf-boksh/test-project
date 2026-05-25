@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -10,11 +9,6 @@ import { bakeryOrders } from "@/lib/sample-data";
 import { KpiCard } from "@/components/common/KpiCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-
-export const Route = createFileRoute("/bakery")({
-  head: () => ({ meta: [{ title: "Bakery" }] }),
-  component: Bakery,
-});
 
 type B = (typeof bakeryOrders)[number];
 
@@ -32,7 +26,7 @@ const calculatedBakeryItems = [
   { name: "Cheese Pastry", required: 624, inStock: 260, unit: "Pcs" },
 ];
 
-function Bakery() {
+export default function Bakery() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [showInventory, setShowInventory] = useState(false);
   const [productionStarted, setProductionStarted] = useState(false);

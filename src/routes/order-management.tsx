@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState, Fragment } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -40,11 +39,6 @@ function OrderStatusBadges({ legs }: { legs: { status: FlightOrderStatus }[] }) 
   if (legs.length === 0) return null;
   return <StatusBadge status={legs[0].status} />;
 }
-
-export const Route = createFileRoute("/order-management")({
-  head: () => ({ meta: [{ title: "Order Management" }] }),
-  component: OrderManagementPage,
-});
 
 type FlightOrder = {
   id: string;        // unique row id (one row = one flight)
@@ -135,7 +129,7 @@ type MealPlan = Record<string, number>;
 type ActivityEntry = { message: string; user: string; role: string; at: string };
 type RecentUploadRow = (typeof recentUploads)[number];
 
-function OrderManagementPage() {
+export default function OrderManagementPage() {
   useArrivalFlash();
   const [orders, setOrders] = useState<FlightOrder[]>(seedOrders);
   const [view, setView] = useState<"list" | "create" | "bulk" | "crew-create">("list");

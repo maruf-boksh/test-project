@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState, Fragment } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -21,11 +20,6 @@ import {
 import { flights } from "@/lib/sample-data";
 import { useRole } from "@/lib/roles";
 import { KpiCard } from "@/components/common/KpiCard";
-
-export const Route = createFileRoute("/dispatch-monitoring")({
-  head: () => ({ meta: [{ title: "Dispatch Monitoring — Food Safety & QC" }] }),
-  component: DispatchMonitoring,
-});
 
 // ── Constants ───────────────────────────────────────────────────────────────
 const MEAL_TYPES = ["Regular", "Vegetarian (VGML)", "Child Meal (CHML)", "Diabetic (DBML)", "Kosher (KSML)", "Crew Meal", "Special"];
@@ -161,7 +155,7 @@ function Divider({ label, color = "blue" }: { label: string; color?: "blue" | "e
 }
 
 // ── Main Component ───────────────────────────────────────────────────────────
-function DispatchMonitoring() {
+export default function DispatchMonitoring() {
   useRole();
 
   const [entries, setEntries] = useState<DispatchEntry[]>([]);

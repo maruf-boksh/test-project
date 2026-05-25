@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -13,11 +12,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { amenitiesMedicine, amenitiesTissue, amenitiesCutlery } from "@/lib/sample-data";
 import { toast } from "sonner";
-
-export const Route = createFileRoute("/amenities")({
-  head: () => ({ meta: [{ title: "Amenities" }] }),
-  component: Amenities,
-});
 
 const PAX_96H = 1248;
 const DEFAULT_ISSUED_BY = "Meal Planner";
@@ -164,7 +158,7 @@ function CategorySection({
   );
 }
 
-function Amenities() {
+export default function Amenities() {
   // ── New Issue Wizard ──
   const [newIssueOpen, setNewIssueOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState(0);

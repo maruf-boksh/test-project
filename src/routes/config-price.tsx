@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -17,11 +16,6 @@ import {
 } from "@/components/ui/table";
 import { KpiCard } from "@/components/common/KpiCard";
 import { toast } from "sonner";
-
-export const Route = createFileRoute("/config-price")({
-  head: () => ({ meta: [{ title: "Configuration · Price Setup" }] }),
-  component: ConfigPricePage,
-});
 
 type Price = {
   id: string;
@@ -58,7 +52,7 @@ const SEED: Price[] = [
   { id: "PRC-006", itemCode: "BV-WTR-250",   item: "Mineral Water 250ml", uom: "Bottle", supplier: "Pure Water Co.", unitPrice: 12.00, currency: "BDT", effectiveFrom: "2026-01-01", effectiveTo: "2026-03-31", status: "Expired"   },
 ];
 
-function ConfigPricePage() {
+export default function ConfigPricePage() {
   const [rows, setRows] = useState<Price[]>(SEED);
   const [view, setView] = useState<"list" | "create" | "bulk">("list");
 

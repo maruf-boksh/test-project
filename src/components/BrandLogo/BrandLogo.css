@@ -1,0 +1,182 @@
+/* ════════════════════════════════════════════════════════════
+   BrandLogo — shared Vizyon HR mark + wordmark
+   ════════════════════════════════════════════════════════════ */
+
+
+.bl-root {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ── Mark tile ───────────────────────────────────────────── */
+.bl-mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 28% 22%, rgba(255, 255, 255, 0.28) 0%, transparent 55%),
+    linear-gradient(135deg, var(--color-primary-dark, #2952C8) 0%, var(--color-primary, #3B6EEA) 100%);
+  color: #ffffff;
+  box-shadow:
+    0 6px 16px rgba(var(--color-primary-rgb, 59, 110, 234), 0.35),
+    0 1px 2px rgba(15, 23, 42, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  transition: transform 0.25s cubic-bezier(.2, .8, .2, 1), box-shadow 0.25s ease;
+}
+.bl-mark::before {
+  content: '';
+  position: absolute;
+  inset: -40%;
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(255, 255, 255, 0.18) 60deg, transparent 120deg, transparent 360deg);
+  animation: bl-rotate 6s linear infinite;
+  pointer-events: none;
+}
+.bl-mark::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, transparent 45%);
+  pointer-events: none;
+}
+.bl-mark-svg {
+  position: relative;
+  z-index: 1;
+  display: block;
+  filter: drop-shadow(0 1px 1px rgba(15, 34, 64, 0.35));
+}
+
+/* ── SVG element animations ──────────────────────────────── */
+.bl-v {
+  stroke-dasharray: 60;
+  stroke-dashoffset: 60;
+  animation: bl-draw 1.1s cubic-bezier(.55, .15, .25, 1) forwards;
+}
+.bl-chart {
+  stroke-dasharray: 32;
+  stroke-dashoffset: 32;
+  animation: bl-draw 0.9s cubic-bezier(.55, .15, .25, 1) 0.7s forwards;
+}
+.bl-shimmer {
+  stroke-dasharray: 14 60;
+  stroke-dashoffset: 60;
+  opacity: 0;
+  animation: bl-shimmer 3.2s ease-in-out 1.6s infinite;
+}
+.bl-spark {
+  transform-origin: 30px 12px;
+  transform-box: fill-box;
+  opacity: 0;
+  animation: bl-spark-in 0.5s ease-out 1.5s forwards, bl-spark-pulse 2.4s ease-in-out 2s infinite;
+  filter: drop-shadow(0 0 3px rgba(251, 191, 36, 0.7));
+}
+.bl-spark-ring {
+  transform-origin: 30px 12px;
+  transform-box: fill-box;
+  opacity: 0;
+  animation: bl-spark-ring 2.4s ease-out 2s infinite;
+}
+
+@keyframes bl-rotate { to { transform: rotate(360deg); } }
+@keyframes bl-draw   { to { stroke-dashoffset: 0; } }
+@keyframes bl-shimmer {
+  0%   { stroke-dashoffset: 60; opacity: 0; }
+  20%  { opacity: 1; }
+  80%  { opacity: 1; }
+  100% { stroke-dashoffset: -20; opacity: 0; }
+}
+@keyframes bl-spark-in {
+  from { opacity: 0; transform: scale(0.4); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes bl-spark-pulse {
+  0%, 100% { transform: scale(1);   filter: drop-shadow(0 0 3px rgba(251, 191, 36, 0.7)); }
+  50%      { transform: scale(1.18); filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.95)); }
+}
+@keyframes bl-spark-ring {
+  0%   { opacity: 0.6; transform: scale(1); }
+  80%  { opacity: 0;   transform: scale(2.4); }
+  100% { opacity: 0;   transform: scale(2.4); }
+}
+
+/* ── Wordmark ────────────────────────────────────────────── */
+.bl-word {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: 'Mulish', 'Inter', system-ui, sans-serif;
+  line-height: 1;
+}
+.bl-word-main {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #0f172a;
+}
+.bl-word-sub {
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, var(--color-primary, #3B6EEA) 0%, var(--color-primary-dark, #2952C8) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--color-primary, #3B6EEA);
+}
+
+/* ── Tone variants ───────────────────────────────────────── */
+.bl-tone-dark .bl-word-main { color: #ffffff; }
+.bl-tone-dark .bl-word-sub {
+  background: linear-gradient(135deg, #ffffff 0%, rgba(255, 255, 255, 0.65) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.bl-tone-dark.bl-mark {
+  background:
+    radial-gradient(circle at 28% 22%, rgba(255, 255, 255, 0.32) 0%, transparent 55%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.08) 100%);
+  box-shadow:
+    0 6px 16px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.30),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+
+/* ── Auto: follow theme + sidebar tone ───────────────────── */
+html[data-theme="dark"] .bl-tone-auto.bl-word .bl-word-main,
+html[data-sidebar-tone="dark"] .bl-tone-auto.bl-word .bl-word-main {
+  color: #f1f5f9;
+}
+html[data-theme="dark"] .bl-tone-auto.bl-word .bl-word-sub,
+html[data-sidebar-tone="dark"] .bl-tone-auto.bl-word .bl-word-sub {
+  background: linear-gradient(135deg, #ffffff 0%, rgba(255, 255, 255, 0.65) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ── Reduced motion ──────────────────────────────────────── */
+html[data-motion="reduced"] .bl-mark::before,
+html[data-motion="reduced"] .bl-v,
+html[data-motion="reduced"] .bl-chart,
+html[data-motion="reduced"] .bl-shimmer,
+html[data-motion="reduced"] .bl-spark,
+html[data-motion="reduced"] .bl-spark-ring {
+  animation: none !important;
+}
+html[data-motion="reduced"] .bl-v,
+html[data-motion="reduced"] .bl-chart { stroke-dashoffset: 0; }
+html[data-motion="reduced"] .bl-spark { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bl-mark::before, .bl-v, .bl-chart, .bl-shimmer, .bl-spark, .bl-spark-ring {
+    animation: none;
+  }
+  .bl-v, .bl-chart { stroke-dashoffset: 0; }
+  .bl-spark { opacity: 1; }
+}

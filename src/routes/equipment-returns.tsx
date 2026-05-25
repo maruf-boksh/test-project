@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { KpiCard } from "@/components/common/KpiCard";
@@ -21,17 +20,12 @@ import {
 } from "@/lib/sample-data";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/equipment-returns")({
-  head: () => ({ meta: [{ title: "Equipment Returns" }] }),
-  component: EquipmentReturnsPage,
-});
-
 const CONDITIONS: EquipmentReturn["condition"][] = ["Good", "Minor Issue", "Damaged"];
 
 const selectCls =
   "w-full mt-1 h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
-function EquipmentReturnsPage() {
+export default function EquipmentReturnsPage() {
   const [view, setView] = useState<"list" | "create">("list");
   const [returns, setReturns] = useState<EquipmentReturn[]>(SEED_RETURNS);
 
