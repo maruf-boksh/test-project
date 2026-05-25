@@ -1,13 +1,12 @@
 import { Link } from "@tanstack/react-router";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "antd";
+import { MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons";
 import { ChatbotButton } from "@/components/layout/ChatbotButton";
 import { VoiceCommandButton } from "@/components/layout/VoiceCommandButton";
 import { NotificationsButton } from "@/components/layout/NotificationsButton";
 import { GlobalSearch } from "@/components/layout/GlobalSearch";
 import { UserMenu } from "@/components/layout/UserMenu";
 import { useTour } from "@/components/layout/AppTour";
-import { cn } from "@/lib/utils";
 import logo from "@/assets/logo.png";
 
 type TopNavProps = {
@@ -15,65 +14,140 @@ type TopNavProps = {
   onToggleSidebar: () => void;
 };
 
+/**
+ * DESIGN.md §8 — Topbar recipe:
+ *   "Teal gradient bar with rounded corners (14px), sitting inside the page
+ *    shell. Carries the wordmark, breadcrumb, search, time chip, notifications,
+ *    and profile."
+ *
+ * The outer <header> is the Layout.Header slot (transparent); the inner bar is
+ * the actual visual surface — inset 12px on all sides, rounded 14px, teal
+ * gradient.
+ */
 export function TopNav({ sidebarCollapsed, onToggleSidebar }: TopNavProps) {
   const { startTour } = useTour();
+
   return (
-    <header
-      className="fixed top-0 left-0 right-0 h-14 z-40 flex items-center px-4 gap-2 shadow-md text-white"
-      style={{ backgroundColor: "#0824D9" }}
+    <div
+      style={{
+        padding: "10px 12px 0",
+        height: 56,
+        display: "flex",
+        alignItems: "stretch",
+      }}
     >
-      <Link
-        to="/"
-        aria-label="Go to Dashboard"
-        title="Go to Dashboard"
-        className={cn(
-          "flex items-center gap-3 -ml-4 pl-4 pr-3 h-full hover:bg-white/5 transition-colors",
-          sidebarCollapsed ? "w-14 justify-center pr-2" : "w-60",
-        )}
+      <div
+        style={{
+          flex: 1,
+          height: 46,
+          borderRadius: 14,
+          background: "linear-gradient(90deg, #0F766E 0%, #115E59 100%)",
+          color: "white",
+          display: "flex",
+          alignItems: "center",
+          paddingLeft: 12,
+          paddingRight: 12,
+          gap: 8,
+          boxShadow:
+            "0 6px 16px -6px rgba(15, 118, 110, 0.55), 0 2px 4px 0 rgba(15, 23, 42, 0.08)",
+        }}
       >
-        <div className="flex items-center justify-center h-10 w-10 rounded-md bg-white shadow-sm shrink-0">
-          <img src={logo} alt="US-Bangla Airlines" className="h-7 w-auto object-contain" />
-        </div>
-        {!sidebarCollapsed && (
-          <div className="leading-tight">
-            <div className="text-sm font-bold text-white tracking-wide">US-BANGLA</div>
-            <div className="text-[10px] text-white/70 -mt-0.5 font-medium tracking-wider">
-              AIRLINES · Catering ERP
-            </div>
-          </div>
-        )}
-      </Link>
-
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={onToggleSidebar}
-        className="text-white hover:bg-white/15 hover:text-white shrink-0 ml-1"
-        aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-        title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-      >
-        {sidebarCollapsed ? (
-          <PanelLeftOpen className="h-4 w-4" />
-        ) : (
-          <PanelLeftClose className="h-4 w-4" />
-        )}
-      </Button>
-
-      <GlobalSearch />
-
-      <div className="ml-auto flex items-center gap-2 shrink-0">
-        <button
-          onClick={startTour}
-          className="h-8 px-3 rounded-md text-sm font-bold transition-colors"
-          style={{ backgroundColor: "#EEF0F8", color: "#0824D9" }}
+        <Link
+          to="/"
+          aria-label="Go to Dashboard"
+          title="Go to Dashboard"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            color: "white",
+            textDecoration: "none",
+            padding: "4px 8px",
+            borderRadius: 10,
+            transition: "background-color 150ms ease",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
+          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
         >
-          Take a Tour?
-        </button>
-        <ChatbotButton />
-        <VoiceCommandButton />
-        <NotificationsButton />
-        <UserMenu />
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              background: "white",
+              display: "grid",
+              placeItems: "center",
+              flexShrink: 0,
+              boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
+            }}
+          >
+            <img src={logo} alt="US-Bangla Airlines" style={{ height: 22, width: "auto", objectFit: "contain" }} />
+          </div>
+          {!sidebarCollapsed && (
+            <div style={{ lineHeight: 1.1 }}>
+              <div
+                className="vizyon-wordmark"
+                style={{
+                  fontSize: 14,
+                  letterSpacing: "0.08em",
+                }}
+              >
+                US-BANGLA
+              </div>
+              <div
+                style={{
+                  fontSize: 9,
+                  color: "rgba(255,255,255,0.75)",
+                  fontWeight: 600,
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                  marginTop: 2,
+                }}
+              >
+                Catering ERP
+              </div>
+            </div>
+          )}
+        </Link>
+
+        <Button
+          type="text"
+          icon={sidebarCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+          onClick={onToggleSidebar}
+          aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          style={{
+            color: "white",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        />
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <GlobalSearch />
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+          <Button
+            onClick={startTour}
+            size="small"
+            style={{
+              background: "rgba(255,255,255,0.95)",
+              color: "#0F766E",
+              borderColor: "transparent",
+              fontWeight: 700,
+              height: 30,
+            }}
+          >
+            Take a Tour?
+          </Button>
+          <ChatbotButton />
+          <VoiceCommandButton />
+          <NotificationsButton />
+          <UserMenu />
+        </div>
       </div>
-    </header>
+    </div>
   );
 }

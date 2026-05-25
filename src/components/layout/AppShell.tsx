@@ -1,14 +1,16 @@
 import { Outlet } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
+import { Layout } from "antd";
 import { TopNav } from "./TopNav";
 import { Sidebar } from "./Sidebar";
 import { TourProvider } from "./AppTour";
 import { RoleContext, type Role } from "@/lib/roles";
 import { WorkflowProvider } from "@/lib/workflow-store";
 import { Toaster } from "@/components/ui/sonner";
-import { cn } from "@/lib/utils";
 
 const SIDEBAR_KEY = "sidebar-collapsed";
+const SIDER_WIDTH = 240;
+const SIDER_COLLAPSED_WIDTH = 64;
 
 export function AppShell({ children }: { children?: ReactNode }) {
   const [role, setRole] = useState<Role>("GM/Admin");
@@ -26,19 +28,56 @@ export function AppShell({ children }: { children?: ReactNode }) {
     <RoleContext.Provider value={{ role, setRole }}>
       <WorkflowProvider>
         <TourProvider>
-        <div className="min-h-screen bg-background">
-          <TopNav sidebarCollapsed={sidebarCollapsed} onToggleSidebar={toggleSidebar} />
-          <Sidebar collapsed={sidebarCollapsed} />
-          <main
-            className={cn(
-              "pt-14 transition-[padding] duration-200",
-              sidebarCollapsed ? "pl-14" : "pl-60",
-            )}
-          >
-            <div className="p-6">{children ?? <Outlet />}</div>
-          </main>
-          <Toaster richColors position="top-right" />
-        </div>
+          <Layout style={{ minHeight: "100vh", background: "transparent" }}>
+            <Layout.Header
+              style={{
+                position: "sticky",
+                top: 0,
+                zIndex: 40,
+                width: "100%",
+                padding: 0,
+                background: "transparent",
+                lineHeight: "normal",
+              }}
+            >
+              <TopNav
+                sidebarCollapsed={sidebarCollapsed}
+                onToggleSidebar={toggleSidebar}
+              />
+            </Layout.Header>
+
+            <Layout style={{ background: "transparent" }}>
+              <Layout.Sider
+                collapsed={sidebarCollapsed}
+                collapsedWidth={SIDER_COLLAPSED_WIDTH}
+                width={SIDER_WIDTH}
+                trigger={null}
+                collapsible
+                style={{
+                  position: "sticky",
+                  top: 56,
+                  height: "calc(100vh - 56px)",
+                  overflow: "auto",
+                  borderRight: "1px solid var(--color-sidebar-border)",
+                  background: "var(--color-sidebar)",
+                }}
+              >
+                <Sidebar collapsed={sidebarCollapsed} />
+              </Layout.Sider>
+
+              <Layout.Content
+                style={{
+                  padding: "24px 28px",
+                  background: "transparent",
+                  minHeight: "calc(100vh - 56px)",
+                }}
+              >
+                {children ?? <Outlet />}
+              </Layout.Content>
+            </Layout>
+
+            <Toaster richColors position="top-right" />
+          </Layout>
         </TourProvider>
       </WorkflowProvider>
     </RoleContext.Provider>
