@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -11,11 +10,6 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { BadgeCheck, Clock, CheckCircle2, AlertTriangle, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 import { useWorkflow, type WfPurchaseOrder } from "@/lib/workflow-store";
-
-export const Route = createFileRoute("/accounts-approvals")({
-  head: () => ({ meta: [{ title: "Payment Approvals" }] }),
-  component: PaymentApprovals,
-});
 
 type InvStatus = "Pending" | "Approved" | "Paid" | "Rejected";
 
@@ -83,7 +77,7 @@ function TableHead() {
   );
 }
 
-function PaymentApprovals() {
+export default function PaymentApprovals() {
   const wf = useWorkflow();
   const { wfPurchaseOrders, updatePOStatus, updateRequisitionStatus } = wf;
 

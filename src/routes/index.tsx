@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { Link } from "react-router-dom";
 import { useState, type ReactNode } from "react";
 import { Card, Button, Tag, Input, Popover, Tabs, DatePicker } from "antd";
 import {
@@ -29,11 +29,6 @@ import {
   ResponsiveContainer, Tooltip, XAxis, YAxis, Cell, PieChart, Pie,
 } from "recharts";
 import { toast } from "sonner";
-
-export const Route = createFileRoute("/")({
-  head: () => ({ meta: [{ title: "Dashboard — US-Bangla Catering ERP" }] }),
-  component: Dashboard,
-});
 
 type Period = "today" | "week" | "custom";
 
@@ -374,7 +369,7 @@ function PanelCard({
   );
 }
 
-function Dashboard() {
+export default function Dashboard() {
   const { role } = useRole();
   const [period, setPeriod] = useState<Period>("today");
   const [range, setRange] = useState<DateRange | null>(null);
@@ -644,7 +639,7 @@ function ActiveOrdersTabs({ rows }: { rows: ReturnType<typeof pickActiveFlights>
           key: "flight",
           label: "Flight Orders",
           children: (
-            <div style={{ height: 260, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6, paddingRight: 4 }}>
+            <div style={{ maxHeight: 320, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6, paddingRight: 4 }}>
               {groups.map(([orderNo, legs]) => (
                 <OrderGroupCard key={`flight-${orderNo}`} orderNo={orderNo} legs={legs} mode="flight" />
               ))}
@@ -655,7 +650,7 @@ function ActiveOrdersTabs({ rows }: { rows: ReturnType<typeof pickActiveFlights>
           key: "crew",
           label: "Crew Orders",
           children: (
-            <div style={{ height: 260, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6, paddingRight: 4 }}>
+            <div style={{ maxHeight: 320, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6, paddingRight: 4 }}>
               {groups.map(([orderNo, legs]) => (
                 <OrderGroupCard key={`crew-${orderNo}`} orderNo={orderNo} legs={legs} mode="crew" />
               ))}
@@ -685,6 +680,7 @@ function OrderGroupCard({
         borderRadius: 8,
         border: "1px solid var(--color-border)",
         overflow: "hidden",
+        flexShrink: 0,
       }}
     >
       <Link
@@ -740,14 +736,16 @@ function OrderGroupCard({
               display: "flex",
               alignItems: "center",
               gap: 8,
-              padding: "4px 10px",
+              padding: "6px 10px",
+              minHeight: 32,
+              background: "#ffffff",
               borderTop: idx > 0 ? "1px solid var(--color-border)" : "none",
               textDecoration: "none",
               color: "inherit",
               transition: "background-color 150ms ease",
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--accent)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#F0FDFA")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "#ffffff")}
           >
             <div
               style={{

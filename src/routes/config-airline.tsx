@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -14,14 +13,9 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { airlines as SEED, type Airline } from "@/lib/sample-data";
 
-export const Route = createFileRoute("/config-airline")({
-  head: () => ({ meta: [{ title: "Configuration · Airline" }] }),
-  component: ConfigAirlinePage,
-});
-
 const COUNTRIES = ["Bangladesh", "India", "United Arab Emirates", "Qatar", "Singapore", "Thailand", "Malaysia", "Saudi Arabia", "United Kingdom"];
 
-function ConfigAirlinePage() {
+export default function ConfigAirlinePage() {
   const [rows, setRows] = useState<Airline[]>(SEED);
   const [view, setView] = useState<"list" | "create">("list");
 

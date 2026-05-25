@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -16,11 +15,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { toast } from "sonner";
 import { useWorkflow, type WfDemandRequest } from "@/lib/workflow-store";
 import { useRole } from "@/lib/roles";
-
-export const Route = createFileRoute("/kitchen")({
-  head: () => ({ meta: [{ title: "Kitchen Production" }] }),
-  component: Kitchen,
-});
 
 type P = (typeof productionOrders)[number];
 
@@ -56,7 +50,7 @@ const STATUS_PROGRESS: Record<string, number> = {
   "Sent to Packaging": 100,
 };
 
-function Kitchen() {
+export default function Kitchen() {
   const { role } = useRole();
   const wf = useWorkflow();
   const {

@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { KpiCard } from "@/components/common/KpiCard";
@@ -22,11 +21,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-
-export const Route = createFileRoute("/approval-management")({
-  head: () => ({ meta: [{ title: "Approval Management" }] }),
-  component: ApprovalManagementPage,
-});
 
 type Category =
   | "Purchase Requisition"
@@ -103,7 +97,7 @@ function categoryIcon(cat: Category) {
   return CATEGORIES.find((c) => c.key === cat)?.icon ?? FileText;
 }
 
-function ApprovalManagementPage() {
+export default function ApprovalManagementPage() {
   const [items, setItems] = useState<ApprovalItem[]>(SEED);
   const [activeTab, setActiveTab] = useState<Category | "all">("all");
   const [search, setSearch] = useState("");

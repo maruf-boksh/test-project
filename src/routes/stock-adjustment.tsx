@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -14,11 +13,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-
-export const Route = createFileRoute("/stock-adjustment")({
-  head: () => ({ meta: [{ title: "Stock Adjustment" }] }),
-  component: StockAdjustment,
-});
 
 type AdjType = "Increase" | "Decrease";
 type AdjReason = "Wastage" | "Expiry Writeoff" | "Damage" | "Quantity Correction" | "Production Transfer" | "Other";
@@ -78,7 +72,7 @@ const REASONS: AdjReason[] = [
   "Wastage", "Expiry Writeoff", "Damage", "Quantity Correction", "Production Transfer", "Other",
 ];
 
-function StockAdjustment() {
+export default function StockAdjustment() {
   const [adjustments, setAdjustments] = useState<Adjustment[]>(INITIAL_ADJUSTMENTS);
   const [newOpen, setNewOpen] = useState(false);
   const [newItem, setNewItem] = useState("");

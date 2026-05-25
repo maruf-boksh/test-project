@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -23,11 +22,6 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { LocationPicker, LocationFilter, LocationCell } from "@/components/common/LocationPicker";
-
-export const Route = createFileRoute("/bom")({
-  head: () => ({ meta: [{ title: "Bill of Materials" }] }),
-  component: BomPage,
-});
 
 const HEADER_ITEM_TYPES = ["Finished Good", "Semi-Finished Good"];
 const HEADER_CATEGORIES = ["Hot Kitchen", "Cold Kitchen", "Bakery", "Beverage"];
@@ -1112,7 +1106,7 @@ function BomCreate({ onSave }: { onSave?: (bom: BillOfMaterial) => void }) {
   );
 }
 
-function BomPage() {
+export default function BomPage() {
   const [boms, setBoms] = useState<BillOfMaterial[]>(billOfMaterials);
   const [view, setView] = useState<"list" | "create">("list");
   const [selected, setSelected] = useState<BillOfMaterial | null>(null);

@@ -1,0 +1,327 @@
+import { memo, useState, useMemo, useEffect } from 'react';
+import type { ReactNode } from 'react';
+import { Layout, Button, Avatar, Badge, Tooltip, Breadcrumb, Dropdown, Divider } from 'antd';
+import { ThemeCenter } from '@/components/ThemeCenter';
+import type { MenuProps } from 'antd';
+import {
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  BellOutlined,
+  BgColorsOutlined,
+  UserOutlined,
+  QuestionCircleOutlined,
+  StarFilled,
+  StarOutlined,
+  SettingOutlined,
+  LogoutOutlined,
+  DownOutlined,
+  ClockCircleOutlined,
+  IdcardOutlined,
+} from '@ant-design/icons';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { GlobalSearch } from './GlobalSearch';
+import {
+  MENU_ITEMS,
+  NAV_ROUTE_META_MAP,
+  NAV_VALID_ROUTE_KEYS,
+  resolveSelectedNavKey,
+} from './navIndex';
+import type { BreadcrumbItem, RouteMeta } from './navIndex';
+import { TabBar } from './TabBar';
+import { AppSidebar } from './Sidebar';
+
+const { Header, Content } = Layout;
+const PINNED_STORAGE_KEY = 'harvest-catering.pinned-pages';
+const PINNED_LIMIT = 6;
+
+function parseStoredKeys(raw: string | null, validKeys: Set<string>, limit: number): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    const unique = new Set<string>();
+    for (const value of parsed) {
+      if (typeof value !== 'string') continue;
+      if (!validKeys.has(value) || unique.has(value)) continue;
+      unique.add(value);
+      if (unique.size >= limit) break;
+    }
+    return Array.from(unique);
+  } catch {
+    return [];
+  }
+}
+
+
+function normalizeLabel(label: string): string {
+  return label
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function useBreadcrumb(pathname: string): BreadcrumbItem[] | null {
+  return useMemo(() => {
+    const selectedKey = resolveSelectedNavKey(pathname);
+    return NAV_ROUTE_META_MAP.get(selectedKey)?.breadcrumb ?? null;
+  }, [pathname]);
+}
+
+// ─── Notification data (static mock) ──────────────────────────────────────────
+const NOTIFICATION_ITEMS = [
+  { id: 1, title: 'Leave request approved', desc: 'Annual leave for Apr 10–12 was approved.', time: '2m ago', unread: true },
+  { id: 2, title: 'New job application', desc: 'Senior Developer · Atif Zubair applied.', time: '1h ago', unread: true },
+  { id: 3, title: 'Payroll generated', desc: 'March 2026 payroll run completed.', time: '3h ago', unread: false },
+];
+
+const CLOCK_TIME_FORMATTER = new Intl.DateTimeFormat(undefined, {
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+const CLOCK_DATE_FORMATTER = new Intl.DateTimeFormat(undefined, {
+  weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+});
+
+const TopbarClock = memo(function TopbarClock() {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const clockTimer = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(clockTimer);
+  }, []);
+
+  return (
+    <div className="app-time-chip">
+      <ClockCircleOutlined style={{ fontSize: 11 }} />
+      <span className="app-time-divider" />
+      <span>{CLOCK_TIME_FORMATTER.format(now)}</span>
+      <span className="app-time-date">{CLOCK_DATE_FORMATTER.format(now)}</span>
+    </div>
+  );
+});
+
+function NotificationPanel() {
+  return (
+    <div className="app-notif-panel">
+      <div className="app-notif-header">
+        <span className="app-notif-header-title">Notifications</span>
+        <Button type="text" size="small" className="app-notif-mark-read">Mark all read</Button>
+      </div>
+      <div className="app-notif-list">
+        {NOTIFICATION_ITEMS.map(n => (
+          <div key={n.id} className={`app-notif-item${n.unread ? '' : ' is-read'}`}>
+            <span className="app-notif-indicator" />
+            <div className="app-notif-body">
+              <div className="app-notif-title">{n.title}</div>
+              <div className="app-notif-desc">{n.desc}</div>
+              <div className="app-notif-time">{n.time}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="app-notif-footer">
+        <Button type="text" size="small" block className="app-notif-view-all">View all notifications</Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Profile dropdown menu items ───────────────────────────────────────────────
+const PROFILE_MENU_ITEMS: MenuProps['items'] = [
+  { key: 'view-profile', label: 'View Profile', icon: <IdcardOutlined /> },
+  { key: 'settings', label: 'Account Settings', icon: <SettingOutlined /> },
+  { type: 'divider' },
+  { key: 'logout', label: 'Sign Out', icon: <LogoutOutlined />, danger: true },
+];
+
+interface AppLayoutProps {
+  children: ReactNode;
+  currentUser?: {
+    userId: string;
+    displayName?: string;
+  };
+  onSignOut?: () => void;
+}
+
+export function AppLayout({ children, currentUser, onSignOut }: AppLayoutProps) {
+  const [collapsed, setCollapsed] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const selectedKey = useMemo(() => resolveSelectedNavKey(location.pathname), [location.pathname]);
+
+  const breadcrumb = useBreadcrumb(location.pathname);
+
+  const [pinnedKeys, setPinnedKeys] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [];
+    return parseStoredKeys(window.localStorage.getItem(PINNED_STORAGE_KEY), NAV_VALID_ROUTE_KEYS, PINNED_LIMIT);
+  });
+
+  const isCurrentPagePinned = pinnedKeys.includes(selectedKey);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(PINNED_STORAGE_KEY, JSON.stringify(pinnedKeys));
+  }, [pinnedKeys]);
+
+  const handleProfileMenuClick: MenuProps['onClick'] = ({ key }) => {
+    if (key === 'logout') {
+      onSignOut?.();
+    }
+  };
+
+  const togglePinCurrentPage = () => {
+    if (!NAV_VALID_ROUTE_KEYS.has(selectedKey)) return;
+    setPinnedKeys(prev => {
+      if (prev.includes(selectedKey)) {
+        return prev.filter(key => key !== selectedKey);
+      }
+      return [selectedKey, ...prev].slice(0, PINNED_LIMIT);
+    });
+  };
+
+  const pinnedMeta = useMemo(
+    () => pinnedKeys
+      .map(key => NAV_ROUTE_META_MAP.get(key))
+      .filter((item): item is RouteMeta => Boolean(item)),
+    [pinnedKeys],
+  );
+
+  const handleUnpin = (key: string) => {
+    setPinnedKeys(prev => prev.filter(k => k !== key));
+  };
+
+  return (
+    <Layout className="app-layout-shell" style={{ height: '100vh', overflow: 'hidden' }}>
+      <AppSidebar
+        collapsed={collapsed}
+        onCollapsedChange={setCollapsed}
+        selectedKey={selectedKey}
+        pinnedItems={pinnedMeta}
+        onUnpin={handleUnpin}
+      />
+
+      <Layout className="app-main-shell" style={{ overflow: 'hidden', minWidth: 0 }}>
+        <Header className="app-topbar-shell" style={{ height: 64, lineHeight: '64px', padding: '10px 16px', flexShrink: 0, zIndex: 10 }}>
+          <div className="app-topbar-inner">
+            <div className="app-topbar-left">
+              <Button
+                type="text"
+                size="small"
+                className="app-topbar-toggle"
+                icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                onClick={() => setCollapsed(c => !c)}
+              />
+              {breadcrumb && breadcrumb.length > 0 && (
+                <Breadcrumb
+                  items={breadcrumb.map((item, idx) => ({
+                    title: (
+                      <span
+                        className={idx === breadcrumb.length - 1 ? 'app-crumb-active' : 'app-crumb'}
+                        onClick={() => navigate(item.path)}
+                      >
+                        {normalizeLabel(item.label)}
+                      </span>
+                    ),
+                  }))}
+                  separator="/"
+                />
+              )}
+              <Button
+                type="text"
+                size="small"
+                className="app-pin-toggle"
+                icon={isCurrentPagePinned ? <StarFilled /> : <StarOutlined />}
+                onClick={togglePinCurrentPage}
+              >
+                {isCurrentPagePinned ? 'Pinned' : 'Pin'}
+              </Button>
+            </div>
+
+            <div className="app-topbar-right">
+              <TopbarClock />
+
+              <GlobalSearch />
+
+              <Dropdown
+                dropdownRender={() => <ThemeCenter />}
+                trigger={['click']}
+                placement="bottomRight"
+                overlayClassName="theme-dropdown-overlay"
+              >
+                <Tooltip title="Theme Center">
+                  <Button
+                    type="text"
+                    size="small"
+                    className="app-topbar-icon-button"
+                    icon={<BgColorsOutlined style={{ fontSize: 17 }} />}
+                  />
+                </Tooltip>
+              </Dropdown>
+
+              <Tooltip title="Help & resources">
+                <Button
+                  type="text"
+                  size="small"
+                  className="app-topbar-icon-button"
+                  icon={<QuestionCircleOutlined style={{ fontSize: 17 }} />}
+                />
+              </Tooltip>
+
+              {/* Notifications dropdown */}
+              <Dropdown
+                dropdownRender={() => <NotificationPanel />}
+                trigger={['click']}
+                placement="bottomRight"
+                overlayClassName="app-notif-dropdown-overlay"
+              >
+                <Badge count={3} size="small" offset={[-2, 2]}>
+                  <Button
+                    type="text"
+                    size="small"
+                    className="app-topbar-icon-button"
+                    icon={<BellOutlined style={{ fontSize: 17 }} />}
+                  />
+                </Badge>
+              </Dropdown>
+
+              <Divider type="vertical" className="app-topbar-divider" />
+
+              {/* Profile dropdown */}
+              <Dropdown
+                menu={{ items: PROFILE_MENU_ITEMS, onClick: handleProfileMenuClick }}
+                trigger={['click']}
+                placement="bottomRight"
+                overlayClassName="app-profile-dropdown"
+              >
+                <div className="header-profile" role="button" tabIndex={0}>
+                  <Avatar
+                    size={34}
+                    icon={<UserOutlined />}
+                    style={{
+                      background: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%)',
+                      flexShrink: 0,
+                    }}
+                  />
+                  <div className="header-profile-copy">
+                    <div className="header-profile-name">{currentUser?.displayName ?? currentUser?.userId ?? 'Admin User'}</div>
+                  </div>
+                  <DownOutlined className="header-profile-chevron" />
+                </div>
+              </Dropdown>
+            </div>
+          </div>
+        </Header>
+
+        <Content className="app-content-shell" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', position: 'relative' }}>
+          {children}
+        </Content>
+        <TabBar menuItems={MENU_ITEMS} />
+      </Layout>
+    </Layout>
+  );
+}

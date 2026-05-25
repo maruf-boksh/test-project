@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { KpiCard } from "@/components/common/KpiCard";
@@ -18,11 +17,6 @@ import { toast } from "sonner";
 import { equipmentAssets as SEED_ASSETS, type EquipmentAsset } from "@/lib/sample-data";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/equipment-maintenance")({
-  head: () => ({ meta: [{ title: "Equipment Maintenance" }] }),
-  component: EquipmentMaintenancePage,
-});
-
 type MaintenanceLog = {
   id: string;
   assetId: string;
@@ -39,7 +33,7 @@ const WORK_TYPES: MaintenanceLog["workType"][] = ["Routine", "Repair", "Calibrat
 const selectCls =
   "w-full mt-1 h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
-function EquipmentMaintenancePage() {
+export default function EquipmentMaintenancePage() {
   const [view, setView] = useState<"list" | "create">("list");
   const [assets, setAssets] = useState<EquipmentAsset[]>(SEED_ASSETS);
   const [logs, setLogs] = useState<MaintenanceLog[]>([]);

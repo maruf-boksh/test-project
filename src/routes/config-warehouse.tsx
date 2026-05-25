@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -19,18 +18,13 @@ import {
   type Warehouse, type WarehouseType,
 } from "@/lib/sample-data";
 
-export const Route = createFileRoute("/config-warehouse")({
-  head: () => ({ meta: [{ title: "Configuration · Warehouse" }] }),
-  component: ConfigWarehousePage,
-});
-
 const TYPES: WarehouseType[] = ["Warehouse", "Cold Store", "Kitchen"];
 const CITIES = ["Dhaka", "Chittagong", "Sylhet", "Cox's Bazar", "Jessore"];
 
 const selectCls =
   "w-full mt-1 h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
-function ConfigWarehousePage() {
+export default function ConfigWarehousePage() {
   const [rows, setRows] = useState<Warehouse[]>(SEED);
   const [view, setView] = useState<"list" | "create">("list");
 

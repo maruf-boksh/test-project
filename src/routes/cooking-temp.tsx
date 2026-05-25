@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -52,7 +51,7 @@ type CookingRecord = (typeof cookingTempLogs)[number] & {
 };
 type T = CookingRecord;
 
-function CookingTemp() {
+export default function CookingTemp() {
   useArrivalFlash();
   const { role } = useRole();
   const { productionEntries, updateProductionEntryStatus, applyStockDeltas } = useWorkflow();

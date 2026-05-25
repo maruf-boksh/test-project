@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -13,11 +12,6 @@ import { Plus, ArrowLeft, Save, Truck, CheckCircle, XCircle } from "lucide-react
 import { KpiCard } from "@/components/common/KpiCard";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-
-export const Route = createFileRoute("/config-supplier")({
-  head: () => ({ meta: [{ title: "Configuration · Supplier Profile" }] }),
-  component: ConfigSupplierPage,
-});
 
 type Supplier = {
   id: string;
@@ -45,7 +39,7 @@ const SEED: Supplier[] = [
   { id: "SUP-005", code: "BEV-WTR",    name: "Pure Water Co.",       contactPerson: "T. Islam",       phone: "+880 1715-567890", email: "info@purewater.bd",  address: "Narayanganj",            taxId: "TIN-005678", category: "Beverage",      status: "Inactive" },
 ];
 
-function ConfigSupplierPage() {
+export default function ConfigSupplierPage() {
   const [rows, setRows] = useState<Supplier[]>(SEED);
   const [view, setView] = useState<"list" | "create">("list");
 
