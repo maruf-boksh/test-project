@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { KpiCard } from "@/components/common/KpiCard";
@@ -18,18 +17,13 @@ import { cn } from "@/lib/utils";
 import { useWorkflow, type WfProductionEntryRecord } from "@/lib/workflow-store";
 import { LocationPicker, LocationFilter, LocationCell } from "@/components/common/LocationPicker";
 
-export const Route = createFileRoute("/production-entry-new")({
-  head: () => ({ meta: [{ title: "Production Entry" }] }),
-  component: ProductionEntryPage,
-});
-
 const SHIFTS = ["Morning", "Evening", "Night"] as const;
 const PRODUCERS = ["F. Begum", "T. Islam", "M. Karim", "N. Hossen", "S. Ahmed", "R. Karim"];
 
 const selectCls =
   "w-full mt-1 h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
-function ProductionEntryPage() {
+export default function ProductionEntryPage() {
   const { productionEntries, productionEntryRecords, addProductionEntryRecord } = useWorkflow();
   const [view, setView] = useState<"list" | "create">("list");
   const [filterOffice, setFilterOffice] = useState("");

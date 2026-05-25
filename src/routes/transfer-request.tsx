@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -18,10 +17,6 @@ import {
 import { KpiCard } from "@/components/common/KpiCard";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/transfer-request")({
-  head: () => ({ meta: [{ title: "Transfer Request" }] }),
-  component: TransferRequestPage,
-});
 
 type TRStatus = "Draft" | "Pending Approval" | "Approved" | "Rejected" | "Completed";
 
@@ -99,7 +94,7 @@ const SEED: TransferRequest[] = [
   },
 ];
 
-function TransferRequestPage() {
+export default function TransferRequestPage() {
   const [rows, setRows] = useState<TransferRequest[]>(SEED);
   const [view, setView] = useState<"list" | "create">("list");
 

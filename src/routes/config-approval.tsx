@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -12,11 +11,6 @@ import { Switch } from "@/components/ui/switch";
 import { Plus, ArrowLeft, Save, GitBranch, Trash2, CheckCircle, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-
-export const Route = createFileRoute("/config-approval")({
-  head: () => ({ meta: [{ title: "Configuration · Approval Setup" }] }),
-  component: ConfigApprovalPage,
-});
 
 type Stage = { stage: number; role: string; limit?: string };
 
@@ -84,7 +78,7 @@ const SEED: Workflow[] = [
   },
 ];
 
-function ConfigApprovalPage() {
+export default function ConfigApprovalPage() {
   const [rows, setRows] = useState<Workflow[]>(SEED);
   const [view, setView] = useState<"list" | "create">("list");
 

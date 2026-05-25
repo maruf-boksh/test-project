@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo, useRef } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -13,11 +12,6 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useRole } from "@/lib/roles";
-
-export const Route = createFileRoute("/hygiene-monitoring")({
-  head: () => ({ meta: [{ title: "Daily Hygiene Monitoring" }] }),
-  component: HygieneMonitoring,
-});
 
 // ── Dataset (unchanged) ────────────────────────────────────────────────────────
 const CHECKLIST_ITEMS = [
@@ -124,7 +118,7 @@ function cellContent(v: CellValue, missed: boolean) {
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
-function HygieneMonitoring() {
+export default function HygieneMonitoring() {
   const { role } = useRole();
   const todayStr = new Date().toISOString().split("T")[0];
 

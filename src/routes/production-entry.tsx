@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -169,11 +169,6 @@ function computeOrderRequirements(orders: FlightOrderRow[]): OrderRequirement[] 
 const selectCls =
   "w-full mt-1 h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
 
-export const Route = createFileRoute("/production-entry")({
-  head: () => ({ meta: [{ title: "Production Order" }] }),
-  component: ProductionEntryPage,
-});
-
 type ProductionEntry = WfProductionEntry;
 
 // Status transitions exposed inside the row action menu.
@@ -241,7 +236,7 @@ function ProductionEntryRowMenu({
   );
 }
 
-function ProductionEntryPage() {
+export default function ProductionEntryPage() {
   useArrivalFlash();
   const { productionEntries, addProductionEntry, updateProductionEntryStatus, mrpRuns } = useWorkflow();
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -1722,7 +1717,7 @@ function MealPlanningDetailsDialog({
               className="shrink-0"
               onClick={() => {
                 onOpenChange(false);
-                navigate({ to: "/meal-planning" });
+                navigate("/meal-planning");
               }}
             >
               <UtensilsCrossed className="h-4 w-4 mr-1" /> Open in Meal Planner

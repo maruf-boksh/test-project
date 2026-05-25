@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useRouterState } from "@tanstack/react-router";
+import { useLocation } from "react-router-dom";
 import { toast } from "sonner";
 
 const STORAGE_KEY = "arrival-flash";
@@ -46,7 +46,7 @@ export function flagArrival(payload: ArrivalPayload) {
  * Re-runs whenever the pathname changes.
  */
 export function useArrivalFlash() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { pathname } = useLocation();
 
   useEffect(() => {
     if (typeof window === "undefined") return;

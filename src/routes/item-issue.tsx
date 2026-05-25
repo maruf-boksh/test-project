@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -22,14 +22,6 @@ import { useWorkflow, type WfTransferNote, type WfDemandRequest } from "@/lib/wo
 import { useRole } from "@/lib/roles";
 import { LocationPicker, LocationFilter, LocationCell } from "@/components/common/LocationPicker";
 
-export const Route = createFileRoute("/item-issue")({
-  head: () => ({ meta: [{ title: "Item Issue" }] }),
-  component: ItemIssuePage,
-  validateSearch: (search: Record<string, unknown>) => ({
-    demand: typeof search.demand === "string" ? search.demand : undefined,
-  }),
-});
-
 const KITCHEN_SECTIONS = [
   "Hot Kitchen", "Cold Kitchen", "Veg Section", "Special Meal", "Bakery", "Packaging",
 ];
@@ -43,11 +35,12 @@ type IssueItem = {
   fefoCost?: number;
 };
 
-function ItemIssuePage() {
+export default function ItemIssuePage() {
   const { transferNotes, addTransferNote, acknowledgeTransfer, demands, updateDemandStatus } = useWorkflow();
   const { role } = useRole();
   const navigate = useNavigate();
-  const { demand: demandParam } = Route.useSearch();
+  const [searchParams] = useSearchParams();
+  const demandParam = searchParams.get("demand") ?? undefined;
 
   const [selected, setSelected] = useState<WfTransferNote | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -62,7 +55,7 @@ function ItemIssuePage() {
       consumedParam.current = true;
       setPreselectedDemand(demandParam);
       setCreateOpen(true);
-      navigate({ to: "/item-issue", search: { demand: undefined }, replace: true });
+      navigate("/item-issue", { replace: true });
     }
   }, [demandParam, navigate]);
 

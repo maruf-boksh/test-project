@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { KpiCard } from "@/components/common/KpiCard";
@@ -19,11 +19,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWorkflow, type WfMrpRun, type WfMrpMaterial } from "@/lib/workflow-store";
-
-export const Route = createFileRoute("/mrp")({
-  head: () => ({ meta: [{ title: "Material Requirement Planning" }] }),
-  component: MrpPage,
-});
 
 function downloadCsv(run: WfMrpRun) {
   const header = [
@@ -50,7 +45,7 @@ function downloadCsv(run: WfMrpRun) {
   URL.revokeObjectURL(url);
 }
 
-function MrpPage() {
+export default function MrpPage() {
   const { mrpRuns } = useWorkflow();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
@@ -81,7 +76,7 @@ function MrpPage() {
         subtitle="History of MRP runs — each row links to the auto-generated Purchase Requisitions and Internal Transfers"
         actions={
           <Button
-            onClick={() => navigate({ to: "/production-entry", hash: "mrp" })}
+            onClick={() => navigate("/production-entry")}
             className="gap-1.5"
           >
             <Calculator className="h-4 w-4" />

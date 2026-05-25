@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -24,11 +23,6 @@ import { activeItems } from "@/lib/sample-data";
 import { LocationPicker, LocationFilter, LocationCell } from "@/components/common/LocationPicker";
 import { useWorkflow, type WfRequisition } from "@/lib/workflow-store";
 import { useArrivalFlash } from "@/lib/arrival-flash";
-
-export const Route = createFileRoute("/purchase-requisition")({
-  head: () => ({ meta: [{ title: "Purchase Requisition" }] }),
-  component: PurchaseRequisitionPage,
-});
 
 type PRLineItem = {
   id: string;
@@ -182,7 +176,7 @@ type PRPrefill = {
   source?: string;
 };
 
-function PurchaseRequisitionPage() {
+export default function PurchaseRequisitionPage() {
   useArrivalFlash();
   const { wfRequisitions } = useWorkflow();
   const [requisitions, setRequisitions] = useState<PurchaseRequisition[]>(seedRequisitions);

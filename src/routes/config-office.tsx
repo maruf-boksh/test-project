@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -15,17 +14,12 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { companies, offices as SEED, type Office } from "@/lib/sample-data";
 
-export const Route = createFileRoute("/config-office")({
-  head: () => ({ meta: [{ title: "Configuration · Office" }] }),
-  component: ConfigOfficePage,
-});
-
 const CITIES = ["Dhaka", "Chittagong", "Sylhet", "Cox's Bazar", "Jessore"];
 
 const selectCls =
   "w-full mt-1 h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
-function ConfigOfficePage() {
+export default function ConfigOfficePage() {
   const [rows, setRows] = useState<Office[]>(SEED);
   const [view, setView] = useState<"list" | "create">("list");
 

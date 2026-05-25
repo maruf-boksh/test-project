@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { KpiCard } from "@/components/common/KpiCard";
@@ -16,11 +15,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { activeItems, vendors } from "@/lib/sample-data";
-
-export const Route = createFileRoute("/quotation-entry")({
-  head: () => ({ meta: [{ title: "Quotation Entry" }] }),
-  component: QuotationEntryPage,
-});
 
 type QuoteStatus = "Draft" | "Submitted" | "Selected" | "Rejected" | "Expired";
 
@@ -115,7 +109,7 @@ const SEED_QUOTATIONS: Quotation[] = [
 const selectCls =
   "w-full mt-1 h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
-function QuotationEntryPage() {
+export default function QuotationEntryPage() {
   const [view, setView] = useState<"list" | "create">("list");
   const [rows, setRows] = useState<Quotation[]>(SEED_QUOTATIONS);
 

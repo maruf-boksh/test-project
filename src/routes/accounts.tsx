@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { StatusBadge } from "@/components/common/StatusBadge";
@@ -14,11 +13,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { KpiCard } from "@/components/common/KpiCard";
 import { ShoppingCart, Layers, CreditCard } from "lucide-react";
-
-export const Route = createFileRoute("/accounts")({
-  head: () => ({ meta: [{ title: "Accounts" }] }),
-  component: Accounts,
-});
 
 // Types
 interface PurchaseOrder {
@@ -1579,7 +1573,7 @@ function PaymentsApprovalsTab() {
 }
 
 // Main Accounts Component
-function Accounts() {
+export default function Accounts() {
   const [activeTab, setActiveTab] = useState("po");
 
   return (
