@@ -24,6 +24,7 @@ import {
 } from "@/lib/sample-data";
 import { useWorkflow } from "@/lib/workflow-store";
 import { flagArrival } from "@/lib/arrival-flash";
+import { cn } from "@/lib/utils";
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Legend,
   ResponsiveContainer, Tooltip, XAxis, YAxis, Cell, PieChart, Pie,
@@ -35,9 +36,26 @@ export const Route = createFileRoute("/")({
   component: Dashboard,
 });
 
-type Period = "today" | "week" | "custom";
+type Period = "today" | "week" | "month" | "quarter" | "year" | "custom";
 
 type DateRange = { from: string; to: string };
+
+const PERIOD_OPTIONS: { value: Exclude<Period, "custom">; label: string }[] = [
+  { value: "today",   label: "Today"        },
+  { value: "week",    label: "This Week"    },
+  { value: "month",   label: "This Month"   },
+  { value: "quarter", label: "This Quarter" },
+  { value: "year",    label: "This Year"    },
+];
+
+// Days back from "today" each preset covers. seedFlightOrders' date column is
+// ISO yyyy-mm-dd so a string-comparison threshold works without parsing.
+const PERIOD_WINDOW_DAYS: Record<Exclude<Period, "today" | "custom">, number> = {
+  week:    7,
+  month:   30,
+  quarter: 90,
+  year:    365,
+};
 
 // Vizyon chart palette — teal/amber/status colors per DESIGN.md §3.
 const CHART_PRIMARY  = "#0F766E"; // teal
@@ -73,10 +91,32 @@ function useDashboardKpis(period: Period, range?: DateRange) {
   const todayOrders = seedFlightOrders.filter((o) => o.date === today);
   const flightsToday = todayOrders.length;
   const flightsYesterday = seedFlightOrders.filter((o) => o.date === yesterday).length;
-  const flightsWeek = seedFlightOrders.length;
   const flightsDelta = flightsToday - flightsYesterday;
   const flightsTodayIds = todayOrders.map((o) => o.id);
-  const flightsAllIds = seedFlightOrders.map((o) => o.id);
+
+  // Compute the inclusive lower-bound date for window-style periods (week,
+  // month, quarter, year). `today` is the newest seed date — going back N
+  // days from it gives the period start. ISO yyyy-mm-dd allows direct string
+  // comparison, no Date parsing needed for the filter.
+  const windowDays =
+    period === "week" || period === "month" || period === "quarter" || period === "year"
+      ? PERIOD_WINDOW_DAYS[period]
+      : null;
+  const windowStart = (() => {
+    if (windowDays == null || !today) return null;
+    const t = new Date(today);
+    if (Number.isNaN(t.getTime())) return null;
+    t.setDate(t.getDate() - (windowDays - 1));
+    return t.toISOString().slice(0, 10);
+  })();
+  const windowOrders = windowStart
+    ? seedFlightOrders.filter((o) => o.date >= windowStart && o.date <= today)
+    : [];
+  const flightsWindow = windowOrders.length;
+  const flightsWindowIds = windowOrders.map((o) => o.id);
+  const windowDayCount = windowStart
+    ? new Set(windowOrders.map((o) => o.date)).size
+    : 0;
 
   const customOrders = range
     ? seedFlightOrders.filter((o) =>
@@ -152,16 +192,16 @@ function useDashboardKpis(period: Period, range?: DateRange) {
     };
   });
 
-  const isWeek = period === "week";
+  const isWindow = windowDays != null;
   const isCustom = period === "custom" && !!range;
 
-  const flightsValue = isCustom ? flightsCustom : isWeek ? flightsWeek : flightsToday;
+  const flightsValue = isCustom ? flightsCustom : isWindow ? flightsWindow : flightsToday;
   const flightsSub = isCustom
     ? `${customDayCount} day${customDayCount === 1 ? "" : "s"} in range`
-    : isWeek
-      ? `${allDates.length} days covered`
+    : isWindow
+      ? `${windowDayCount} day${windowDayCount === 1 ? "" : "s"} covered`
       : `${flightsDelta >= 0 ? "+" : ""}${flightsDelta} vs yesterday`;
-  const flightsIds = isCustom ? flightsCustomIds : isWeek ? flightsAllIds : flightsTodayIds;
+  const flightsIds = isCustom ? flightsCustomIds : isWindow ? flightsWindowIds : flightsTodayIds;
 
   return {
     kpis: {
@@ -174,10 +214,14 @@ function useDashboardKpis(period: Period, range?: DateRange) {
       dispatch: { value: dispatchActive, sub: `${dispatchEnRoute} en route`, ids: dispatchRowIds },
       dailyCost:{ value: formatLakh(stockValue), sub: "FEFO stock value", ids: [] as string[] },
     },
-    trend: isCustom ? buildCustomTrend(range!, producedTotal, targetTotal) : isWeek ? trendWeek : trendToday,
+    trend: isCustom ? buildCustomTrend(range!, producedTotal, targetTotal) : isWindow ? trendWeek : trendToday,
     trendTitle: isCustom
       ? `Meal Production Trend (${range!.from || "…"} → ${range!.to || "…"})`
-      : isWeek ? "Meal Production Trend (Last 7 Days)" : "Meal Production Trend (Today)",
+      : period === "week"    ? "Meal Production Trend (Last 7 Days)"
+      : period === "month"   ? "Meal Production Trend (Last 30 Days)"
+      : period === "quarter" ? "Meal Production Trend (Last 90 Days)"
+      : period === "year"    ? "Meal Production Trend (Last 365 Days)"
+      : "Meal Production Trend (Today)",
     sectionMix: computeSectionMix(),
     activeFlights: pickActiveFlights(),
     activityFeed: buildActivityFeed({
@@ -381,8 +425,11 @@ function Dashboard() {
   const data = useDashboardKpis(period, range ?? undefined);
 
   const periodLabel =
-    period === "today" ? "Today's"
-    : period === "week" ? "Weekly"
+    period === "today"   ? "Today's"
+    : period === "week"    ? "Weekly"
+    : period === "month"   ? "Monthly"
+    : period === "quarter" ? "Quarterly"
+    : period === "year"    ? "Yearly"
     : range ? `${range.from} → ${range.to}` : "Custom";
 
   return (
@@ -391,34 +438,21 @@ function Dashboard() {
         title={`${role} Dashboard`}
         subtitle="Live operational overview — US-Bangla Airlines Flight Catering"
         actions={
-          <>
-            <Button.Group>
-              <Button
-                type={period === "today" ? "primary" : "default"}
-                onClick={() => { setPeriod("today"); setRange(null); }}
-              >
-                Today
-              </Button>
-              <Button
-                type={period === "week" ? "primary" : "default"}
-                onClick={() => { setPeriod("week"); setRange(null); }}
-              >
-                This Week
-              </Button>
-              <CustomRangePicker
-                active={period === "custom"}
-                range={range}
-                onApply={(r) => { setRange(r); setPeriod("custom"); }}
-                onClear={() => { setRange(null); setPeriod("today"); }}
-              />
-            </Button.Group>
+          <div className="flex items-center gap-3 flex-wrap">
+            <PeriodSelector
+              period={period}
+              range={range}
+              onSelect={(p) => { setPeriod(p); setRange(null); }}
+              onCustomApply={(r) => { setRange(r); setPeriod("custom"); }}
+              onCustomClear={() => { setRange(null); setPeriod("today"); }}
+            />
             <Button
               type="primary"
               onClick={() => toast.success(`${periodLabel} report exported.`)}
             >
               Export Report
             </Button>
-          </>
+          </div>
         }
       />
 
@@ -781,13 +815,57 @@ function OrderGroupCard({
   );
 }
 
+// Pill-style period selector. Today/Week/Month/Quarter/Year render as
+// segmented capsule buttons (active = white on muted track). "Custom" is the
+// existing CustomRangePicker re-skinned to look like a pill on the same track.
+function PeriodSelector({
+  period, range, onSelect, onCustomApply, onCustomClear,
+}: {
+  period: Period;
+  range: DateRange | null;
+  onSelect: (p: Exclude<Period, "custom">) => void;
+  onCustomApply: (r: DateRange) => void;
+  onCustomClear: () => void;
+}) {
+  return (
+    <div className="inline-flex items-center gap-0.5 rounded-full bg-muted/70 p-1 border border-border">
+      {PERIOD_OPTIONS.map((opt) => {
+        const active = period === opt.value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onSelect(opt.value)}
+            className={cn(
+              "h-7 px-3 rounded-full text-xs font-medium transition-colors whitespace-nowrap",
+              active
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-card/60",
+            )}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+      <CustomRangePicker
+        active={period === "custom"}
+        range={range}
+        onApply={onCustomApply}
+        onClear={onCustomClear}
+        renderAsPill
+      />
+    </div>
+  );
+}
+
 function CustomRangePicker({
-  active, range, onApply, onClear,
+  active, range, onApply, onClear, renderAsPill,
 }: {
   active: boolean;
   range: DateRange | null;
   onApply: (r: DateRange) => void;
   onClear: () => void;
+  renderAsPill?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [draftFrom, setDraftFrom] = useState(range?.from ?? "");
@@ -887,40 +965,80 @@ function CustomRangePicker({
       trigger="click"
       placement="bottomRight"
     >
-      <Button
-        type={active ? "primary" : "default"}
-        icon={<CalendarOutlined />}
-        style={{ fontVariantNumeric: "tabular-nums" }}
-      >
-        {showLabel}
-        {active && (
-          <span
-            role="button"
-            tabIndex={0}
-            onClick={(e) => { e.stopPropagation(); onClear(); }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                e.stopPropagation();
-                onClear();
-              }
-            }}
-            style={{
-              marginLeft: 4,
-              marginRight: -4,
-              padding: 2,
-              borderRadius: 4,
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-            }}
-            aria-label="Clear custom range"
-            title="Clear"
-          >
-            <CloseOutlined style={{ fontSize: 10 }} />
-          </span>
-        )}
-      </Button>
+      {renderAsPill ? (
+        <button
+          type="button"
+          // Manual toggle in addition to AntD's `trigger="click"`. AntD relies
+          // on event delegation through its wrapper span, which can miss
+          // clicks on a plain <button> with its own pointer handlers — this
+          // belt-and-braces approach guarantees the popover opens.
+          onClick={() => setOpen((v) => !v)}
+          className={cn(
+            "h-7 px-3 rounded-full text-xs font-medium transition-colors whitespace-nowrap inline-flex items-center gap-1",
+            active
+              ? "bg-card text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground hover:bg-card/60",
+          )}
+          style={{ fontVariantNumeric: "tabular-nums" }}
+        >
+          <CalendarOutlined style={{ fontSize: 11 }} />
+          {showLabel}
+          {active && (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => { e.stopPropagation(); onClear(); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onClear();
+                }
+              }}
+              className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full hover:bg-muted ml-0.5"
+              aria-label="Clear custom range"
+              title="Clear"
+            >
+              <CloseOutlined style={{ fontSize: 9 }} />
+            </span>
+          )}
+        </button>
+      ) : (
+        <Button
+          type={active ? "primary" : "default"}
+          icon={<CalendarOutlined />}
+          style={{ fontVariantNumeric: "tabular-nums" }}
+        >
+          {showLabel}
+          {active && (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => { e.stopPropagation(); onClear(); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onClear();
+                }
+              }}
+              style={{
+                marginLeft: 4,
+                marginRight: -4,
+                padding: 2,
+                borderRadius: 4,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+              }}
+              aria-label="Clear custom range"
+              title="Clear"
+            >
+              <CloseOutlined style={{ fontSize: 10 }} />
+            </span>
+          )}
+        </Button>
+      )}
     </Popover>
   );
 }

@@ -1,17 +1,16 @@
 import { Link } from "@tanstack/react-router";
 import { Button } from "antd";
-import { MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons";
 import { ChatbotButton } from "@/components/layout/ChatbotButton";
 import { VoiceCommandButton } from "@/components/layout/VoiceCommandButton";
 import { NotificationsButton } from "@/components/layout/NotificationsButton";
 import { GlobalSearch } from "@/components/layout/GlobalSearch";
 import { UserMenu } from "@/components/layout/UserMenu";
+import { ThemeCenterButton } from "@/components/layout/ThemeCenterButton";
 import { useTour } from "@/components/layout/AppTour";
 import logo from "@/assets/logo.png";
 
 type TopNavProps = {
   sidebarCollapsed: boolean;
-  onToggleSidebar: () => void;
 };
 
 /**
@@ -24,7 +23,7 @@ type TopNavProps = {
  * the actual visual surface — inset 12px on all sides, rounded 14px, teal
  * gradient.
  */
-export function TopNav({ sidebarCollapsed, onToggleSidebar }: TopNavProps) {
+export function TopNav({ sidebarCollapsed }: TopNavProps) {
   const { startTour } = useTour();
 
   return (
@@ -41,15 +40,15 @@ export function TopNav({ sidebarCollapsed, onToggleSidebar }: TopNavProps) {
           flex: 1,
           height: 46,
           borderRadius: 14,
-          background: "linear-gradient(90deg, #0F766E 0%, #115E59 100%)",
-          color: "white",
+          background: "var(--header-bg, linear-gradient(90deg, #0F766E 0%, #115E59 100%))",
+          color: "var(--header-fg, white)",
           display: "flex",
           alignItems: "center",
           paddingLeft: 12,
           paddingRight: 12,
           gap: 8,
           boxShadow:
-            "0 6px 16px -6px rgba(15, 118, 110, 0.55), 0 2px 4px 0 rgba(15, 23, 42, 0.08)",
+            "var(--header-shadow, 0 6px 16px -6px rgba(15, 118, 110, 0.55), 0 2px 4px 0 rgba(15, 23, 42, 0.08))",
         }}
       >
         <Link
@@ -60,7 +59,7 @@ export function TopNav({ sidebarCollapsed, onToggleSidebar }: TopNavProps) {
             display: "flex",
             alignItems: "center",
             gap: 10,
-            color: "white",
+            color: "var(--header-fg, white)",
             textDecoration: "none",
             padding: "4px 8px",
             borderRadius: 10,
@@ -74,7 +73,7 @@ export function TopNav({ sidebarCollapsed, onToggleSidebar }: TopNavProps) {
               width: 32,
               height: 32,
               borderRadius: 8,
-              background: "white",
+              background: "var(--header-logo-bg, white)",
               display: "grid",
               placeItems: "center",
               flexShrink: 0,
@@ -110,31 +109,18 @@ export function TopNav({ sidebarCollapsed, onToggleSidebar }: TopNavProps) {
           )}
         </Link>
 
-        <Button
-          type="text"
-          icon={sidebarCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-          onClick={onToggleSidebar}
-          aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          style={{
-            color: "white",
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        />
-
         <div style={{ flex: 1, minWidth: 0 }}>
           <GlobalSearch />
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+          <ThemeCenterButton />
           <Button
             onClick={startTour}
             size="small"
             style={{
-              background: "rgba(255,255,255,0.95)",
-              color: "#0F766E",
+              background: "var(--header-button-bg, rgba(255,255,255,0.95))",
+              color: "var(--header-button-fg, #0F766E)",
               borderColor: "transparent",
               fontWeight: 700,
               height: 30,

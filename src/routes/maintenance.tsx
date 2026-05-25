@@ -44,6 +44,7 @@ function Maintenance() {
         columns={cols}
         searchKeys={["id", "name", "type", "location", "status"]}
         actions={(r) => <RowActions row={r} actions={["view", "edit", "assign", "track", "delete"]} />}
+        selectable={false}
       />
     </>
   );

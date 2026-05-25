@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -17,7 +17,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { Plus, Plane, Users, Clock, Flame, Save, Trash2, UtensilsCrossed, ArrowRight, ClipboardCheck, MoreHorizontal, Eye, Pencil, Printer, Calculator, Package, PackageOpen, Wrench, CheckCircle2, AlertCircle, FileText, Zap } from "lucide-react";
+import { Plus, Plane, Users, Clock, Flame, Save, Trash2, UtensilsCrossed, ArrowRight, ArrowLeft, MoreHorizontal, Eye, Pencil, Printer, Calculator, Package, PackageOpen, Wrench, CheckCircle2, AlertCircle, FileText, Send, Zap } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -32,9 +32,10 @@ import { Fragment } from "react";
 import { useArrivalFlash } from "@/lib/arrival-flash";
 import {
   useWorkflow,
-  type WfProductionEntry, type WfProductionEntryStatus,
+  type WfProductionEntry,
   type WfMrpRun, type WfMrpMaterial,
-  type WfRequisition, type WfDemandItem, type WfTransferNote,
+  type WfDemandItem,
+  type WfDemandRequest,
 } from "@/lib/workflow-store";
 import { LocationPicker, LocationFilter, LocationCell } from "@/components/common/LocationPicker";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -176,23 +177,20 @@ export const Route = createFileRoute("/production-entry")({
 
 type ProductionEntry = WfProductionEntry;
 
-// Status transitions exposed inside the row action menu.
-// Approval (Pending → Approved) is handled in Approval Management.
-// QC sign-off (Ready for QC → Completed) is handled in Cooking Temp & Sensory.
-const STATUS_FLOW: { from: WfProductionEntryStatus; next: WfProductionEntryStatus; label: string; icon: typeof ArrowRight }[] = [
-  { from: "Approved",        next: "In Preparation", label: "Start Production", icon: ArrowRight },
-  { from: "In Preparation",  next: "Ready for QC",   label: "Send to QC",       icon: ClipboardCheck },
-];
-
-function ProductionEntryRowMenu({
-  entry, onAdvance,
-}: {
-  entry: WfProductionEntry;
-  onAdvance: (entry: WfProductionEntry) => void;
-}) {
-  const step = STATUS_FLOW.find((s) => s.from === entry.status);
-  const isPending     = entry.status === "Pending";
-  const isReadyForQC  = entry.status === "Ready for QC";
+// The Production Order status is fully event-driven — no manual transitions
+// in this menu. Lifecycle, for reference:
+//   Pending          → user creates the order
+//   Approved         → Approval Management approves it
+//   In Preparation   → first partial Production Entry is logged (auto)
+//   Ready for QC     → cumulative Production Entries reach orderQty (auto)
+//   Completed        → QC sign-off in Cooking Temp & Sensory
+function ProductionEntryRowMenu({ entry }: { entry: WfProductionEntry }) {
+  const stageHint =
+    entry.status === "Pending"      ? "Approval handled in Approval Management"
+    : entry.status === "Approved"   ? "Will move to In Preparation once any Production Entry is logged"
+    : entry.status === "In Preparation" ? "Will move to Ready for QC once orderQty is fully produced"
+    : entry.status === "Ready for QC"   ? "QC sign-off in Cooking Temp & Sensory"
+    : null;
 
   return (
     <DropdownMenu>
@@ -201,7 +199,7 @@ function ProductionEntryRowMenu({
           <MoreHorizontal className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" className="w-64">
         <DropdownMenuItem onClick={() => toast.info(`Viewing ${entry.id}`)}>
           <Eye className="h-4 w-4 mr-2" /> View
         </DropdownMenuItem>
@@ -212,28 +210,15 @@ function ProductionEntryRowMenu({
           <Printer className="h-4 w-4 mr-2" /> Print
         </DropdownMenuItem>
 
-        {(step || isPending || isReadyForQC) && (
+        {stageHint && (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
               Workflow
             </DropdownMenuLabel>
-            {step && (
-              <DropdownMenuItem onClick={() => onAdvance(entry)}>
-                <step.icon className="h-4 w-4 mr-2" /> {step.label}
-              </DropdownMenuItem>
-            )}
-            {isPending && (
-              <DropdownMenuItem disabled className="text-[11px]">
-                <span className="text-muted-foreground">Approval handled in Approval Management</span>
-              </DropdownMenuItem>
-            )}
-            {isReadyForQC && (
-              <DropdownMenuItem disabled className="text-[11px]">
-                <ClipboardCheck className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                <span className="text-muted-foreground">QC sign-off in Cooking Temp & Sensory</span>
-              </DropdownMenuItem>
-            )}
+            <DropdownMenuItem disabled className="text-[11px]">
+              <span className="text-muted-foreground">{stageHint}</span>
+            </DropdownMenuItem>
           </>
         )}
       </DropdownMenuContent>
@@ -243,7 +228,10 @@ function ProductionEntryRowMenu({
 
 function ProductionEntryPage() {
   useArrivalFlash();
-  const { productionEntries, addProductionEntry, updateProductionEntryStatus, mrpRuns } = useWorkflow();
+  const {
+    productionEntries, addProductionEntry, mrpRuns,
+    demands, addDemands, addMrpRun,
+  } = useWorkflow();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedForwardedDate, setSelectedForwardedDate] = useState(
     FORWARDED_ORDERS[0]?.date ?? "",
@@ -277,13 +265,6 @@ function ProductionEntryPage() {
     setPendingItem(undefined);
   };
 
-  const advanceStatus = (entry: ProductionEntry) => {
-    const step = STATUS_FLOW.find((s) => s.from === entry.status);
-    if (!step) return;
-    updateProductionEntryStatus(entry.id, step.next);
-    toast.success(`${entry.id} → ${step.next}.`);
-  };
-
   const startFromMealPlan = (item: MealPlanPickItem) => {
     const qty = item.computedQty ?? 0;
     const line: OutputLine = {
@@ -312,10 +293,117 @@ function ProductionEntryPage() {
   };
 
   /**
+   * For the given production orders, compute the consolidated material need
+   * (raw + packaging + other), then raise ONE Demand Request bundling every
+   * material plus a traceability MRP run. The DR is created in `Pending
+   * Approval` status with `autoFulfill: true` — the matching Transfer Note
+   * (in-stock items) and Purchase Requisition (shortfalls) are deferred until
+   * the demand is approved on the Demand Orders page.
+   *
+   * Lineage:  Production Orders -> MRP run -> Demand Request -> (on approve)
+   *                                                              { Issue + PR }
+   */
+  const autoFulfillOrders = (orders: ProductionEntry[]): {
+    dr?: WfDemandRequest; mrpRun?: WfMrpRun;
+    skippedNoRecipe: number;
+  } => {
+    // Aggregate materials needed across the orders. Only orders whose
+    // outputItem maps to a recipe in PRODUCTION_ITEMS contribute materials —
+    // meal-plan items without a recipe are silently skipped here (the order
+    // itself was already raised by the caller).
+    const lines: OutputLine[] = [];
+    let skipped = 0;
+    for (const o of orders) {
+      const target = o.orderQty ?? 0;
+      if (target <= 0) continue;
+      const recipe = PRODUCTION_ITEMS.find(
+        (p) => p.name === o.outputItemName || p.name === o.bom || p.code === o.outputItemCode,
+      );
+      if (!recipe) { skipped++; continue; }
+      lines.push({
+        id: o.id, itemCode: recipe.code, itemName: recipe.name,
+        qty: target, source: "bom",
+      });
+    }
+    if (lines.length === 0) return { skippedNoRecipe: skipped };
+
+    const mats = aggregateMaterials(lines);
+    type SplitRow = AggregatedMaterial & {
+      bucket: "Raw" | "Packaging" | "Other"; onHand: number; shortfall: number;
+    };
+    const tagged: SplitRow[] = [
+      ...mats.raw.map((m) => ({ ...m, bucket: "Raw" as const })),
+      ...mats.pkg.map((m) => ({ ...m, bucket: "Packaging" as const })),
+      ...mats.other.map((m) => ({ ...m, bucket: "Other" as const })),
+    ].map((m) => {
+      const onHand = getMrpOnHand(m.itemName);
+      return { ...m, onHand, shortfall: Math.max(0, m.reqQty - onHand) };
+    });
+    if (tagged.length === 0) return { skippedNoRecipe: skipped };
+
+    const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+
+    // ── 1) Demand Request bundles EVERY material (Pending Approval) ----------
+    const drSeq = String(9000 + demands.length + 1).padStart(4, "0");
+    const drId = `DR-${drSeq}`;
+    const dr: WfDemandRequest = {
+      id: drId,
+      reference: orders.map((o) => o.id).join(", "),
+      requestedBy: "Auto (Meal Plan)",
+      role: "Flight Kitchen Executive",
+      date: stamp,
+      status: "Pending Approval",
+      items: tagged.map<WfDemandItem>((s) => {
+        // Prefer the inventory id when the material exists in stock master, so
+        // downstream pages (Item Issue, Transfer) that look up items by id can
+        // resolve the row. Falls back to the recipe code otherwise — those
+        // become shortfalls and travel through the PR flow.
+        const invRow = inventory.find((i) => i.name.toLowerCase() === s.itemName.toLowerCase());
+        return {
+          id: invRow?.id ?? s.itemCode,
+          name: s.itemName,
+          qty: Math.round(s.reqQty * 1000) / 1000,
+          uom: s.uom,
+          type: s.bucket,
+        };
+      }),
+      note: `Auto-generated from bulk meal-plan creation. Covers ${orders.length} production order${orders.length === 1 ? "" : "s"} (${lines.length} with recipes). On approval, an Issue + PR will be auto-created from current stock levels.`,
+      source: "Kitchen",
+      officeId: "OFF-001",
+      warehouseId: "WH-003",
+      autoFulfill: true,
+    };
+    addDemands([dr]);
+
+    // ── 2) MRP run for traceability -----------------------------------------
+    const enriched: WfMrpMaterial[] = tagged.map((s) => ({
+      itemCode: s.itemCode, itemName: s.itemName, uom: s.uom, bucket: s.bucket,
+      reqQty: s.reqQty, onHand: s.onHand, shortfall: s.shortfall,
+      rate: s.rate, totalCost: s.reqQty * s.rate,
+      supplier: s.shortfall > 0 ? resolveMrpSupplier(s.itemName) : undefined,
+    }));
+    const mrpRun: WfMrpRun = {
+      id: `MRP-2026-${String(mrpRuns.length + 1).padStart(3, "0")}`,
+      date: stamp,
+      runBy: "Auto (Meal Plan)",
+      basis: "remaining",
+      orderIds: orders.map((o) => o.id),
+      totalUnits: orders.reduce((sum, o) => sum + (o.orderQty ?? 0), 0),
+      totalCost: enriched.reduce((sum, m) => sum + m.totalCost, 0),
+      materials: enriched,
+      requisitionIds: [],   // populated by approveDemand in /approval-management
+      transferIds: [],      // populated by approveDemand in /approval-management
+      demandRef: drId,
+    };
+    addMrpRun(mrpRun);
+
+    return { dr, mrpRun, skippedNoRecipe: skipped };
+  };
+
+  /**
    * One-click bulk: create a Pending production order for every meal-plan item
-   * that has a non-zero computed qty. Skips zero-qty rows. Uses today's date
-   * and the default office/warehouse; BOM is matched by item name when
-   * available, otherwise falls back to the item name as a free-text BOM ref.
+   * that has a non-zero computed qty, then auto-run MRP and raise one Demand
+   * Request + one Transfer Note + one Purchase Requisition off the back of it.
    */
   const bulkCreateFromMealPlan = (items: MealPlanPickItem[]) => {
     const eligible = items.filter((it) => (it.computedQty ?? 0) > 0);
@@ -325,6 +413,7 @@ function ProductionEntryPage() {
     }
     const today = new Date().toISOString().slice(0, 10);
     const baseStamp = Date.now();
+    const created: ProductionEntry[] = [];
     eligible.forEach((item, i) => {
       const qty = item.computedQty ?? 0;
       const seq = String(baseStamp + i).slice(-6);
@@ -342,10 +431,30 @@ function ProductionEntryPage() {
         warehouseId: "WH-003",
       };
       addProductionEntry(entry);
+      created.push(entry);
     });
-    toast.success(
-      `Created ${eligible.length} production order${eligible.length === 1 ? "" : "s"} from the meal plan.`,
-    );
+
+    const { dr, mrpRun, skippedNoRecipe } = autoFulfillOrders(created);
+
+    const parts: string[] = [
+      `${created.length} Production Order${created.length === 1 ? "" : "s"}`,
+    ];
+    if (mrpRun) parts.push(`MRP ${mrpRun.id}`);
+    if (dr) parts.push(`Demand ${dr.id} (pending approval)`);
+
+    if (dr) {
+      toast.success(
+        `Created: ${parts.join(" · ")}. Approve the demand in Demand Orders to auto-issue stock and raise the PR for shortfalls.`,
+        { duration: 8000 },
+      );
+    } else if (skippedNoRecipe === created.length) {
+      toast.success(
+        `Created ${created.length} production order${created.length === 1 ? "" : "s"}. No materials computed — these meal items don't have a recipe in the BOM master, so no Demand Request was raised.`,
+        { duration: 7000 },
+      );
+    } else {
+      toast.success(parts.join(" · "), { duration: 6000 });
+    }
     setDetailsOpen(false);
   };
 
@@ -435,8 +544,15 @@ function ProductionEntryPage() {
               </Button>
             )}
             <Button onClick={() => setView(view === "create" ? "list" : "create")}>
-              <Plus className="h-4 w-4 mr-1" />
-              {view === "create" ? "View List" : "Create Order"}
+              {view === "create" ? (
+                <>
+                  <ArrowLeft className="h-4 w-4 mr-1" /> Back
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 mr-1" /> Create Order
+                </>
+              )}
             </Button>
           </div>
         }
@@ -506,9 +622,6 @@ function ProductionEntryPage() {
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[11px] text-muted-foreground tabular-nums">
-                  Plan value: <strong className="text-foreground">৳ {lastMrpRun.totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong>
-                </span>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -540,7 +653,7 @@ function ProductionEntryPage() {
               columns={cols}
               searchKeys={["id", "bom", "outputItemName", "status"]}
               selectable={false}
-              actions={(r) => <ProductionEntryRowMenu entry={r} onAdvance={advanceStatus} />}
+              actions={(r) => <ProductionEntryRowMenu entry={r} />}
             />
           </div>
         </>
@@ -649,6 +762,91 @@ const PRODUCTION_ITEMS: ProductionItem[] = [
     ],
     otherConsumption: [
       { itemCode: "OC-001", itemName: "Cooking Gas",     uom: "Kg",  qtyPerUnit: 0.035, rate: 85 },
+    ],
+  },
+
+  // ── Meal-plan items (Wednesday Breakfast menu) ───────────────────────────
+  // Recipes for the menu items raised by the bulk "Create All Orders" flow on
+  // the Meal Planning Details dialog, so MRP can compute on-hand vs shortfall
+  // and the resulting Demand Request actually carries materials.
+  {
+    code: "FG-PRT",
+    name: "Paratha",
+    rawMaterials: [
+      { itemCode: "RM-013", itemName: "Wheat Flour",     uom: "Kg",    qtyPerUnit: 0.060, rate: 88  },
+      { itemCode: "RM-005", itemName: "Cooking Oil",     uom: "Litre", qtyPerUnit: 0.012, rate: 175 },
+      { itemCode: "RM-017", itemName: "Salt",            uom: "Kg",    qtyPerUnit: 0.001, rate: 35  },
+    ],
+    packagingMaterials: [
+      { itemCode: "PKG-001", itemName: "Aluminum Tray",  uom: "Pcs", qtyPerUnit: 1, rate: 12 },
+      { itemCode: "PKG-002", itemName: "Lid Foil",       uom: "Pcs", qtyPerUnit: 1, rate: 3  },
+    ],
+    otherConsumption: [
+      { itemCode: "OC-001", itemName: "Cooking Gas",     uom: "Kg",  qtyPerUnit: 0.015, rate: 85 },
+    ],
+  },
+  {
+    code: "FG-CHM",
+    name: "Channa Masala",
+    rawMaterials: [
+      { itemCode: "RM-014", itemName: "Chickpeas",       uom: "Kg",    qtyPerUnit: 0.060, rate: 110 },
+      { itemCode: "RM-003", itemName: "Onion",           uom: "Kg",    qtyPerUnit: 0.025, rate: 60  },
+      { itemCode: "RM-015", itemName: "Tomato",          uom: "Kg",    qtyPerUnit: 0.030, rate: 58  },
+      { itemCode: "RM-005", itemName: "Cooking Oil",     uom: "Litre", qtyPerUnit: 0.012, rate: 175 },
+      { itemCode: "RM-004", itemName: "Spice Mix",       uom: "Kg",    qtyPerUnit: 0.004, rate: 850 },
+      { itemCode: "RM-017", itemName: "Salt",            uom: "Kg",    qtyPerUnit: 0.001, rate: 35  },
+    ],
+    packagingMaterials: [
+      { itemCode: "PKG-001", itemName: "Aluminum Tray",  uom: "Pcs", qtyPerUnit: 1, rate: 12 },
+      { itemCode: "PKG-002", itemName: "Lid Foil",       uom: "Pcs", qtyPerUnit: 1, rate: 3  },
+    ],
+    otherConsumption: [
+      { itemCode: "OC-001", itemName: "Cooking Gas",     uom: "Kg",  qtyPerUnit: 0.020, rate: 85 },
+    ],
+  },
+  {
+    code: "FG-BEG",
+    name: "Boiled Egg",
+    rawMaterials: [
+      { itemCode: "RM-008", itemName: "Egg",             uom: "Pcs", qtyPerUnit: 1,     rate: 11 },
+      { itemCode: "RM-017", itemName: "Salt",            uom: "Kg",  qtyPerUnit: 0.001, rate: 35 },
+    ],
+    packagingMaterials: [
+      { itemCode: "PKG-001", itemName: "Aluminum Tray",  uom: "Pcs", qtyPerUnit: 1, rate: 12 },
+      { itemCode: "PKG-002", itemName: "Lid Foil",       uom: "Pcs", qtyPerUnit: 1, rate: 3  },
+    ],
+    otherConsumption: [
+      { itemCode: "OC-001", itemName: "Cooking Gas",     uom: "Kg",  qtyPerUnit: 0.010, rate: 85 },
+    ],
+  },
+  {
+    code: "FG-VSW",
+    name: "Vegetable Sandwich",
+    rawMaterials: [
+      { itemCode: "RM-007", itemName: "Bread Loaf",      uom: "Pcs", qtyPerUnit: 0.40,  rate: 30  },
+      { itemCode: "RM-006", itemName: "Mixed Vegetable", uom: "Kg",  qtyPerUnit: 0.045, rate: 70  },
+      { itemCode: "RM-009", itemName: "Butter",          uom: "Kg",  qtyPerUnit: 0.010, rate: 950 },
+      { itemCode: "RM-017", itemName: "Salt",            uom: "Kg",  qtyPerUnit: 0.0005,rate: 35  },
+    ],
+    packagingMaterials: [
+      { itemCode: "PKG-003", itemName: "Breakfast Box",  uom: "Pcs", qtyPerUnit: 1, rate: 18 },
+    ],
+    otherConsumption: [
+      { itemCode: "OC-001", itemName: "Cooking Gas",     uom: "Kg",  qtyPerUnit: 0.005, rate: 85 },
+    ],
+  },
+  {
+    code: "FG-FRS",
+    name: "Fruit Salad",
+    rawMaterials: [
+      { itemCode: "RM-016", itemName: "Mixed Fruits",    uom: "Kg",  qtyPerUnit: 0.080, rate: 120 },
+    ],
+    packagingMaterials: [
+      { itemCode: "PKG-001", itemName: "Aluminum Tray",  uom: "Pcs", qtyPerUnit: 1, rate: 12 },
+      { itemCode: "PKG-002", itemName: "Lid Foil",       uom: "Pcs", qtyPerUnit: 1, rate: 3  },
+    ],
+    otherConsumption: [
+      { itemCode: "OC-002", itemName: "Disposable Glove",uom: "Pair", qtyPerUnit: 0.05, rate: 4 },
     ],
   },
 ];
@@ -1777,8 +1975,9 @@ function MealPlanningDetailsDialog({
                     <UtensilsCrossed className="h-3.5 w-3.5 text-primary shrink-0" />
                     <span>
                       Click <span className="font-semibold">Select</span> beside any meal item to start a single
-                      production entry, or use <span className="font-semibold">Create All Orders</span> to
-                      raise one Pending order per available menu in a single click.
+                      production entry, or use <span className="font-semibold">Create All Orders</span> — that
+                      raises Pending orders for every available menu, runs MRP, and bundles everything into one
+                      Demand Request (in-stock items become one Issue, shortfalls become one Purchase Requisition).
                     </span>
                   </div>
                   <Button
@@ -2276,8 +2475,9 @@ function MaterialRequirementPlanningDialog({
   onOpenChange: (v: boolean) => void;
   orders: WfProductionEntry[];
 }) {
-  const { addRequisition, addTransferNote, addMrpRun, mrpRuns } = useWorkflow();
+  const { addDemands, addMrpRun, demands, mrpRuns } = useWorkflow();
   const [lastRun, setLastRun] = useState<WfMrpRun | null>(null);
+  const [lastDemandId, setLastDemandId] = useState<string | null>(null);
   // Default to fulfillable orders: anything not yet shipped (drop Completed)
   // and exclude Pending until approved.
   const eligible = useMemo(
@@ -2301,6 +2501,7 @@ function MaterialRequirementPlanningDialog({
       setSelected(defaults);
       setBasis("remaining");
       setLastRun(null);  // clear any previous result view
+      setLastDemandId(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -2377,9 +2578,20 @@ function MaterialRequirementPlanningDialog({
   ];
   const shortfallMaterials = enrichedMaterials.filter((m) => m.shortfall > 0);
   const transferableMaterials = enrichedMaterials.filter((m) => m.onHand > 0 && m.reqQty > 0);
-  const shortfallCost = shortfallMaterials.reduce((s, m) => s + m.shortfall * m.rate, 0);
 
-  // ── Generate Requirement Plan: creates artifacts + persists run + CSV ───
+  // ── Generate Requirement Plan ─────────────────────────────────────────────
+  // New flow: the MRP run records the materials snapshot and raises ONE
+  // Demand Request in "Pending Approval". No PRs or Transfer Notes are created
+  // here — those are produced on demand approval (see /approval-management's
+  // approveDemand), which also patches the run's requisitionIds/transferIds
+  // back through updateMrpRun.
+  //
+  //   Selected Production Orders -> MRP run -> Demand Request
+  //                                                |
+  //                                            (on approval)
+  //                                                v
+  //                                  { ONE Transfer Note + ONE Purchase
+  //                                    Requisition based on current stock }
   const handleGenerate = () => {
     if (selectedOrders.length === 0 || totalUnits === 0) return;
 
@@ -2387,96 +2599,38 @@ function MaterialRequirementPlanningDialog({
     const runId = `MRP-2026-${runSeq}`;
     const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
 
-    // 1) Group shortfalls by supplier → one PR per supplier
-    const requisitionIds: string[] = [];
-    const bySupplier = new Map<string, WfMrpMaterial[]>();
-    shortfallMaterials.forEach((m) => {
-      const sup = m.supplier ?? MRP_FALLBACK_SUPPLIER;
-      if (!bySupplier.has(sup)) bySupplier.set(sup, []);
-      bySupplier.get(sup)!.push(m);
-    });
-    let prSeq = 100 + mrpRuns.length * 10;
-    bySupplier.forEach((items, supplier) => {
-      const reqId = `REQ-${runId}-${String(++prSeq).padStart(3, "0")}`;
-      const demandItems: WfDemandItem[] = items.map((m) => ({
-        id: m.itemCode,
-        name: m.itemName,
-        qty: Math.ceil(m.shortfall),  // round up — can't order partial units
-        uom: m.uom,
-        type: m.bucket,
-      }));
-      const req: WfRequisition = {
-        id: reqId,
-        reference: runId,
-        requestedBy: "MRP System",
-        source: "MRP",
-        date: stamp,
-        status: "Pending Accounts",
-        items: items.length,
-        note: `Auto-generated from ${runId} — supplier: ${supplier}. Covers shortfall on ${items.length} material${items.length === 1 ? "" : "s"}.`,
-        demandRef: runId,
-        demandItems,
-        officeId: "OFF-001",
-        warehouseId: selectedOrders[0]?.warehouseId ?? "WH-003",
+    // 1) Demand Request bundling every material (Pending Approval, autoFulfill)
+    const drSeq = String(9000 + demands.length + 1).padStart(4, "0");
+    const drId = `DR-${drSeq}`;
+    const drItems: WfDemandItem[] = enrichedMaterials.map((s) => {
+      // Prefer inventory id when the material exists in stock master so
+      // downstream Item Issue / Transfer screens can resolve the row.
+      const invRow = inventory.find((i) => i.name.toLowerCase() === s.itemName.toLowerCase());
+      return {
+        id: invRow?.id ?? s.itemCode,
+        name: s.itemName,
+        qty: Math.round(s.reqQty * 1000) / 1000,
+        uom: s.uom,
+        type: s.bucket,
       };
-      addRequisition(req);
-      requisitionIds.push(reqId);
     });
+    const dr: WfDemandRequest = {
+      id: drId,
+      reference: runId,
+      requestedBy: "MRP System",
+      role: "Flight Kitchen Executive",
+      date: stamp,
+      status: "Pending Approval",
+      items: drItems,
+      note: `Auto-generated from MRP run ${runId}. Covers ${selectedOrders.length} production order${selectedOrders.length === 1 ? "" : "s"} (${enrichedMaterials.length} materials). On approval, an Issue + PR will be auto-created from current stock levels.`,
+      source: "Kitchen",
+      officeId: "OFF-001",
+      warehouseId: selectedOrders[0]?.warehouseId ?? "WH-003",
+      autoFulfill: true,
+    };
+    addDemands([dr]);
 
-    // 2) Internal transfers: bundle by destination warehouse (the order's warehouse)
-    const transferIds: string[] = [];
-    const byDest = new Map<string, { items: { id: string; name: string; qty: number; uom: string }[]; orderIds: string[] }>();
-    selectedOrders.forEach((o) => {
-      const target = o.orderQty ?? o.producedQty;
-      const orderQty = basis === "remaining" ? Math.max(0, target - o.producedQty) : target;
-      if (orderQty <= 0) return;
-      const dest = o.warehouseId ?? "WH-003";
-      if (!byDest.has(dest)) byDest.set(dest, { items: [], orderIds: [] });
-      byDest.get(dest)!.orderIds.push(o.id);
-    });
-
-    // Allocate transferable materials proportionally to each destination.
-    // Simple approach: split equally across destinations that have orders.
-    const destCount = byDest.size;
-    if (destCount > 0) {
-      transferableMaterials.forEach((m) => {
-        const totalToMove = Math.min(m.reqQty, m.onHand);
-        if (totalToMove <= 0) return;
-        const perDest = totalToMove / destCount;
-        byDest.forEach((bucket) => {
-          bucket.items.push({
-            id: m.itemCode,
-            name: m.itemName,
-            qty: Math.round(perDest * 1000) / 1000,
-            uom: m.uom,
-          });
-        });
-      });
-
-      let tnSeq = 200 + mrpRuns.length * 10;
-      byDest.forEach((bucket, destId) => {
-        if (bucket.items.length === 0) return;
-        const tnId = `TN-${runId}-${String(++tnSeq).padStart(3, "0")}`;
-        const destName = ALL_WAREHOUSES.find((w) => w.id === destId)?.name ?? destId;
-        const tn: WfTransferNote = {
-          id: tnId,
-          demandRef: runId,
-          grnRef: "Internal MRP Allocation",
-          items: bucket.items,
-          from: MRP_CENTRAL_WAREHOUSE_NAME,
-          to: destName,
-          issuedBy: "MRP System",
-          date: stamp,
-          status: "Pending",
-          officeId: "OFF-001",
-          warehouseId: destId,
-        };
-        addTransferNote(tn);
-        transferIds.push(tnId);
-      });
-    }
-
-    // 3) Persist the run
+    // 2) Persist the run — PR/TN ids stay empty until the demand is approved
     const run: WfMrpRun = {
       id: runId,
       date: stamp,
@@ -2486,20 +2640,24 @@ function MaterialRequirementPlanningDialog({
       totalUnits,
       totalCost,
       materials: enrichedMaterials,
-      requisitionIds,
-      transferIds,
+      requisitionIds: [],
+      transferIds: [],
+      demandRef: drId,
     };
     addMrpRun(run);
 
-    // 4) Switch dialog to result view
     setLastRun(run);
+    setLastDemandId(drId);
     toast.success(
-      `${runId} generated — ${requisitionIds.length} PR${requisitionIds.length === 1 ? "" : "s"} · ${transferIds.length} transfer${transferIds.length === 1 ? "" : "s"}.`,
+      `${runId} generated — Demand ${drId} raised (pending approval).`,
+      { duration: 6000 },
     );
   };
 
   // ── Render: result view after generation ────────────────────────────────
   if (lastRun) {
+    const resultShortfalls = lastRun.materials.filter((m) => m.shortfall > 0).length;
+    const resultInStock = lastRun.materials.filter((m) => m.shortfall < m.reqQty).length;
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-3xl">
@@ -2510,78 +2668,84 @@ function MaterialRequirementPlanningDialog({
               <span className="font-mono text-sm text-muted-foreground ml-1">— {lastRun.id}</span>
             </DialogTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              CSV has been downloaded. Generated artifacts are now visible in their respective queues.
+              CSV downloaded. A Demand Request has been raised — Issue + PR will be
+              created automatically when it's approved on Approval Management.
             </p>
           </DialogHeader>
 
           <div className="space-y-4 mt-2">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-md border border-border bg-muted/20 px-4 py-3">
+            <div className="grid grid-cols-3 gap-3 rounded-md border border-border bg-muted/20 px-4 py-3">
               <SummaryCell label="Orders" value={lastRun.orderIds.length.toString()} />
               <SummaryCell label="Units Planned" value={lastRun.totalUnits.toLocaleString()} />
               <SummaryCell label="Materials" value={lastRun.materials.length.toString()} />
-              <SummaryCell
-                label="Plan Value"
-                value={`৳ ${lastRun.totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
-                tone="primary"
-              />
             </div>
 
-            <div className="rounded-md border border-success/30 bg-success/5 px-4 py-3">
-              <div className="flex items-center gap-2 mb-2">
-                <FileText className="h-4 w-4 text-success" />
-                <span className="text-sm font-semibold uppercase tracking-wider text-success">
-                  Purchase Requisitions ({lastRun.requisitionIds.length})
-                </span>
-              </div>
-              {lastRun.requisitionIds.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  No shortfall — every required material has enough stock on hand.
+            {/* Demand Request — the single artifact this dialog actually
+                creates. PR/TN are deferred until this demand is approved. */}
+            {lastDemandId && (
+              <div className="rounded-md border border-warning/30 bg-warning/10 px-4 py-3">
+                <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-warning" />
+                    <span className="text-sm font-semibold uppercase tracking-wider text-warning-foreground">
+                      Demand Request raised
+                    </span>
+                    <Badge variant="outline" className="font-mono text-[11px] border-warning/40 bg-card">
+                      {lastDemandId}
+                    </Badge>
+                    <Badge variant="outline" className="text-[10px] border-warning/40 bg-warning/15 text-warning-foreground">
+                      Pending Approval
+                    </Badge>
+                  </div>
+                  <Button asChild size="sm" variant="outline" className="h-7 text-[11px]">
+                    <Link to="/approval-management">
+                      Approve now <ArrowRight className="h-3 w-3 ml-1" />
+                    </Link>
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Covers all <strong className="text-foreground">{lastRun.materials.length} material{lastRun.materials.length === 1 ? "" : "s"}</strong> from the selected production orders.
                 </p>
-              ) : (
-                <>
-                  <p className="text-[11px] text-muted-foreground mb-2">
-                    Created in Procurement → <span className="font-medium">Requisitions from Store</span>:
-                  </p>
-                  <ul className="space-y-1">
-                    {lastRun.requisitionIds.map((id) => (
-                      <li key={id} className="text-xs font-mono">
-                        <Badge variant="outline" className="border-success/40 bg-card text-foreground font-mono text-[11px]">
-                          {id}
-                        </Badge>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </div>
+              </div>
+            )}
 
-            <div className="rounded-md border border-navy/30 bg-navy/5 px-4 py-3">
-              <div className="flex items-center gap-2 mb-2">
-                <PackageOpen className="h-4 w-4 text-navy" />
-                <span className="text-sm font-semibold uppercase tracking-wider text-navy">
-                  Internal Transfers ({lastRun.transferIds.length})
-                </span>
-              </div>
-              {lastRun.transferIds.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  No transfer needed — no on-hand stock to allocate.
-                </p>
-              ) : (
-                <>
-                  <p className="text-[11px] text-muted-foreground mb-2">
-                    Created in Item Issue with status <span className="font-medium">Pending</span>:
+            {/* Forecast of artifacts that will be created on approval. */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="rounded-md border border-success/30 bg-success/5 px-4 py-3">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <FileText className="h-4 w-4 text-success" />
+                  <span className="text-sm font-semibold uppercase tracking-wider text-success">
+                    Purchase Requisition
+                  </span>
+                </div>
+                {resultShortfalls > 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    <strong className="text-foreground">{resultShortfalls} material{resultShortfalls === 1 ? "" : "s"}</strong> short — one PR will be auto-created on approval.
                   </p>
-                  <ul className="space-y-1">
-                    {lastRun.transferIds.map((id) => (
-                      <li key={id} className="text-xs font-mono">
-                        <Badge variant="outline" className="border-navy/40 bg-card text-foreground font-mono text-[11px]">
-                          {id}
-                        </Badge>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
+                ) : (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3 w-3" /> No shortfall — no PR will be raised.
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-md border border-navy/30 bg-navy/5 px-4 py-3">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Send className="h-4 w-4 text-navy" />
+                  <span className="text-sm font-semibold uppercase tracking-wider text-navy">
+                    Item Issue
+                  </span>
+                </div>
+                {resultInStock > 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    <strong className="text-foreground">{resultInStock} material{resultInStock === 1 ? "" : "s"}</strong> with on-hand stock — one Item Issue will be auto-created on approval.
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    <AlertCircle className="h-3 w-3" /> No on-hand stock — no Item Issue needed.
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 
@@ -2589,7 +2753,7 @@ function MaterialRequirementPlanningDialog({
             <Button variant="outline" onClick={() => downloadMrpCsv(lastRun)}>
               <FileText className="h-4 w-4 mr-1.5" /> Re-download CSV
             </Button>
-            <Button variant="outline" onClick={() => setLastRun(null)}>
+            <Button variant="outline" onClick={() => { setLastRun(null); setLastDemandId(null); }}>
               <Calculator className="h-4 w-4 mr-1.5" /> New Run
             </Button>
             <Button onClick={() => onOpenChange(false)}>Close</Button>
@@ -2744,7 +2908,7 @@ function MaterialRequirementPlanningDialog({
 
           {/* ── Summary strip ────────────────────────────────────────── */}
           <div className="px-6 py-3 border-y border-border bg-muted/30">
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <SummaryCell label="Selected Orders" value={selected.size.toString()} />
               <SummaryCell label="Units to Produce" value={totalUnits.toLocaleString()} />
               <SummaryCell
@@ -2756,19 +2920,10 @@ function MaterialRequirementPlanningDialog({
                 value={shortfallMaterials.length.toString()}
                 tone={shortfallMaterials.length > 0 ? "warning" : "success"}
               />
-              <SummaryCell
-                label="Total Cost"
-                value={`৳ ${totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
-                tone="primary"
-              />
             </div>
             {shortfallMaterials.length > 0 && (
               <div className="mt-2 text-[11px] text-muted-foreground">
-                Shortfall value:{" "}
-                <span className="font-semibold text-warning tabular-nums">
-                  ৳ {shortfallCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                </span>
-                {" "}— will be procured via auto-generated Purchase Requisition{shortfallMaterials.length === 1 ? "" : "s"}.
+                Shortfalls will be procured via auto-generated Purchase Requisition{shortfallMaterials.length === 1 ? "" : "s"}.
               </div>
             )}
           </div>
@@ -2850,7 +3005,6 @@ function MrpMaterialTable({
   items: WfMrpMaterial[];
   tone: "primary" | "navy" | "muted";
 }) {
-  const total = items.reduce((s, m) => s + m.totalCost, 0);
   const shortfallCount = items.filter((m) => m.shortfall > 0).length;
   const headerTint =
     tone === "primary" ? "bg-primary/5 text-primary" :
@@ -2875,12 +3029,6 @@ function MrpMaterialTable({
             </Badge>
           )}
         </div>
-        <div className="text-xs">
-          Subtotal:{" "}
-          <span className="font-semibold tabular-nums">
-            ৳ {total.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-          </span>
-        </div>
       </div>
       <div className="border border-border rounded-b-md overflow-hidden">
         <Table>
@@ -2893,13 +3041,12 @@ function MrpMaterialTable({
               <TableHead className="text-[10px] uppercase tracking-wider text-right w-24">Req. Qty</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider text-right w-20">On Hand</TableHead>
               <TableHead className="text-[10px] uppercase tracking-wider text-right w-24">Shortfall</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider text-right w-24">Total (৳)</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-xs text-muted-foreground py-6">
+                <TableCell colSpan={7} className="text-center text-xs text-muted-foreground py-6">
                   No {title.toLowerCase()} required for the selected orders.
                 </TableCell>
               </TableRow>
@@ -2926,9 +3073,6 @@ function MrpMaterialTable({
                       isShort ? "text-destructive" : "text-success",
                     )}>
                       {isShort ? m.shortfall.toLocaleString(undefined, { maximumFractionDigits: 3 }) : "—"}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums text-sm font-semibold">
-                      ৳ {m.totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     </TableCell>
                   </TableRow>
                 );

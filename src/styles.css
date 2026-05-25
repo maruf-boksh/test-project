@@ -1,5 +1,12 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+/* AntD CSS-in-JS output extracted at build time by scripts/extract-antd-css.mjs.
+   Loading it as a static stylesheet means AntD-rendered surfaces (Menu, Layout,
+   Buttons, Tags) are styled on first paint instead of flashing unstyled while
+   the runtime cssinjs cache hydrates. Runtime AntD will re-inject these rules
+   into <head>, harmlessly overriding the static copy with the user's live
+   Theme Center tokens. */
+@import "./antd-critical.css";
 @import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Nunito+Sans:wght@400;600;700&family=Orbitron:wght@600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap");
 
 @custom-variant dark (&:is(.dark *));
@@ -252,6 +259,17 @@
 
     code, pre, kbd, samp {
         font-family: var(--font-mono);
+    }
+
+    /* Theme Center — respected by the user-toggleable settings */
+    body.reduce-motion,
+    body.reduce-motion *,
+    body.reduce-motion *::before,
+    body.reduce-motion *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
     }
 
     table { font-size: 12px; }

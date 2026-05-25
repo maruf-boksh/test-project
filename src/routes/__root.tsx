@@ -10,6 +10,7 @@ import {
 
 import appCss from "../styles.css?url";
 import { AppShell } from "@/components/layout/AppShell";
+import { THEME_BOOTSTRAP_SCRIPT } from "@/lib/theme-settings";
 
 function NotFoundComponent() {
   return (
@@ -96,9 +97,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    // `vizyon` is the cssVar scope key configured in AntThemeBridge (main.tsx).
+    // Adding it on <html> makes the static AntD token block from
+    // antd-critical.css apply at first paint, before AntD's runtime re-injects
+    // the same rules with the user's live Theme Center colours.
+    <html lang="en" className="vizyon">
       <head>
         <HeadContent />
+        {/* Bootstrap saved Theme Center settings synchronously so the first
+            paint already reflects the user's chosen primary / sidebar / header
+            instead of flashing the default teal for a frame. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_SCRIPT }} />
       </head>
       <body>
         {children}
