@@ -1,125 +1,164 @@
 import { Link, useRouterState } from "@tanstack/react-router";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Menu, type MenuProps } from "antd";
 import {
-  LayoutDashboard, Upload, UtensilsCrossed, ChefHat, Croissant, PackageCheck,
-  Package, Boxes, ShoppingCart, ShieldCheck, Wrench, BarChart3, Users, ScrollText,
-  ChevronDown, Factory, Truck, Pill, ThermometerSun, ClipboardCheck,
-  Layers, FileText, SlidersHorizontal, Wallet, Receipt, BadgeCheck, PieChart, Send,
-  Settings, Tag, Building2, Warehouse, BadgeDollarSign, GitBranch, Plane, Calculator,
-  ArrowLeftRight, MoveRight, MailQuestion, ClipboardList, Scale, LineChart, Undo2,
-  Coffee, ScanBarcode, Plane as PlaneIcon, Boxes as BoxesIcon, ShieldAlert,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+  DashboardOutlined,
+  InboxOutlined,
+  CoffeeOutlined,
+  BuildOutlined,
+  UnorderedListOutlined,
+  FileDoneOutlined,
+  EditOutlined,
+  CalculatorOutlined,
+  BarChartOutlined,
+  DatabaseOutlined,
+  FileSearchOutlined,
+  SendOutlined,
+  SwapOutlined,
+  ArrowRightOutlined,
+  AppstoreOutlined,
+  SlidersOutlined,
+  ShoppingOutlined,
+  FileTextOutlined,
+  MailOutlined,
+  FileAddOutlined,
+  DiffOutlined,
+  ShoppingCartOutlined,
+  CarOutlined,
+  RollbackOutlined,
+  LineChartOutlined,
+  WalletOutlined,
+  SafetyCertificateOutlined,
+  PieChartOutlined,
+  SafetyOutlined,
+  MedicineBoxOutlined,
+  FireOutlined,
+  MonitorOutlined,
+  DropboxOutlined,
+  RocketOutlined,
+  ToolOutlined,
+  WarningOutlined,
+  TeamOutlined,
+  AuditOutlined,
+  CheckCircleOutlined,
+  SettingOutlined,
+  TagOutlined,
+  BankOutlined,
+  HomeOutlined,
+  DollarOutlined,
+  BranchesOutlined,
+} from "@ant-design/icons";
 import { useRole, ROLE_PERMS } from "@/lib/roles";
-import { useState, type ComponentType } from "react";
 
-type Item = { to: string; label: string; icon: ComponentType<{ className?: string }>; key: string };
-type Group = { key: string; label: string; icon: ComponentType<{ className?: string }>; items: Item[] };
+type AntIcon = ReactNode;
+type Item = { to: string; label: string; icon: AntIcon; key: string };
+type Group = { key: string; label: string; icon: AntIcon; items: Item[] };
 type Entry = Item | Group;
 
 const NAV: Entry[] = [
-  { key: "dashboard", to: "/", label: "Dashboard", icon: LayoutDashboard },
-  { key: "order-management", to: "/order-management", label: "Order Management", icon: Upload },
-  { key: "meal-planning", to: "/meal-planning", label: "Meal Planning", icon: UtensilsCrossed },
+  { key: "dashboard", to: "/", label: "Dashboard", icon: <DashboardOutlined /> },
+  { key: "order-management", to: "/order-management", label: "Order Management", icon: <InboxOutlined /> },
+  { key: "meal-planning", to: "/meal-planning", label: "Meal Planning", icon: <CoffeeOutlined /> },
   {
     key: "production",
     label: "Production Management",
-    icon: Factory,
+    icon: <BuildOutlined />,
     items: [
-      { key: "inventory-bom", to: "/bom", label: "Bill of Materials", icon: Layers },
-      { key: "production-entry", to: "/production-entry", label: "Production Order", icon: ClipboardCheck },
-      { key: "production-entry-new", to: "/production-entry-new", label: "Production Entry", icon: ClipboardCheck },
-      { key: "mrp", to: "/mrp", label: "Material Requirement Planning", icon: Calculator },
-      { key: "production-reports", to: "/production-reports", label: "Production Reports", icon: BarChart3 },
+      { key: "inventory-bom", to: "/bom", label: "Bill of Materials", icon: <UnorderedListOutlined /> },
+      { key: "production-entry", to: "/production-entry", label: "Production Order", icon: <FileDoneOutlined /> },
+      { key: "production-entry-new", to: "/production-entry-new", label: "Production Entry", icon: <EditOutlined /> },
+      { key: "mrp", to: "/mrp", label: "Material Requirement Planning", icon: <CalculatorOutlined /> },
+      { key: "production-reports", to: "/production-reports", label: "Production Reports", icon: <BarChartOutlined /> },
     ],
   },
   {
     key: "inventory",
     label: "Inventory & Store",
-    icon: Boxes,
+    icon: <DatabaseOutlined />,
     items: [
-      { key: "inventory-demand", to: "/demand-orders", label: "Demand Requests", icon: FileText },
-      { key: "inventory-issue", to: "/item-issue", label: "Item Issue", icon: Send },
-      { key: "inventory-transfer-request", to: "/transfer-request", label: "Transfer Request", icon: ArrowLeftRight },
-      { key: "inventory-transfer", to: "/transfer", label: "Transfer", icon: MoveRight },
-      { key: "inventory-stock", to: "/inventory", label: "Stock Overview", icon: Package },
-      { key: "inventory-adjustment", to: "/stock-adjustment", label: "Stock Adjustment", icon: SlidersHorizontal },
+      { key: "inventory-demand", to: "/demand-orders", label: "Demand Requests", icon: <FileSearchOutlined /> },
+      { key: "inventory-issue", to: "/item-issue", label: "Item Issue", icon: <SendOutlined /> },
+      { key: "inventory-transfer-request", to: "/transfer-request", label: "Transfer Request", icon: <SwapOutlined /> },
+      { key: "inventory-transfer", to: "/transfer", label: "Transfer", icon: <ArrowRightOutlined /> },
+      { key: "inventory-stock", to: "/inventory", label: "Stock Overview", icon: <AppstoreOutlined /> },
+      { key: "inventory-adjustment", to: "/stock-adjustment", label: "Stock Adjustment", icon: <SlidersOutlined /> },
     ],
   },
   {
     key: "supply",
     label: "Supply Chain",
-    icon: ShoppingCart,
+    icon: <ShoppingOutlined />,
     items: [
-      { key: "supply-pr", to: "/purchase-requisition", label: "Purchase Requisition", icon: FileText },
-      { key: "supply-rfq", to: "/request-for-quotation", label: "Request for Quotation", icon: MailQuestion },
-      { key: "supply-qe", to: "/quotation-entry", label: "Quotation Entry", icon: ClipboardList },
-      { key: "supply-cs", to: "/comparative-statement", label: "Comparative Statement", icon: Scale },
-      { key: "supply-po", to: "/procurement", label: "Purchase Orders", icon: ShoppingCart },
-      { key: "supply-receive", to: "/receive-item", label: "Receive Items", icon: Truck },
-      { key: "supply-return", to: "/purchase-return", label: "Purchase Return", icon: Undo2 },
-      { key: "supply-reports", to: "/purchase-reports", label: "Purchase Reports", icon: LineChart },
+      { key: "supply-pr", to: "/purchase-requisition", label: "Purchase Requisition", icon: <FileTextOutlined /> },
+      { key: "supply-rfq", to: "/request-for-quotation", label: "Request for Quotation", icon: <MailOutlined /> },
+      { key: "supply-qe", to: "/quotation-entry", label: "Quotation Entry", icon: <FileAddOutlined /> },
+      { key: "supply-cs", to: "/comparative-statement", label: "Comparative Statement", icon: <DiffOutlined /> },
+      { key: "supply-po", to: "/procurement", label: "Purchase Orders", icon: <ShoppingCartOutlined /> },
+      { key: "supply-receive", to: "/receive-item", label: "Receive Items", icon: <CarOutlined /> },
+      { key: "supply-return", to: "/purchase-return", label: "Purchase Return", icon: <RollbackOutlined /> },
+      { key: "supply-reports", to: "/purchase-reports", label: "Purchase Reports", icon: <LineChartOutlined /> },
     ],
   },
   {
     key: "accounts",
     label: "Accounts",
-    icon: Wallet,
+    icon: <WalletOutlined />,
     items: [
-      { key: "accounts-invoices", to: "/accounts-invoices", label: "Invoices & Payments", icon: Receipt },
-      { key: "accounts-approvals", to: "/accounts-approvals", label: "Payment Approvals", icon: BadgeCheck },
-      { key: "accounts-expenses", to: "/accounts-expenses", label: "Expense Overview", icon: PieChart },
+      { key: "accounts-invoices", to: "/accounts-invoices", label: "Invoices & Payments", icon: <FileTextOutlined /> },
+      { key: "accounts-approvals", to: "/accounts-approvals", label: "Payment Approvals", icon: <SafetyCertificateOutlined /> },
+      { key: "accounts-expenses", to: "/accounts-expenses", label: "Expense Overview", icon: <PieChartOutlined /> },
     ],
   },
   {
     key: "qc",
     label: "Food Safety & QC",
-    icon: ShieldCheck,
+    icon: <SafetyOutlined />,
     items: [
-      { key: "qc-hygiene", to: "/hygiene-monitoring", label: "Daily Hygiene Monitoring", icon: ClipboardCheck },
-      { key: "qc-temp", to: "/cooking-temp", label: "Cooking Temp & Sensory", icon: ThermometerSun },
-      { key: "qc-dispatch-monitoring", to: "/dispatch-monitoring", label: "Dispatch Monitoring", icon: Truck },
+      { key: "qc-hygiene", to: "/hygiene-monitoring", label: "Daily Hygiene Monitoring", icon: <MedicineBoxOutlined /> },
+      { key: "qc-temp", to: "/cooking-temp", label: "Cooking Temp & Sensory", icon: <FireOutlined /> },
+      { key: "qc-dispatch-monitoring", to: "/dispatch-monitoring", label: "Dispatch Monitoring", icon: <MonitorOutlined /> },
     ],
   },
-  { key: "dispatch", to: "/dispatch", label: "Packaging & Dispatch", icon: PackageCheck },
+  { key: "dispatch", to: "/dispatch", label: "Packaging & Dispatch", icon: <DropboxOutlined /> },
   {
     key: "airline-consumables",
     label: "Airline Consumables",
-    icon: Coffee,
+    icon: <CoffeeOutlined />,
     items: [
-      { key: "consumables-inventory",   to: "/airline-consumables",    label: "Inventory",        icon: BoxesIcon },
-      { key: "consumables-usage",       to: "/consumable-usage",       label: "Usage Tracking",   icon: Send },
-      { key: "consumables-allocation",  to: "/consumable-allocation",  label: "Flight Allocation", icon: PlaneIcon },
+      { key: "consumables-inventory",   to: "/airline-consumables",    label: "Inventory",         icon: <AppstoreOutlined /> },
+      { key: "consumables-usage",       to: "/consumable-usage",       label: "Usage Tracking",    icon: <SendOutlined /> },
+      { key: "consumables-allocation",  to: "/consumable-allocation",  label: "Flight Allocation", icon: <RocketOutlined /> },
     ],
   },
   {
     key: "airline-equipments",
     label: "Airline Equipments",
-    icon: ScanBarcode,
+    icon: <ToolOutlined />,
     items: [
-      { key: "equipments-assets",       to: "/airline-equipments",    label: "Assets",           icon: BoxesIcon },
-      { key: "equipments-maintenance",  to: "/equipment-maintenance", label: "Maintenance",      icon: Wrench },
-      { key: "equipments-returns",      to: "/equipment-returns",     label: "Returns",          icon: Undo2 },
-      { key: "equipments-damage",       to: "/equipment-damage",      label: "Damage Reports",   icon: ShieldAlert },
+      { key: "equipments-assets",       to: "/airline-equipments",    label: "Assets",         icon: <DatabaseOutlined /> },
+      { key: "equipments-maintenance",  to: "/equipment-maintenance", label: "Maintenance",    icon: <ToolOutlined /> },
+      { key: "equipments-returns",      to: "/equipment-returns",     label: "Returns",        icon: <RollbackOutlined /> },
+      { key: "equipments-damage",       to: "/equipment-damage",      label: "Damage Reports", icon: <WarningOutlined /> },
     ],
   },
-  { key: "maintenance", to: "/maintenance", label: "Maintenance & Assets", icon: Wrench },
-  { key: "reports", to: "/reports", label: "Reports", icon: BarChart3 },
-  { key: "users", to: "/users", label: "User Management", icon: Users },
-  { key: "audit", to: "/audit", label: "Audit Logs", icon: ScrollText },
-  { key: "approval-management", to: "/approval-management", label: "Approval Management", icon: BadgeCheck },
+  { key: "maintenance", to: "/maintenance", label: "Maintenance & Assets", icon: <ToolOutlined /> },
+  { key: "reports", to: "/reports", label: "Reports", icon: <BarChartOutlined /> },
+  { key: "users", to: "/users", label: "User Management", icon: <TeamOutlined /> },
+  { key: "audit", to: "/audit", label: "Audit Logs", icon: <AuditOutlined /> },
+  { key: "approval-management", to: "/approval-management", label: "Approval Management", icon: <CheckCircleOutlined /> },
   {
     key: "config",
     label: "Configuration Management",
-    icon: Settings,
+    icon: <SettingOutlined />,
     items: [
-      { key: "config-item",      to: "/config-item",      label: "Item Profile",         icon: Tag },
-      { key: "config-supplier",  to: "/config-supplier",  label: "Supplier Profile",     icon: Truck },
-      { key: "config-company",   to: "/config-company",   label: "Company Profile",      icon: Building2 },
-      { key: "config-airline",   to: "/config-airline",   label: "Airline",              icon: Plane },
-      { key: "config-office",    to: "/config-office",    label: "Office",               icon: Building2 },
-      { key: "config-warehouse", to: "/config-warehouse", label: "Warehouse",            icon: Warehouse },
-      { key: "config-price",     to: "/config-price",     label: "Price Setup",          icon: BadgeDollarSign },
-      { key: "config-approval",  to: "/config-approval",  label: "Approval Setup",       icon: GitBranch },
+      { key: "config-item",      to: "/config-item",      label: "Item Profile",     icon: <TagOutlined /> },
+      { key: "config-supplier",  to: "/config-supplier",  label: "Supplier Profile", icon: <CarOutlined /> },
+      { key: "config-company",   to: "/config-company",   label: "Company Profile",  icon: <BankOutlined /> },
+      { key: "config-airline",   to: "/config-airline",   label: "Airline",          icon: <RocketOutlined /> },
+      { key: "config-office",    to: "/config-office",    label: "Office",           icon: <HomeOutlined /> },
+      { key: "config-warehouse", to: "/config-warehouse", label: "Warehouse",        icon: <DatabaseOutlined /> },
+      { key: "config-price",     to: "/config-price",     label: "Price Setup",      icon: <DollarOutlined /> },
+      { key: "config-approval",  to: "/config-approval",  label: "Approval Setup",   icon: <BranchesOutlined /> },
     ],
   },
 ];
@@ -136,165 +175,146 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
   const perms = ROLE_PERMS[role];
   const allowed = (key: string) => perms === "*" || perms.includes(key) || perms.some(p => key.startsWith(p));
 
-  const filtered: Entry[] = NAV
-    .map((e) => {
-      if (isGroup(e)) {
-        const items = e.items.filter((i) => allowed(i.key) || allowed(e.key));
-        return items.length ? { ...e, items } : null;
+  const filtered: Entry[] = useMemo(() => (
+    NAV
+      .map((e) => {
+        if (isGroup(e)) {
+          const items = e.items.filter((i) => allowed(i.key) || allowed(e.key));
+          return items.length ? { ...e, items } : null;
+        }
+        return allowed(e.key) ? e : null;
+      })
+      .filter(Boolean) as Entry[]
+  // perms changes whenever role changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [role]);
+
+  // Build Ant Menu items with TanStack Router links as labels so all native
+  // link affordances (right-click / middle-click / ctrl+click) keep working.
+  const menuItems: MenuProps["items"] = useMemo(() => (
+    filtered.map((entry) => {
+      if (!isGroup(entry)) {
+        return {
+          key: entry.to,
+          icon: entry.icon,
+          label: (
+            <Link
+              to={entry.to}
+              data-tour={`tour-${entry.key}`}
+              style={{ color: "inherit", display: "block" }}
+            >
+              {entry.label}
+            </Link>
+          ),
+        };
       }
-      return allowed(e.key) ? e : null;
+      return {
+        key: `group:${entry.key}`,
+        icon: entry.icon,
+        label: <span data-tour={`tour-${entry.key}`}>{entry.label}</span>,
+        children: entry.items.map((item) => ({
+          key: item.to,
+          icon: item.icon,
+          label: (
+            <Link
+              to={item.to}
+              style={{ color: "inherit", display: "block" }}
+            >
+              {item.label}
+            </Link>
+          ),
+        })),
+      };
     })
-    .filter(Boolean) as Entry[];
+  ), [filtered]);
 
-  // groups open if active route is inside, otherwise default open
-  const initial: Record<string, boolean> = {};
-  filtered.forEach((e) => {
-    if (isGroup(e)) initial[e.key] = e.items.some((i) => path === i.to) || true;
-  });
-  const [open, setOpen] = useState<Record<string, boolean>>(initial);
+  // Active route → selectedKeys; ancestor group → openKeys.
+  const selectedKeys = [path];
+  const activeGroupKey = useMemo(() => {
+    const g = filtered.find((e) => isGroup(e) && e.items.some((i) => i.to === path));
+    return g ? `group:${g.key}` : null;
+  }, [filtered, path]);
 
-  if (collapsed) {
-    return (
-      <aside className="fixed left-0 top-14 bottom-0 w-14 bg-sidebar text-sidebar-foreground overflow-y-auto border-r border-sidebar-border z-30 transition-[width] duration-200">
-        <nav className="py-2 space-y-0.5">
-          {filtered.map((entry) => {
-            if (!isGroup(entry)) {
-              const Icon = entry.icon;
-              const active = path === entry.to;
-              return (
-                <Link
-                  key={entry.to}
-                  to={entry.to}
-                  title={entry.label}
-                  data-tour={`tour-${entry.key}`}
-                  className={cn(
-                    "mx-2 flex items-center justify-center h-9 rounded-md transition-colors",
-                    active
-                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                      : "hover:bg-sidebar-accent/50 text-sidebar-foreground/85",
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                </Link>
-              );
-            }
-            return (
-              <div key={entry.key} data-tour={`tour-${entry.key}`}>
-                <div className="mt-2 mb-1 mx-3 border-t border-sidebar-border/40" />
-                {entry.items.map((item) => {
-                  const SubIcon = item.icon;
-                  const active = path === item.to;
-                  return (
-                    <Link
-                      key={item.to}
-                      to={item.to}
-                      title={`${entry.label} · ${item.label}`}
-                      className={cn(
-                        "mx-2 flex items-center justify-center h-9 rounded-md transition-colors",
-                        active
-                          ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                          : "hover:bg-sidebar-accent/50 text-sidebar-foreground/85",
-                      )}
-                    >
-                      <SubIcon className="h-4 w-4" />
-                    </Link>
-                  );
-                })}
-              </div>
-            );
-          })}
-        </nav>
-        <div className="mt-4 mb-3 flex justify-center" title={`Active role: ${role}`}>
-          <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
-        </div>
-      </aside>
-    );
-  }
+  const [openKeys, setOpenKeys] = useState<string[]>(
+    activeGroupKey ? [activeGroupKey] : [],
+  );
+
+  useEffect(() => {
+    if (activeGroupKey && !openKeys.includes(activeGroupKey)) {
+      setOpenKeys((k) => Array.from(new Set([...k, activeGroupKey])));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeGroupKey]);
 
   return (
-    <aside className="fixed left-0 top-14 bottom-0 w-60 bg-sidebar text-sidebar-foreground overflow-y-auto border-r border-sidebar-border z-30 transition-[width] duration-200">
-      <div className="px-3 py-3">
-        <div className="px-3 py-2 text-[10px] uppercase tracking-wider text-sidebar-foreground/60 font-semibold">
+    <div className="flex flex-col h-full">
+      {!collapsed && (
+        <div
+          className="field-label"
+          style={{ padding: "16px 20px 8px" }}
+        >
           Operations Console
         </div>
-        <nav className="space-y-0.5">
-          {filtered.map((entry) => {
-            if (!isGroup(entry)) {
-              const active = path === entry.to;
-              const Icon = entry.icon;
-              return (
-                <Link
-                  key={entry.to}
-                  to={entry.to}
-                  data-tour={`tour-${entry.key}`}
-                  className={cn(
-                    "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
-                    active
-                      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                      : "hover:bg-sidebar-accent/50 text-sidebar-foreground/85",
-                  )}
-                >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{entry.label}</span>
-                </Link>
-              );
-            }
-            const isOpen = open[entry.key] ?? true;
-            const Icon = entry.icon;
-            const hasActive = entry.items.some((i) => path === i.to);
-            return (
-              <div key={entry.key}>
-                <button
-                  type="button"
-                  data-tour={`tour-${entry.key}`}
-                  onClick={() => setOpen((s) => ({ ...s, [entry.key]: !isOpen }))}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
-                    hasActive
-                      ? "text-sidebar-accent-foreground font-medium"
-                      : "text-sidebar-foreground/85 hover:bg-sidebar-accent/50",
-                  )}
-                >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  <span className="truncate flex-1 text-left">{entry.label}</span>
-                  <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", isOpen && "rotate-180")} />
-                </button>
-                {isOpen && (
-                  <div className="ml-3 mt-0.5 mb-1 pl-3 border-l border-sidebar-border/50 space-y-0.5">
-                    {entry.items.map((item) => {
-                      const active = path === item.to;
-                      const SubIcon = item.icon;
-                      return (
-                        <Link
-                          key={item.to}
-                          to={item.to}
-                          className={cn(
-                            "flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[13px] transition-colors",
-                            active
-                              ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                              : "hover:bg-sidebar-accent/50 text-sidebar-foreground/75",
-                          )}
-                        >
-                          <SubIcon className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate">{item.label}</span>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </nav>
-        <div className="mt-6 mx-3 p-3 rounded-md bg-sidebar-accent/40 text-xs">
-          <div className="font-semibold text-sidebar-accent-foreground">Active Role</div>
-          <div className="mt-1 text-sidebar-foreground/80">{role}</div>
-          <div className="mt-2 flex items-center gap-2 text-sidebar-foreground/80">
-            <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
+      )}
+
+      <Menu
+        mode="inline"
+        inlineCollapsed={collapsed}
+        items={menuItems}
+        selectedKeys={selectedKeys}
+        openKeys={collapsed ? [] : openKeys}
+        onOpenChange={(keys) => setOpenKeys(keys as string[])}
+        style={{
+          flex: 1,
+          borderInlineEnd: "none",
+          background: "transparent",
+        }}
+      />
+
+      {!collapsed && (
+        <div
+          style={{
+            margin: "12px 16px 16px",
+            padding: "10px 12px",
+            borderRadius: 8,
+            background: "var(--sidebar-accent)",
+            color: "var(--sidebar-accent-foreground)",
+            fontSize: 11,
+            lineHeight: 1.4,
+          }}
+        >
+          <div style={{ fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", fontSize: 10 }}>
+            Active Role
+          </div>
+          <div style={{ marginTop: 4, color: "var(--sidebar-foreground)" }}>{role}</div>
+          <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6, color: "var(--muted-foreground)" }}>
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: "9999px",
+                background: "var(--color-success)",
+                display: "inline-block",
+              }}
+            />
             Systems operational
           </div>
         </div>
-      </div>
-    </aside>
+      )}
+
+      {collapsed && (
+        <div style={{ padding: "12px 0", display: "flex", justifyContent: "center" }} title={`Active role: ${role}`}>
+          <span
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: "9999px",
+              background: "var(--color-success)",
+              display: "inline-block",
+            }}
+          />
+        </div>
+      )}
+    </div>
   );
 }

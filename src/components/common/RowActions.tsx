@@ -1,161 +1,236 @@
 import { useState, type ReactNode } from "react";
-import { Button } from "@/components/ui/button";
+import { Dropdown, Button, Modal, Input } from "antd";
+import type { MenuProps } from "antd";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
-import {
-  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
-import { MoreHorizontal, Eye, Pencil, Trash2, Check, X, Printer, Download, MapPin, UserPlus } from "lucide-react";
+  MoreOutlined,
+  EyeOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  CheckOutlined,
+  CloseOutlined,
+  PrinterOutlined,
+  DownloadOutlined,
+  EnvironmentOutlined,
+  UserAddOutlined,
+} from "@ant-design/icons";
 import { toast } from "sonner";
 
-type ActionKey = "view" | "edit" | "delete" | "approve" | "reject" | "print" | "export" | "assign" | "track";
+type ActionKey =
+  | "view"
+  | "edit"
+  | "delete"
+  | "approve"
+  | "reject"
+  | "print"
+  | "export"
+  | "assign"
+  | "track";
 
-const META: Record<ActionKey, { label: string; icon: any }> = {
-  view: { label: "View", icon: Eye },
-  edit: { label: "Edit", icon: Pencil },
-  delete: { label: "Delete", icon: Trash2 },
-  approve: { label: "Approve", icon: Check },
-  reject: { label: "Reject", icon: X },
-  print: { label: "Print", icon: Printer },
-  export: { label: "Export", icon: Download },
-  assign: { label: "Assign", icon: UserPlus },
-  track: { label: "Track Status", icon: MapPin },
+const META: Record<
+  ActionKey,
+  { label: string; icon: ReactNode; danger?: boolean }
+> = {
+  view:    { label: "View",         icon: <EyeOutlined /> },
+  edit:    { label: "Edit",         icon: <EditOutlined /> },
+  delete:  { label: "Delete",       icon: <DeleteOutlined />,    danger: true },
+  approve: { label: "Approve",      icon: <CheckOutlined /> },
+  reject:  { label: "Reject",       icon: <CloseOutlined />,     danger: true },
+  print:   { label: "Print",        icon: <PrinterOutlined /> },
+  export:  { label: "Export",       icon: <DownloadOutlined /> },
+  assign:  { label: "Assign",       icon: <UserAddOutlined /> },
+  track:   { label: "Track Status", icon: <EnvironmentOutlined /> },
 };
 
+type ModalKind = null | "view" | "edit" | "delete" | "approve" | "reject";
+
 export function RowActions({
-  row, actions = ["view", "edit", "approve", "delete"],
-  detail, editDetail,
+  row,
+  actions = ["view", "edit", "approve", "delete"],
+  detail,
+  editDetail,
 }: {
-  row: Record<string, any>;
+  row: Record<string, unknown>;
   actions?: ActionKey[];
   detail?: ReactNode;
   editDetail?: ReactNode;
 }) {
-  const [open, setOpen] = useState<null | "view" | "edit" | "delete" | "approve" | "reject">(null);
+  const [open, setOpen] = useState<ModalKind>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const rowId = String(row.id ?? "record");
 
   const handle = (a: ActionKey) => {
     if (a === "view" || a === "edit" || a === "delete" || a === "approve" || a === "reject") {
-      setOpen(a); return;
+      setOpen(a);
+      return;
     }
-    if (a === "print") { window.print(); return; }
-    if (a === "export") { toast.success(`Exporting ${row.id || "record"}`); return; }
-    if (a === "assign") { toast.success(`Assigned ${row.id}`); return; }
-    if (a === "track") { toast.info(`Tracking ${row.id}`); return; }
+    if (a === "print")  { window.print(); return; }
+    if (a === "export") { toast.success(`Exporting ${rowId}`); return; }
+    if (a === "assign") { toast.success(`Assigned ${rowId}`); return; }
+    if (a === "track")  { toast.info(`Tracking ${rowId}`); return; }
   };
+
+  // Build menu items, inserting a divider before destructive actions when
+  // they are not the first item (mirrors the legacy shadcn behavior).
+  const menuItems: MenuProps["items"] = [];
+  actions.forEach((a, i) => {
+    const m = META[a];
+    if ((a === "delete" || a === "reject") && i > 0) {
+      menuItems.push({ type: "divider" });
+    }
+    menuItems.push({
+      key: a,
+      icon: m.icon,
+      label: m.label,
+      danger: m.danger,
+      onClick: () => handle(a),
+    });
+  });
+
+  const close = () => {
+    setOpen(null);
+    setRejectionReason("");
+  };
+
+  const titles: Record<Exclude<ModalKind, null>, string> = {
+    view:    `Record Details — ${rowId}`,
+    edit:    `Edit Record — ${rowId}`,
+    delete:  `Confirm Delete — ${rowId}`,
+    approve: `Approve — ${rowId}`,
+    reject:  `Reject — ${rowId}`,
+  };
+
+  const isDetailMode = (open === "view" && detail) || (open === "edit" && editDetail);
+  const modalWidth = isDetailMode ? 960 : 640;
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-44">
-          {actions.map((a, i) => {
-            const m = META[a];
-            const Icon = m.icon;
-            return (
-              <div key={a}>
-                {(a === "delete" || a === "reject") && i > 0 && <DropdownMenuSeparator />}
-                <DropdownMenuItem
-                  onClick={() => handle(a)}
-                  className={a === "delete" || a === "reject" ? "text-destructive focus:text-destructive" : ""}
-                >
-                  <Icon className="h-4 w-4 mr-2" /> {m.label}
-                </DropdownMenuItem>
-              </div>
-            );
-          })}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <Dropdown
+        menu={{ items: menuItems }}
+        trigger={["click"]}
+        placement="bottomRight"
+      >
+        <Button
+          type="text"
+          icon={<MoreOutlined />}
+          size="small"
+          aria-label="Row actions"
+        />
+      </Dropdown>
 
-      <Dialog open={!!open} onOpenChange={(v) => !v && setOpen(null)}>
-        <DialogContent
-          className={
-            (open === "view" && detail) || (open === "edit" && editDetail)
-              ? "max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
-              : "max-w-2xl"
-          }
-        >
-          <DialogHeader>
-            <DialogTitle>
-              {open === "view" && `Record Details — ${row.id}`}
-              {open === "edit" && `Edit Record — ${row.id}`}
-              {open === "delete" && `Confirm Delete — ${row.id}`}
-              {open === "approve" && `Approve — ${row.id}`}
-              {open === "reject" && `Reject — ${row.id}`}
-            </DialogTitle>
-            <DialogDescription>
-              {open === "delete" && "This action cannot be undone."}
-              {open === "approve" && "Approving will move this record to the next workflow stage."}
-              {open === "reject" && "Rejection requires a reason and notifies the originator."}
-              {open === "edit" && "Update fields and save changes."}
-              {open === "view" && "Read-only view of all record attributes."}
-            </DialogDescription>
-          </DialogHeader>
-
-          {open === "view" && detail && (
-            <div className="flex-1 overflow-auto">{detail}</div>
-          )}
-          {open === "edit" && editDetail && (
-            <div className="flex-1 overflow-auto">{editDetail}</div>
-          )}
-          {(open === "view" || open === "edit") && !((open === "view" && detail) || (open === "edit" && editDetail)) && (
-            <div className="grid grid-cols-2 gap-3 max-h-[420px] overflow-auto">
-              {Object.entries(row).map(([k, v]) => (
-                <div key={k} className="border border-border rounded-md p-2">
-                  <div className="text-[10px] uppercase text-muted-foreground">{k}</div>
-                  {open === "edit" ? (
-                    <input
-                      defaultValue={String(v)}
-                      className="w-full mt-1 text-sm bg-transparent border-b border-border focus:outline-none focus:border-primary"
-                    />
-                  ) : (
-                    <div className="text-sm font-medium">{String(v)}</div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {open === "reject" && (
-            <textarea
-              placeholder="Reason for rejection..."
-              className="w-full border border-border rounded-md p-2 text-sm min-h-24"
-            />
-          )}
-
-          <DialogFooter>
+      <Modal
+        open={!!open}
+        title={open ? titles[open] : ""}
+        onCancel={close}
+        width={modalWidth}
+        destroyOnHidden
+        footer={
+          <>
             {open !== "view" && (
-              <Button variant="outline" onClick={() => setOpen(null)}>Cancel</Button>
+              <Button onClick={close}>Cancel</Button>
             )}
             {open === "delete" && (
-              <Button variant="destructive" onClick={() => { toast.success(`Deleted ${row.id}`); setOpen(null); }}>
+              <Button
+                type="primary"
+                danger
+                onClick={() => { toast.success(`Deleted ${rowId}`); close(); }}
+              >
                 Delete
               </Button>
             )}
             {open === "approve" && (
-              <Button onClick={() => { toast.success(`Approved ${row.id}`); setOpen(null); }}>
+              <Button
+                type="primary"
+                onClick={() => { toast.success(`Approved ${rowId}`); close(); }}
+              >
                 Approve
               </Button>
             )}
             {open === "reject" && (
-              <Button variant="destructive" onClick={() => { toast.success(`Rejected ${row.id}`); setOpen(null); }}>
+              <Button
+                type="primary"
+                danger
+                onClick={() => { toast.success(`Rejected ${rowId}`); close(); }}
+              >
                 Reject
               </Button>
             )}
             {open === "edit" && (
-              <Button onClick={() => { toast.success(`Saved ${row.id}`); setOpen(null); }}>
+              <Button
+                type="primary"
+                onClick={() => { toast.success(`Saved ${rowId}`); close(); }}
+              >
                 Save Changes
               </Button>
             )}
-            {open === "view" && <Button onClick={() => setOpen(null)}>Close</Button>}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            {open === "view" && (
+              <Button type="primary" onClick={close}>Close</Button>
+            )}
+          </>
+        }
+      >
+        {open === "delete" && (
+          <div style={{ color: "var(--color-muted-foreground)" }}>
+            This action cannot be undone.
+          </div>
+        )}
+        {open === "approve" && (
+          <div style={{ color: "var(--color-muted-foreground)" }}>
+            Approving will move this record to the next workflow stage.
+          </div>
+        )}
+        {open === "reject" && (
+          <>
+            <div style={{ color: "var(--color-muted-foreground)", marginBottom: 8 }}>
+              Rejection requires a reason and notifies the originator.
+            </div>
+            <Input.TextArea
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              placeholder="Reason for rejection..."
+              rows={4}
+            />
+          </>
+        )}
+
+        {open === "view" && detail && <div>{detail}</div>}
+        {open === "edit" && editDetail && <div>{editDetail}</div>}
+
+        {(open === "view" || open === "edit") && !isDetailMode && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 12,
+              maxHeight: 420,
+              overflow: "auto",
+            }}
+          >
+            {Object.entries(row).map(([k, v]) => (
+              <div
+                key={k}
+                style={{
+                  border: "1px solid var(--color-border)",
+                  borderRadius: 8,
+                  padding: 8,
+                }}
+              >
+                <div className="field-label">{k}</div>
+                {open === "edit" ? (
+                  <Input
+                    defaultValue={String(v)}
+                    variant="borderless"
+                    style={{ paddingInline: 0, marginTop: 2 }}
+                  />
+                ) : (
+                  <div style={{ fontSize: 13, fontWeight: 500, marginTop: 2 }}>
+                    {String(v)}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Modal>
     </>
   );
 }

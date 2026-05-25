@@ -13,12 +13,11 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { Plus, Plane, Users, Clock, Flame, Save, Trash2, UtensilsCrossed, ArrowRight, ClipboardCheck, MoreHorizontal, Eye, Pencil, Printer, Calculator, Package, PackageOpen, Wrench, CheckCircle2, AlertCircle, FileText } from "lucide-react";
+import { Plus, Plane, Users, Clock, Flame, Save, Trash2, UtensilsCrossed, ArrowRight, ClipboardCheck, MoreHorizontal, Eye, Pencil, Printer, Calculator, Package, PackageOpen, Wrench, CheckCircle2, AlertCircle, FileText, Zap } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -312,6 +311,44 @@ function ProductionEntryPage() {
     }
   };
 
+  /**
+   * One-click bulk: create a Pending production order for every meal-plan item
+   * that has a non-zero computed qty. Skips zero-qty rows. Uses today's date
+   * and the default office/warehouse; BOM is matched by item name when
+   * available, otherwise falls back to the item name as a free-text BOM ref.
+   */
+  const bulkCreateFromMealPlan = (items: MealPlanPickItem[]) => {
+    const eligible = items.filter((it) => (it.computedQty ?? 0) > 0);
+    if (eligible.length === 0) {
+      toast.warning("No menu items have a computed quantity > 0 for the selected day.");
+      return;
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    const baseStamp = Date.now();
+    eligible.forEach((item, i) => {
+      const qty = item.computedQty ?? 0;
+      const seq = String(baseStamp + i).slice(-6);
+      const bomMatch = billOfMaterials.find((b) => b.name === item.name);
+      const entry: ProductionEntry = {
+        id: `PO-2026-${seq}`,
+        date: today,
+        bom: bomMatch?.name ?? item.name,
+        outputItemName: item.name,
+        outputItemCode: item.code,
+        orderQty: qty,
+        producedQty: 0,
+        status: "Pending",
+        officeId: "OFF-001",
+        warehouseId: "WH-003",
+      };
+      addProductionEntry(entry);
+    });
+    toast.success(
+      `Created ${eligible.length} production order${eligible.length === 1 ? "" : "s"} from the meal plan.`,
+    );
+    setDetailsOpen(false);
+  };
+
   type NumberedEntry = ProductionEntry & { __sl: number };
   const numberedEntries: NumberedEntry[] = entries.map((e, i) => ({ ...e, __sl: i + 1 }));
 
@@ -515,6 +552,7 @@ function ProductionEntryPage() {
         open={detailsOpen}
         onOpenChange={setDetailsOpen}
         onSelectItem={startFromMealPlan}
+        onBulkCreate={bulkCreateFromMealPlan}
         date={selectedForwardedDate}
       />
 
@@ -727,12 +765,87 @@ function aggregateMaterials(lines: OutputLine[]) {
   };
 }
 
-function MaterialTable({
-  title, items,
-}: { title: string; items: AggregatedMaterial[] }) {
-  const grandTotal = items.reduce((sum, m) => sum + m.reqQty * m.rate, 0);
+type MaterialRow = {
+  id: string;
+  itemCode: string;
+  itemName: string;
+  uom: string;
+  reqQty: number;
+  rate: number;
+  source: "bom" | "manual";
+};
 
-  // Match aggregated materials to inventory by name so we can render FEFO lots.
+type MaterialBucket = "raw" | "pkg" | "other";
+
+type DeletionLog = {
+  bucket: MaterialBucket;
+  itemCode: string;
+  itemName: string;
+  source: "bom" | "manual";
+  remarks: string;
+  removedAt: string;
+};
+
+const UOM_OPTIONS = ["Kg", "Gm", "Litre", "ML", "Pcs", "Pack", "Bottle", "Pair"];
+
+const BUCKET_ITEM_TYPE: Record<MaterialBucket, ItemMaster["itemType"]> = {
+  raw: "Raw Material",
+  pkg: "Packaging",
+  other: "Consumable",
+};
+
+function EditableMaterialSection({
+  title, bucket, rows, onAdd, onDelete,
+}: {
+  title: string;
+  bucket: MaterialBucket;
+  rows: MaterialRow[];
+  onAdd: (bucket: MaterialBucket, row: MaterialRow) => void;
+  onDelete: (bucket: MaterialBucket, row: MaterialRow) => void;
+}) {
+  const itemOptions = useMemo(() => itemsByType(BUCKET_ITEM_TYPE[bucket]), [bucket]);
+
+  const [itemName, setItemName] = useState("");
+  const [itemCode, setItemCode] = useState("");
+  const [uom, setUom] = useState(UOM_OPTIONS[0]);
+  const [qty, setQty] = useState("");
+
+  const handleItemPick = (name: string) => {
+    setItemName(name);
+    const picked = itemOptions.find((i) => i.name === name);
+    if (!picked) { setItemCode(""); return; }
+    setItemCode(picked.code);
+    if (UOM_OPTIONS.includes(picked.uom)) setUom(picked.uom);
+  };
+
+  const resetForm = () => {
+    setItemName(""); setItemCode(""); setQty("");
+    setUom(UOM_OPTIONS[0]);
+  };
+
+  const handleAdd = () => {
+    if (!itemName.trim()) { toast.error("Select an item to add."); return; }
+    const q = Number(qty);
+    if (!q || q <= 0) { toast.error("Required quantity must be greater than zero."); return; }
+    const duplicate = rows.find((row) => row.itemCode === itemCode || row.itemName === itemName.trim());
+    if (duplicate) {
+      toast.error(`${itemName} is already in ${title}.`);
+      return;
+    }
+    const picked = itemOptions.find((i) => i.name === itemName.trim());
+    onAdd(bucket, {
+      id: `MN-${bucket}-${Date.now()}`,
+      itemCode: itemCode || `CUSTOM-${Date.now()}`,
+      itemName: itemName.trim(),
+      uom,
+      reqQty: q,
+      rate: picked?.costPrice ?? 0,
+      source: "manual",
+    });
+    resetForm();
+  };
+
+  // Match items to inventory by name so we can render FEFO lots.
   const fefoForItem = (name: string, reqQty: number) => {
     const inv = inventory.find((i) => i.name === name);
     if (!inv) return null;
@@ -744,151 +857,9 @@ function MaterialTable({
       <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
         {title}
       </div>
-      <div className="border border-border rounded-md overflow-hidden">
-        <Table>
-          <TableHeader className="bg-muted/40">
-            <TableRow>
-              <TableHead className="w-14 text-xs uppercase tracking-wider">SL</TableHead>
-              <TableHead className="text-xs uppercase tracking-wider">Item Code</TableHead>
-              <TableHead className="text-xs uppercase tracking-wider">Item Name</TableHead>
-              <TableHead className="text-xs uppercase tracking-wider">UoM</TableHead>
-              <TableHead className="text-xs uppercase tracking-wider text-right">Req. Qty</TableHead>
-              <TableHead className="text-xs uppercase tracking-wider text-right">Rate</TableHead>
-              <TableHead className="text-xs uppercase tracking-wider text-right">Total Cost</TableHead>
-              <TableHead className="text-xs uppercase tracking-wider">Allocation Lots</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-6">
-                  —
-                </TableCell>
-              </TableRow>
-            ) : (
-              <>
-                {items.map((m, i) => {
-                  const fefo = fefoForItem(m.itemName, m.reqQty);
-                  return (
-                    <TableRow key={m.itemCode}>
-                      <TableCell>{i + 1}</TableCell>
-                      <TableCell className="font-mono text-xs">{m.itemCode}</TableCell>
-                      <TableCell className="font-medium">{m.itemName}</TableCell>
-                      <TableCell>{m.uom}</TableCell>
-                      <TableCell className="text-right tabular-nums">{m.reqQty.toFixed(3)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{m.rate.toFixed(2)}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {(m.reqQty * m.rate).toFixed(2)}
-                      </TableCell>
-                      <TableCell className="text-[11px]">
-                        {fefo === null ? (
-                          <span className="text-muted-foreground">Not in stock master</span>
-                        ) : (
-                          <div className="space-y-0.5">
-                            <div className="text-[9px] uppercase tracking-wider font-bold mb-0.5">
-                              <span className="px-1.5 py-0.5 rounded bg-primary/10 border border-primary/30 text-primary">{fefo.method}</span>
-                            </div>
-                            {fefo.allocations.map((a) => (
-                              <div key={a.batchNo} className="font-mono">
-                                <span className="text-foreground">{a.batchNo}</span>
-                                <span className="text-muted-foreground"> · {a.expiry} · </span>
-                                <span className="font-semibold">{a.qty.toFixed(3)}</span>
-                              </div>
-                            ))}
-                            {fefo.shortfall > 0 && (
-                              <div className="text-destructive font-semibold">
-                                Shortfall: {fefo.shortfall.toFixed(3)}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-                <TableRow className="bg-muted/30 font-semibold">
-                  <TableCell colSpan={6} className="text-right uppercase text-xs tracking-wider">
-                    Total
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{grandTotal.toFixed(2)}</TableCell>
-                  <TableCell />
-                </TableRow>
-              </>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
-  );
-}
 
-type ManualRow = { id: string; itemName: string; uom: string; qty: number; rate: number };
-
-const UOM_OPTIONS = ["Kg", "Gm", "Litre", "ML", "Pcs", "Pack", "Bottle", "Pair"];
-
-function ManualMaterialsEditor({
-  raw, setRaw, pkg, setPkg, other, setOther,
-}: {
-  raw: ManualRow[]; setRaw: React.Dispatch<React.SetStateAction<ManualRow[]>>;
-  pkg: ManualRow[]; setPkg: React.Dispatch<React.SetStateAction<ManualRow[]>>;
-  other: ManualRow[]; setOther: React.Dispatch<React.SetStateAction<ManualRow[]>>;
-}) {
-  return (
-    <div className="space-y-6">
-      <ManualMaterialSection title="Raw Materials"       rows={raw}   onChange={setRaw}   itemType="Raw Material" />
-      <ManualMaterialSection title="Packaging Materials" rows={pkg}   onChange={setPkg}   itemType="Packaging" />
-      <ManualMaterialSection title="Other Consumption"   rows={other} onChange={setOther} itemType="Consumable" />
-    </div>
-  );
-}
-
-function ManualMaterialSection({
-  title, rows, onChange, itemType,
-}: {
-  title: string;
-  rows: ManualRow[];
-  onChange: React.Dispatch<React.SetStateAction<ManualRow[]>>;
-  itemType: ItemMaster["itemType"];
-}) {
-  const itemOptions = useMemo(() => itemsByType(itemType), [itemType]);
-  const [itemName, setItemName] = useState("");
-  const [uom, setUom] = useState(UOM_OPTIONS[0]);
-  const [qty, setQty] = useState("");
-  const [rate, setRate] = useState("");
-
-  const handleItemPick = (name: string) => {
-    setItemName(name);
-    const picked = itemOptions.find((i) => i.name === name);
-    if (!picked) return;
-    if (UOM_OPTIONS.includes(picked.uom)) setUom(picked.uom);
-    if (picked.costPrice != null) setRate(String(picked.costPrice));
-  };
-
-  const add = () => {
-    if (!itemName.trim()) { toast.error("Item name is required."); return; }
-    const q = Number(qty);
-    const r = Number(rate);
-    if (!q || q <= 0) { toast.error("Required quantity must be greater than zero."); return; }
-    if (r < 0) { toast.error("Rate cannot be negative."); return; }
-    onChange((prev) => [
-      ...prev,
-      { id: `MM-${Date.now()}`, itemName: itemName.trim(), uom, qty: q, rate: r },
-    ]);
-    setItemName(""); setQty(""); setRate("");
-  };
-
-  const remove = (id: string) => onChange((prev) => prev.filter((m) => m.id !== id));
-
-  const total = rows.reduce((s, r) => s + r.qty * r.rate, 0);
-
-  return (
-    <div>
-      <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-        {title}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end mb-3">
-        <div className="md:col-span-5">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end mb-3 px-1">
+        <div className="md:col-span-6">
           <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Item Name</Label>
           <select
             value={itemName}
@@ -909,16 +880,12 @@ function ManualMaterialSection({
             {UOM_OPTIONS.map((u) => <option key={u}>{u}</option>)}
           </select>
         </div>
-        <div className="md:col-span-2">
+        <div className="md:col-span-3">
           <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Req. Qty</Label>
           <Input type="number" min={0} value={qty} onChange={(e) => setQty(e.target.value)} className="mt-1 h-9 tabular-nums" />
         </div>
-        <div className="md:col-span-2">
-          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Rate</Label>
-          <Input type="number" min={0} step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} className="mt-1 h-9 tabular-nums" />
-        </div>
         <div className="md:col-span-1">
-          <Button variant="outline" onClick={add} className="w-full h-9">
+          <Button variant="outline" onClick={handleAdd} className="w-full h-9" aria-label={`Add to ${title}`}>
             <Plus className="h-3.5 w-3.5" />
           </Button>
         </div>
@@ -928,50 +895,141 @@ function ManualMaterialSection({
         <Table>
           <TableHeader className="bg-muted/40">
             <TableRow>
-              <TableHead className="w-12 text-xs uppercase tracking-wider">SL</TableHead>
+              <TableHead className="w-14 text-xs uppercase tracking-wider">SL</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider">Item Code</TableHead>
               <TableHead className="text-xs uppercase tracking-wider">Item Name</TableHead>
               <TableHead className="text-xs uppercase tracking-wider">UoM</TableHead>
               <TableHead className="text-xs uppercase tracking-wider text-right">Req. Qty</TableHead>
-              <TableHead className="text-xs uppercase tracking-wider text-right">Rate</TableHead>
-              <TableHead className="text-xs uppercase tracking-wider text-right">Total Cost</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider">Allocation Lots</TableHead>
               <TableHead className="w-12" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-5">
-                  No materials added yet.
+                <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-6">
+                  No materials yet — add one using the form above.
                 </TableCell>
               </TableRow>
             ) : (
-              <>
-                {rows.map((m, i) => (
+              rows.map((m, i) => {
+                const fefo = fefoForItem(m.itemName, m.reqQty);
+                return (
                   <TableRow key={m.id}>
                     <TableCell>{i + 1}</TableCell>
-                    <TableCell className="font-medium">{m.itemName}</TableCell>
+                    <TableCell className="font-mono text-xs">{m.itemCode}</TableCell>
+                    <TableCell className="font-medium">
+                      <span>{m.itemName}</span>
+                      {m.source === "manual" && (
+                        <Badge variant="outline" className="ml-2 text-[9px] font-normal border-warning/40 bg-warning/10 text-warning-foreground">
+                          Added
+                        </Badge>
+                      )}
+                    </TableCell>
                     <TableCell>{m.uom}</TableCell>
-                    <TableCell className="text-right tabular-nums">{m.qty.toFixed(3)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{m.rate.toFixed(2)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{(m.qty * m.rate).toFixed(2)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{m.reqQty.toFixed(3)}</TableCell>
+                    <TableCell className="text-[11px]">
+                      {fefo === null ? (
+                        <span className="text-muted-foreground">Not in stock master</span>
+                      ) : (
+                        <div className="space-y-0.5">
+                          <div className="text-[9px] uppercase tracking-wider font-bold mb-0.5">
+                            <span className="px-1.5 py-0.5 rounded bg-primary/10 border border-primary/30 text-primary">{fefo.method}</span>
+                          </div>
+                          {fefo.allocations.map((a) => (
+                            <div key={a.batchNo} className="font-mono">
+                              <span className="text-foreground">{a.batchNo}</span>
+                              <span className="text-muted-foreground"> · {a.expiry} · </span>
+                              <span className="font-semibold">{a.qty.toFixed(3)}</span>
+                            </div>
+                          ))}
+                          {fefo.shortfall > 0 && (
+                            <div className="text-destructive font-semibold">
+                              Shortfall: {fefo.shortfall.toFixed(3)}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right">
-                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => remove(m.id)} aria-label={`Remove ${m.itemName}`}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0"
+                        onClick={() => onDelete(bucket, m)}
+                        aria-label={`Remove ${m.itemName}`}
+                      >
                         <Trash2 className="h-3.5 w-3.5 text-destructive" />
                       </Button>
                     </TableCell>
                   </TableRow>
-                ))}
-                <TableRow className="bg-muted/30 font-semibold">
-                  <TableCell colSpan={5} className="text-right uppercase text-xs tracking-wider">Total</TableCell>
-                  <TableCell className="text-right tabular-nums">{total.toFixed(2)}</TableCell>
-                  <TableCell />
-                </TableRow>
-              </>
+                );
+              })
             )}
           </TableBody>
         </Table>
       </div>
     </div>
+  );
+}
+
+function DeleteMaterialDialog({
+  open, onOpenChange, target, remarks, onRemarksChange, onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  target: { bucket: MaterialBucket; row: MaterialRow } | null;
+  remarks: string;
+  onRemarksChange: (v: string) => void;
+  onConfirm: () => void;
+}) {
+  const bucketLabel: Record<MaterialBucket, string> = {
+    raw: "Raw Materials",
+    pkg: "Packaging Materials",
+    other: "Other Consumption",
+  };
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Trash2 className="h-4 w-4 text-destructive" />
+            Remove Material
+          </DialogTitle>
+        </DialogHeader>
+        {target && (
+          <div className="space-y-3">
+            <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
+              <div className="font-medium text-foreground">{target.row.itemName}</div>
+              <div className="text-[11px] text-muted-foreground font-mono mt-0.5">
+                {target.row.itemCode} · {bucketLabel[target.bucket]} · {target.row.reqQty.toFixed(3)} {target.row.uom}
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                Reason for removal <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                value={remarks}
+                onChange={(e) => onRemarksChange(e.target.value)}
+                placeholder="Why is this material being removed?"
+                className="mt-1 min-h-[80px]"
+                autoFocus
+              />
+            </div>
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button
+            onClick={onConfirm}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Remove
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -984,7 +1042,6 @@ function ProductionEntryCreate({
   // Production Information
   const today = new Date().toISOString().slice(0, 10);
   const [orderDate, setOrderDate] = useState(today);
-  const [withoutBom, setWithoutBom] = useState(initialItem !== undefined);
   const [bomName, setBomName] = useState("");
   const [officeId, setOfficeId] = useState("OFF-001");
   const [warehouseId, setWarehouseId] = useState("WH-003"); // Hot Kitchen
@@ -996,20 +1053,119 @@ function ProductionEntryCreate({
   const [outputItem, setOutputItem] = useState<OutputLine | null>(initialItem ?? null);
   const [itemQty, setItemQty] = useState<string>(initialItem ? String(initialItem.qty) : "");
 
-  // Manual materials entered when Without BOM is checked
-  const [manualRaw, setManualRaw] = useState<ManualRow[]>([]);
-  const [manualPkg, setManualPkg] = useState<ManualRow[]>([]);
-  const [manualOther, setManualOther] = useState<ManualRow[]>([]);
+  // Editing state for the materials list (per bucket).
+  // BOM-loaded rows are computed; users can also add custom rows and remove
+  // any row with a remark. `deletedBomCodes` hides BOM rows so that re-running
+  // the BOM compute (e.g. on qty change) doesn't bring them back.
+  const [manualRaw,   setManualRaw]   = useState<MaterialRow[]>([]);
+  const [manualPkg,   setManualPkg]   = useState<MaterialRow[]>([]);
+  const [manualOther, setManualOther] = useState<MaterialRow[]>([]);
+  const [deletedBomCodes, setDeletedBomCodes] = useState<Map<string, string>>(new Map());
+  const [deletionLog, setDeletionLog] = useState<DeletionLog[]>([]);
+  const [pendingDelete, setPendingDelete] =
+    useState<{ bucket: MaterialBucket; row: MaterialRow } | null>(null);
+  const [deleteRemarks, setDeleteRemarks] = useState("");
+
+  // Switching the BOM means a completely different recipe — wipe edits.
+  useEffect(() => {
+    setManualRaw([]);
+    setManualPkg([]);
+    setManualOther([]);
+    setDeletedBomCodes(new Map());
+    setDeletionLog([]);
+  }, [bomName]);
 
   const bomMaterials = useMemo(() => {
     const qty = Number(itemQty);
-    if (withoutBom || !bomName || !qty || qty <= 0) return { raw: [], pkg: [], other: [] };
+    if (!bomName || !qty || qty <= 0) return { raw: [], pkg: [], other: [] };
     const recipe = PRODUCTION_ITEMS.find((p) => p.name === bomName);
     if (!recipe) return { raw: [], pkg: [], other: [] };
     return aggregateMaterials([
       { id: "current", itemCode: recipe.code, itemName: recipe.name, qty },
     ]);
-  }, [withoutBom, bomName, itemQty]);
+  }, [bomName, itemQty]);
+
+  const toMaterialRow = (m: AggregatedMaterial): MaterialRow => ({
+    id: `BOM-${m.itemCode}`,
+    itemCode: m.itemCode,
+    itemName: m.itemName,
+    uom: m.uom,
+    reqQty: m.reqQty,
+    rate: m.rate,
+    source: "bom",
+  });
+
+  const rawRows = useMemo(
+    () => [
+      ...bomMaterials.raw.filter((m) => !deletedBomCodes.has(m.itemCode)).map(toMaterialRow),
+      ...manualRaw,
+    ],
+    [bomMaterials.raw, deletedBomCodes, manualRaw],
+  );
+  const pkgRows = useMemo(
+    () => [
+      ...bomMaterials.pkg.filter((m) => !deletedBomCodes.has(m.itemCode)).map(toMaterialRow),
+      ...manualPkg,
+    ],
+    [bomMaterials.pkg, deletedBomCodes, manualPkg],
+  );
+  const otherRows = useMemo(
+    () => [
+      ...bomMaterials.other.filter((m) => !deletedBomCodes.has(m.itemCode)).map(toMaterialRow),
+      ...manualOther,
+    ],
+    [bomMaterials.other, deletedBomCodes, manualOther],
+  );
+
+  const addMaterial = (bucket: MaterialBucket, row: MaterialRow) => {
+    const setter =
+      bucket === "raw" ? setManualRaw :
+      bucket === "pkg" ? setManualPkg :
+      setManualOther;
+    setter((prev) => [...prev, row]);
+    toast.success(`Added "${row.itemName}" to materials.`);
+  };
+
+  const requestDelete = (bucket: MaterialBucket, row: MaterialRow) => {
+    setPendingDelete({ bucket, row });
+    setDeleteRemarks("");
+  };
+
+  const confirmDelete = () => {
+    if (!pendingDelete) return;
+    if (!deleteRemarks.trim()) {
+      toast.error("Please enter a reason for removing this material.");
+      return;
+    }
+    const { bucket, row } = pendingDelete;
+    if (row.source === "bom") {
+      setDeletedBomCodes((prev) => {
+        const next = new Map(prev);
+        next.set(row.itemCode, deleteRemarks.trim());
+        return next;
+      });
+    } else {
+      const setter =
+        bucket === "raw" ? setManualRaw :
+        bucket === "pkg" ? setManualPkg :
+        setManualOther;
+      setter((prev) => prev.filter((m) => m.id !== row.id));
+    }
+    setDeletionLog((prev) => [
+      ...prev,
+      {
+        bucket,
+        itemCode: row.itemCode,
+        itemName: row.itemName,
+        source: row.source,
+        remarks: deleteRemarks.trim(),
+        removedAt: new Date().toISOString(),
+      },
+    ]);
+    toast.success(`Removed "${row.itemName}".`);
+    setPendingDelete(null);
+    setDeleteRemarks("");
+  };
 
   const selectBomItem = (code: string) => {
     if (!code) { setOutputItem(null); return; }
@@ -1030,7 +1186,7 @@ function ProductionEntryCreate({
   };
 
   const handleSave = () => {
-    if (!withoutBom && !bomName) { toast.error("Select a BOM or check 'Without BOM'."); return; }
+    if (!bomName) { toast.error("Select a BOM."); return; }
     if (!outputItem) { toast.error("Select a production output item."); return; }
     if (!officeId) { toast.error("Office is required."); return; }
     if (!warehouseId) { toast.error("Warehouse is required."); return; }
@@ -1041,7 +1197,7 @@ function ProductionEntryCreate({
     const newEntry: ProductionEntry = {
       id: `PO-2026-${nextSeq}`,
       date: orderDate,
-      bom: withoutBom ? "Without BOM" : bomName,
+      bom: bomName,
       outputItemName: outputItem.itemName,
       outputItemCode: outputItem.itemCode,
       orderQty: qty,
@@ -1087,29 +1243,13 @@ function ProductionEntryCreate({
               onChange={(n) => { setOfficeId(n.officeId); setWarehouseId(n.warehouseId); }}
             />
 
-            <div className="md:col-span-2 flex items-center gap-2">
-              <Checkbox
-                id="without-bom"
-                checked={withoutBom}
-                onCheckedChange={(v) => {
-                  const next = v === true;
-                  setWithoutBom(next);
-                  if (next) setBomName("");
-                }}
-              />
-              <Label htmlFor="without-bom" className="text-sm font-normal cursor-pointer">
-                Without BOM
-              </Label>
-            </div>
-
             <div className="md:col-span-2">
               <Label className="text-xs uppercase tracking-wider text-muted-foreground">
-                BOM Name {!withoutBom && <span className="text-destructive">*</span>}
+                BOM Name <span className="text-destructive">*</span>
               </Label>
               <select
                 value={bomName}
                 onChange={(e) => setBomName(e.target.value)}
-                disabled={withoutBom}
                 className={selectCls}
               >
                 <option value="">BOM Name</option>
@@ -1244,48 +1384,64 @@ function ProductionEntryCreate({
             <h3 className="text-sm font-semibold tracking-wider uppercase text-foreground">
               Material Item Information
             </h3>
-            {withoutBom ? (
-              <Badge variant="outline" className="bg-warning/15 text-warning-foreground border-warning/40 font-normal text-[10px]">
-                Manual Entry
-              </Badge>
-            ) : bomName && Number(itemQty) > 0 ? (
-              <Badge variant="outline" className="bg-success/10 text-success border-success/30 font-normal text-[10px]">
-                Auto-loaded from BOM
-              </Badge>
-            ) : null}
+            <div className="flex items-center gap-2">
+              {deletionLog.length > 0 && (
+                <Badge variant="outline" className="bg-destructive/5 text-destructive border-destructive/30 font-normal text-[10px]">
+                  {deletionLog.length} removed
+                </Badge>
+              )}
+              {bomName && Number(itemQty) > 0 ? (
+                <Badge variant="outline" className="bg-success/10 text-success border-success/30 font-normal text-[10px]">
+                  Auto-loaded from BOM
+                </Badge>
+              ) : null}
+            </div>
           </div>
 
-          {withoutBom ? (
-            <ManualMaterialsEditor
-              raw={manualRaw} setRaw={setManualRaw}
-              pkg={manualPkg} setPkg={setManualPkg}
-              other={manualOther} setOther={setManualOther}
-            />
-          ) : !bomName ? (
+          {!bomName ? (
             <div className="text-center text-sm text-muted-foreground py-8">
-              Select a BOM to auto-load the required materials, or check{" "}
-              <span className="font-semibold text-foreground">Without BOM</span> to enter materials manually.
+              Select a BOM to auto-load the required materials.
             </div>
           ) : Number(itemQty) <= 0 ? (
             <div className="text-center text-sm text-muted-foreground py-8">
               Enter an order quantity to compute the required materials.
             </div>
-          ) : bomMaterials.raw.length === 0 && bomMaterials.pkg.length === 0 && bomMaterials.other.length === 0 ? (
-            <div className="rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-foreground">
-              No material recipe is mapped to{" "}
-              <span className="font-semibold">{bomName}</span> yet. Check{" "}
-              <span className="font-semibold">Without BOM</span> to enter materials manually.
-            </div>
           ) : (
             <div className="space-y-6">
-              <MaterialTable title="Raw Materials" items={bomMaterials.raw} />
-              <MaterialTable title="Packaging Materials" items={bomMaterials.pkg} />
-              <MaterialTable title="Other Consumption" items={bomMaterials.other} />
+              <EditableMaterialSection
+                title="Raw Materials"
+                bucket="raw"
+                rows={rawRows}
+                onAdd={addMaterial}
+                onDelete={requestDelete}
+              />
+              <EditableMaterialSection
+                title="Packaging Materials"
+                bucket="pkg"
+                rows={pkgRows}
+                onAdd={addMaterial}
+                onDelete={requestDelete}
+              />
+              <EditableMaterialSection
+                title="Other Consumption"
+                bucket="other"
+                rows={otherRows}
+                onAdd={addMaterial}
+                onDelete={requestDelete}
+              />
             </div>
           )}
         </CardContent>
       </Card>
 
+      <DeleteMaterialDialog
+        open={pendingDelete !== null}
+        onOpenChange={(v) => { if (!v) { setPendingDelete(null); setDeleteRemarks(""); } }}
+        target={pendingDelete}
+        remarks={deleteRemarks}
+        onRemarksChange={setDeleteRemarks}
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }
@@ -1460,11 +1616,12 @@ function MealCardView({
 }
 
 function MealPlanningDetailsDialog({
-  open, onOpenChange, onSelectItem, date,
+  open, onOpenChange, onSelectItem, onBulkCreate, date,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSelectItem: (item: MealPlanPickItem) => void;
+  onBulkCreate: (items: MealPlanPickItem[]) => void;
   date: string;
 }) {
   const navigate = useNavigate();
@@ -1498,6 +1655,53 @@ function MealPlanningDetailsDialog({
       ([a], [b]) => DAYS.indexOf(a as (typeof DAYS)[number]) - DAYS.indexOf(b as (typeof DAYS)[number]),
     );
   }, [orderDays]);
+
+  // Flatten every choice + enabled special-meal item across all displayed
+  // meal cards, attaching the computed qty. Items with qty <= 0 are dropped.
+  // Used by the "Create All Orders" bulk action below.
+  const availableItems = useMemo<MealPlanPickItem[]>(() => {
+    const out: MealPlanPickItem[] = [];
+    for (const [, meals] of byDay) {
+      for (const meal of meals) {
+        for (const choice of meal.choices) {
+          for (const it of choice.items) {
+            const { qty, breakdown } = computeMealQty({
+              requirements,
+              day: meal.day,
+              flightTypes: meal.flightType,
+              forType: meal.forType,
+              kind: "Choice",
+              percentage: choice.percentage,
+            });
+            if (qty <= 0) continue;
+            const base = itemByCode.get(`MP-${slugifyItem(it.name)}`);
+            if (base) out.push({ ...base, computedQty: qty, qtyBreakdown: breakdown });
+          }
+        }
+        for (const sp of meal.specialMeals) {
+          if (!sp.enabled) continue;
+          for (const it of sp.items) {
+            const explicitPortions = typeof sp.portions === "number" ? sp.portions : 0;
+            const computed = computeMealQty({
+              requirements,
+              day: meal.day,
+              flightTypes: meal.flightType,
+              forType: meal.forType,
+              kind: "Special",
+            });
+            const qty = explicitPortions > 0 ? explicitPortions : computed.qty;
+            if (qty <= 0) continue;
+            const breakdown = explicitPortions > 0
+              ? `${explicitPortions} portion${explicitPortions === 1 ? "" : "s"} configured for ${sp.type}`
+              : computed.breakdown;
+            const base = itemByCode.get(`MP-${slugifyItem(it.name)}`);
+            if (base) out.push({ ...base, computedQty: qty, qtyBreakdown: breakdown });
+          }
+        }
+      }
+    }
+    return out;
+  }, [byDay, requirements, itemByCode]);
 
   const totalPax = ordersForDate.reduce((s, o) => s + o.pax, 0);
   const totalCrew = ordersForDate.reduce((s, o) => s + o.crew, 0);
@@ -1568,12 +1772,24 @@ function MealPlanningDetailsDialog({
           <TabsContent value="meals" className="flex-1 overflow-hidden flex flex-col mt-0">
             <div className="flex-1 overflow-y-auto">
               <div className="px-6 pt-5 pb-3">
-                <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-foreground flex items-center gap-2">
-                  <UtensilsCrossed className="h-3.5 w-3.5 text-primary shrink-0" />
-                  <span>
-                    Click <span className="font-semibold">Select</span> beside any meal item to start a new
-                    production entry for that item. Materials will auto-load on the entry page.
-                  </span>
+                <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-foreground flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <UtensilsCrossed className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span>
+                      Click <span className="font-semibold">Select</span> beside any meal item to start a single
+                      production entry, or use <span className="font-semibold">Create All Orders</span> to
+                      raise one Pending order per available menu in a single click.
+                    </span>
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={availableItems.length === 0}
+                    onClick={() => onBulkCreate(availableItems)}
+                    className="shrink-0"
+                  >
+                    <Zap className="h-3.5 w-3.5 mr-1.5" />
+                    Create All Orders ({availableItems.length})
+                  </Button>
                 </div>
               </div>
               <div className="px-6 pb-4">

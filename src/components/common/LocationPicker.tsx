@@ -1,21 +1,29 @@
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Building2, Warehouse, X } from "lucide-react";
+import { Select, Tag, Button } from "antd";
 import {
-  activeOffices, activeWarehousesByOffice, warehouses, offices,
+  BankOutlined,
+  HomeOutlined,
+  CloseOutlined,
+} from "@ant-design/icons";
+import {
+  activeOffices,
+  activeWarehousesByOffice,
+  warehouses,
+  offices,
 } from "@/lib/sample-data";
-
-const selectCls =
-  "w-full mt-1 h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
 /**
  * Mandatory Office + Warehouse picker for create forms.
- * Cascading: Warehouse list is filtered by selected Office.
- * Caller should treat both values as required at save time.
+ * Cascading: Warehouse list is filtered by the selected Office. Save-time
+ * validation lives at the call site; this component only enforces the
+ * cascade.
  */
 export function LocationPicker({
-  officeId, warehouseId, onChange, required = true, labelOffice = "Office", labelWarehouse = "Warehouse",
+  officeId,
+  warehouseId,
+  onChange,
+  required = true,
+  labelOffice = "Office",
+  labelWarehouse = "Warehouse",
 }: {
   officeId: string;
   warehouseId: string;
@@ -29,48 +37,60 @@ export function LocationPicker({
 
   const handleOffice = (next: string) => {
     // Reset warehouse if it doesn't belong to the new office
-    const stillValid = warehouses.some((w) => w.id === warehouseId && w.officeId === next);
+    const stillValid = warehouses.some(
+      (w) => w.id === warehouseId && w.officeId === next,
+    );
     onChange({ officeId: next, warehouseId: stillValid ? warehouseId : "" });
   };
 
   return (
     <>
       <div>
-        <Label className="text-xs uppercase tracking-wider text-muted-foreground">
-          {labelOffice} {required && <span className="text-destructive">*</span>}
-        </Label>
-        <select
-          value={officeId}
-          onChange={(e) => handleOffice(e.target.value)}
-          className={selectCls}
-        >
-          <option value="">Select office</option>
-          {officeChoices.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.code} — {o.name}
-            </option>
-          ))}
-        </select>
+        <div className="field-label" style={{ marginBottom: 4 }}>
+          {labelOffice}{" "}
+          {required && (
+            <span style={{ color: "var(--color-destructive)" }}>*</span>
+          )}
+        </div>
+        <Select
+          value={officeId || undefined}
+          onChange={handleOffice}
+          placeholder="Select office"
+          style={{ width: "100%" }}
+          showSearch
+          optionFilterProp="label"
+          options={officeChoices.map((o) => ({
+            value: o.id,
+            label: `${o.code} — ${o.name}`,
+          }))}
+        />
       </div>
       <div>
-        <Label className="text-xs uppercase tracking-wider text-muted-foreground">
-          {labelWarehouse} {required && <span className="text-destructive">*</span>}
-        </Label>
-        <select
-          value={warehouseId}
-          onChange={(e) => onChange({ officeId, warehouseId: e.target.value })}
-          className={selectCls}
+        <div className="field-label" style={{ marginBottom: 4 }}>
+          {labelWarehouse}{" "}
+          {required && (
+            <span style={{ color: "var(--color-destructive)" }}>*</span>
+          )}
+        </div>
+        <Select
+          value={warehouseId || undefined}
+          onChange={(next: string) => onChange({ officeId, warehouseId: next })}
+          placeholder={
+            !officeId
+              ? "Select office first"
+              : warehouseChoices.length === 0
+                ? "No warehouses"
+                : "Select warehouse"
+          }
+          style={{ width: "100%" }}
           disabled={!officeId}
-        >
-          <option value="">
-            {!officeId ? "Select office first" : warehouseChoices.length === 0 ? "No warehouses" : "Select warehouse"}
-          </option>
-          {warehouseChoices.map((w) => (
-            <option key={w.id} value={w.id}>
-              {w.code} — {w.name}
-            </option>
-          ))}
-        </select>
+          showSearch
+          optionFilterProp="label"
+          options={warehouseChoices.map((w) => ({
+            value: w.id,
+            label: `${w.code} — ${w.name}`,
+          }))}
+        />
       </div>
     </>
   );
@@ -82,64 +102,80 @@ export function LocationPicker({
  * by the selected Office.
  */
 export function LocationFilter({
-  officeId, warehouseId, onChange,
+  officeId,
+  warehouseId,
+  onChange,
 }: {
   officeId: string;
   warehouseId: string;
   onChange: (next: { officeId: string; warehouseId: string }) => void;
 }) {
   const officeChoices = activeOffices;
-  const warehouseChoices = officeId
-    ? activeWarehousesByOffice(officeId)
-    : []; // require office before showing warehouse options
+  const warehouseChoices = officeId ? activeWarehousesByOffice(officeId) : [];
 
   const handleOffice = (next: string) => {
-    const stillValid = warehouses.some((w) => w.id === warehouseId && w.officeId === next);
+    const stillValid = warehouses.some(
+      (w) => w.id === warehouseId && w.officeId === next,
+    );
     onChange({ officeId: next, warehouseId: stillValid ? warehouseId : "" });
   };
 
   const clear = () => onChange({ officeId: "", warehouseId: "" });
   const anyActive = !!officeId || !!warehouseId;
 
+  const pillBoxStyle: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    background: "var(--color-card)",
+    border: "1px solid var(--color-border)",
+    borderRadius: 8,
+    padding: "4px 8px",
+    boxShadow: "0 1px 2px 0 rgba(15, 23, 42, 0.04)",
+  };
+
   return (
-    <div className="flex items-center gap-2 flex-wrap">
-      <div className="flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 shadow-sm">
-        <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-        <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Office</Label>
-        <select
-          value={officeId}
-          onChange={(e) => handleOffice(e.target.value)}
-          className="h-7 bg-transparent border-0 text-sm focus:outline-none focus:ring-0 pr-1 min-w-[120px]"
-        >
-          <option value="">All</option>
-          {officeChoices.map((o) => (
-            <option key={o.id} value={o.id}>{o.name}</option>
-          ))}
-        </select>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      <div style={pillBoxStyle}>
+        <BankOutlined style={{ color: "var(--color-muted-foreground)", fontSize: 12 }} />
+        <span className="field-label">Office</span>
+        <Select
+          value={officeId || ""}
+          onChange={(next: string) => handleOffice(next)}
+          size="small"
+          variant="borderless"
+          style={{ minWidth: 120 }}
+          options={[
+            { value: "", label: "All" },
+            ...officeChoices.map((o) => ({ value: o.id, label: o.name })),
+          ]}
+        />
       </div>
-      <div className="flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 shadow-sm">
-        <Warehouse className="h-3.5 w-3.5 text-muted-foreground" />
-        <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Warehouse</Label>
-        <select
-          value={warehouseId}
-          onChange={(e) => onChange({ officeId, warehouseId: e.target.value })}
-          className="h-7 bg-transparent border-0 text-sm focus:outline-none focus:ring-0 pr-1 min-w-[140px] disabled:opacity-60"
+      <div style={pillBoxStyle}>
+        <HomeOutlined style={{ color: "var(--color-muted-foreground)", fontSize: 12 }} />
+        <span className="field-label">Warehouse</span>
+        <Select
+          value={warehouseId || ""}
+          onChange={(next: string) => onChange({ officeId, warehouseId: next })}
+          size="small"
+          variant="borderless"
           disabled={!officeId}
-        >
-          <option value="">{officeId ? "All" : "Pick office"}</option>
-          {warehouseChoices.map((w) => (
-            <option key={w.id} value={w.id}>{w.name}</option>
-          ))}
-        </select>
+          style={{ minWidth: 140 }}
+          options={[
+            { value: "", label: officeId ? "All" : "Pick office" },
+            ...warehouseChoices.map((w) => ({ value: w.id, label: w.name })),
+          ]}
+        />
       </div>
       {anyActive && (
         <Button
-          size="sm"
-          variant="ghost"
-          className="h-8 px-2 text-xs text-muted-foreground"
+          size="small"
+          type="text"
+          icon={<CloseOutlined />}
           onClick={clear}
+          style={{ color: "var(--color-muted-foreground)" }}
         >
-          <X className="h-3.5 w-3.5 mr-1" /> Location
+          Location
         </Button>
       )}
     </div>
@@ -161,16 +197,25 @@ export function warehouseName(id: string | undefined | null): string {
 
 /**
  * Compact two-line label for table cells: Office on top, Warehouse below.
- * Returns nothing renderable if both empty.
  */
-export function LocationCell({ officeId, warehouseId }: { officeId?: string; warehouseId?: string }) {
+export function LocationCell({
+  officeId,
+  warehouseId,
+}: {
+  officeId?: string;
+  warehouseId?: string;
+}) {
   const o = officeName(officeId);
   const w = warehouseName(warehouseId);
-  if (o === "—" && w === "—") return <span className="text-muted-foreground text-xs">—</span>;
+  if (o === "—" && w === "—") {
+    return (
+      <span style={{ color: "var(--color-muted-foreground)", fontSize: 12 }}>—</span>
+    );
+  }
   return (
-    <div className="text-xs leading-tight">
-      <div className="text-foreground">{o}</div>
-      <div className="text-muted-foreground">{w}</div>
+    <div style={{ fontSize: 12, lineHeight: 1.3 }}>
+      <div style={{ color: "var(--color-foreground)" }}>{o}</div>
+      <div style={{ color: "var(--color-muted-foreground)" }}>{w}</div>
     </div>
   );
 }
@@ -178,13 +223,31 @@ export function LocationCell({ officeId, warehouseId }: { officeId?: string; war
 /**
  * Pill-style location badge — for compact row displays.
  */
-export function LocationBadge({ officeId, warehouseId }: { officeId?: string; warehouseId?: string }) {
+export function LocationBadge({
+  officeId: _officeId,
+  warehouseId,
+}: {
+  officeId?: string;
+  warehouseId?: string;
+}) {
   const w = warehouseName(warehouseId);
   if (w === "—") return null;
   return (
-    <Badge variant="outline" className="font-normal text-[10px] h-5 px-1.5 gap-1">
-      <Warehouse className="h-2.5 w-2.5" />
+    <Tag
+      bordered
+      style={{
+        fontSize: 10,
+        height: 20,
+        padding: "0 6px",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        margin: 0,
+        fontWeight: 400,
+      }}
+    >
+      <HomeOutlined style={{ fontSize: 10 }} />
       {w}
-    </Badge>
+    </Tag>
   );
 }
