@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -28,6 +28,12 @@ import {
   ITEM_SUB_CATEGORIES,
   ITEM_UOMS,
   ALT_UOM_OPTIONS,
+  activeOffices,
+  offices as ALL_OFFICES,
+  activeWarehousesByOffice,
+  warehouses as ALL_WAREHOUSES,
+  bomForItemCode,
+  BOM_REQUIRED_ITEM_TYPES,
   getAllocationMethodForMaster,
   setAllocationMethod,
   isBatchTrackedForMaster,
@@ -62,9 +68,24 @@ function ConfigItemPage() {
   const [bulkOpen, setBulkOpen] = useState(false);
 
   const toggle = (id: string) =>
-    setRows((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: r.status === "Active" ? "Inactive" : "Active" } : r)),
-    );
+    setRows((prev) => {
+      const target = prev.find((r) => r.id === id);
+      if (!target) return prev;
+      const nextActive = target.status !== "Active";
+      if (
+        nextActive &&
+        BOM_REQUIRED_ITEM_TYPES.includes(target.itemType) &&
+        !bomForItemCode(target.code)
+      ) {
+        toast.error(
+          `${target.name} can't be activated — every Finished Good must have a BOM. Create one first.`,
+        );
+        return prev;
+      }
+      return prev.map((r) =>
+        r.id === id ? { ...r, status: nextActive ? "Active" : "Inactive" } : r,
+      );
+    });
 
   const add = (row: ItemRow) => {
     setRows((prev) => [row, ...prev]);
@@ -485,6 +506,7 @@ function BatchToggle({ master }: { master: ItemRow }) {
 function ItemList({ data, onToggle }: { data: ItemRow[]; onToggle: (id: string) => void }) {
   // Re-render the table when any item's FIFO/FEFO override changes.
   useSyncExternalStore(subscribeAllocationMethod, getAllocationVersion, getAllocationVersion);
+  const navigate = useNavigate();
 
   const cols: Column<ItemRow>[] = [
     { key: "id", header: "ID" },
@@ -508,6 +530,58 @@ function ItemList({ data, onToggle }: { data: ItemRow[]; onToggle: (id: string) 
           )}
         </div>
       ),
+    },
+    {
+      key: "code" as keyof ItemRow,
+      header: "BOM",
+      render: (r) => {
+        const requiresBom = BOM_REQUIRED_ITEM_TYPES.includes(r.itemType);
+        if (!requiresBom) return <span className="text-muted-foreground text-xs">—</span>;
+        const bom = bomForItemCode(r.code);
+        if (bom) {
+          return (
+            <button
+              type="button"
+              onClick={() => navigate({ to: "/bom" })}
+              className="inline-flex items-center gap-1.5 rounded border border-success/30 bg-success/5 px-1.5 py-0.5 text-[10px] font-semibold text-success hover:bg-success/10"
+              title={`Linked to ${bom.name} (${bom.version})`}
+            >
+              <CheckCircle className="h-3 w-3" />
+              <span className="font-mono">{bom.id}</span>
+            </button>
+          );
+        }
+        return (
+          <div className="flex items-center gap-1.5">
+            <span className="inline-flex items-center gap-1 rounded border border-destructive/30 bg-destructive/5 px-1.5 py-0.5 text-[10px] font-semibold text-destructive">
+              <AlertTriangle className="h-3 w-3" /> Missing
+            </span>
+            <button
+              type="button"
+              onClick={() => navigate({ to: "/bom" })}
+              className="text-[10px] font-semibold text-primary hover:underline"
+            >
+              Create BOM
+            </button>
+          </div>
+        );
+      },
+    },
+    {
+      key: "warehouseId" as keyof ItemRow,
+      header: "Office / Warehouse",
+      render: (r) => {
+        const wh = r.warehouseId ? ALL_WAREHOUSES.find((w) => w.id === r.warehouseId) : undefined;
+        const officeId = r.officeId ?? wh?.officeId;
+        const off = officeId ? ALL_OFFICES.find((o) => o.id === officeId) : undefined;
+        if (!off && !wh) return <span className="text-muted-foreground text-xs">—</span>;
+        return (
+          <div className="text-xs leading-tight">
+            <div>{off ? `${off.code} — ${off.name}` : <span className="text-muted-foreground">—</span>}</div>
+            <div className="text-muted-foreground">{wh ? `${wh.code} — ${wh.name}` : "—"}</div>
+          </div>
+        );
+      },
     },
     {
       key: "binLocation",
@@ -558,6 +632,7 @@ function ItemList({ data, onToggle }: { data: ItemRow[]; onToggle: (id: string) 
 }
 
 function ItemCreate({ nextId, onSave }: { nextId: string; onSave: (row: ItemRow) => void }) {
+  const navigate = useNavigate();
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [itemType, setItemType] = useState<string>(ITEM_TYPES[0]);
@@ -565,11 +640,32 @@ function ItemCreate({ nextId, onSave }: { nextId: string; onSave: (row: ItemRow)
   const [subCategory, setSubCategory] = useState("");
   const [uom, setUom] = useState<string>(UOMS[0]);
 
+  const requiresBom = BOM_REQUIRED_ITEM_TYPES.includes(itemType as ItemRow["itemType"]);
+  const existingBomForCode = useMemo(
+    () => (code.trim() ? bomForItemCode(code.trim().toUpperCase()) : undefined),
+    [code],
+  );
+
   // Stock & storage
   const [reorderLevel, setReorderLevel] = useState("0");
   const [thresholdPct, setThresholdPct] = useState("20");
   const [expiryDate, setExpiryDate] = useState("");
+  const [officeId, setOfficeId] = useState("");
+  const [warehouseId, setWarehouseId] = useState("");
   const [binLocation, setBinLocation] = useState("");
+
+  const warehouseOptions = useMemo(
+    () => (officeId ? activeWarehousesByOffice(officeId) : []),
+    [officeId],
+  );
+
+  const handleOfficeChange = (next: string) => {
+    setOfficeId(next);
+    // Drop the warehouse selection if it no longer belongs to the new office.
+    if (warehouseId && !ALL_WAREHOUSES.some((w) => w.id === warehouseId && w.officeId === next)) {
+      setWarehouseId("");
+    }
+  };
   // Allocation method: "Auto" lets the smart default kick in based on item type/category.
   const [allocationChoice, setAllocationChoice] = useState<"Auto" | AllocationMethod>("Auto");
   const [batchTrackedChoice, setBatchTrackedChoice] = useState<boolean>(true);
@@ -613,22 +709,42 @@ function ItemCreate({ nextId, onSave }: { nextId: string; onSave: (row: ItemRow)
       toast.error("Reorder level and threshold must be non-negative.");
       return;
     }
+
+    // Every Finished Good must have a BOM. If one already exists for this
+    // item code, save it as Active; otherwise save as Inactive and prompt
+    // the user to create the BOM (chicken-and-egg: BOM creation needs the
+    // item to already exist in the master).
+    const itemTypeTyped = itemType as ItemRow["itemType"];
+    const codeUpper = code.trim().toUpperCase();
+    const hasBom = !!bomForItemCode(codeUpper);
+    const fgWithoutBom = BOM_REQUIRED_ITEM_TYPES.includes(itemTypeTyped) && !hasBom;
+
     onSave({
       id: nextId,
-      code: code.trim().toUpperCase(),
+      code: codeUpper,
       name: name.trim(),
-      itemType: itemType as ItemRow["itemType"],
+      itemType: itemTypeTyped,
       category, subCategory, uom,
-      status: "Active",
+      status: fgWithoutBom ? "Inactive" : "Active",
       reorderLevel: reorder,
       thresholdPct: threshold,
       expiryDate: expiryDate || undefined,
+      officeId: officeId || undefined,
+      warehouseId: warehouseId || undefined,
       binLocation: binLocation.trim() || undefined,
       allocationMethod: allocationChoice === "Auto" ? undefined : allocationChoice,
       batchTracked: batchTrackedChoice,
       altUoms: altUoms.length > 0 ? altUoms : undefined,
     });
-    toast.success(`Item "${name.trim()}" created.`);
+
+    if (fgWithoutBom) {
+      toast.warning(`"${name.trim()}" saved as Inactive — every Finished Good needs a BOM.`, {
+        action: { label: "Create BOM", onClick: () => navigate({ to: "/bom" }) },
+        duration: 8000,
+      });
+    } else {
+      toast.success(`Item "${name.trim()}" created.`);
+    }
   };
 
   return (
@@ -656,6 +772,34 @@ function ItemCreate({ nextId, onSave }: { nextId: string; onSave: (row: ItemRow)
             <select value={itemType} onChange={(e) => setItemType(e.target.value)} className={selectCls}>
               {ITEM_TYPES.map((t) => <option key={t}>{t}</option>)}
             </select>
+            {requiresBom && (
+              <div
+                className={cn(
+                  "mt-2 rounded-md border px-3 py-2 text-[11px] leading-relaxed flex items-start gap-2",
+                  existingBomForCode
+                    ? "border-success/30 bg-success/5 text-success"
+                    : "border-warning/40 bg-warning/10 text-warning-foreground",
+                )}
+              >
+                {existingBomForCode ? (
+                  <>
+                    <CheckCircle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-success" />
+                    <span>
+                      BOM <span className="font-mono font-semibold">{existingBomForCode.id}</span> already exists for code{" "}
+                      <span className="font-mono font-semibold">{code.trim().toUpperCase()}</span>. This item will be linked to it on save.
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-warning" />
+                    <span>
+                      Every <strong>Finished Good</strong> must have a BOM. Since BOMs reference items by code,
+                      this item will be saved as <strong>Inactive</strong> until you create its BOM in the BOM module.
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
           </div>
           <div>
             <Label className="text-xs uppercase tracking-wider text-muted-foreground">Category</Label>
@@ -799,6 +943,43 @@ function ItemCreate({ nextId, onSave }: { nextId: string; onSave: (row: ItemRow)
               </div>
             </div>
           </div>
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Office</Label>
+            <select
+              value={officeId}
+              onChange={(e) => handleOfficeChange(e.target.value)}
+              className={selectCls}
+            >
+              <option value="">Select office…</option>
+              {activeOffices.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.code} — {o.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Warehouse</Label>
+            <select
+              value={warehouseId}
+              onChange={(e) => setWarehouseId(e.target.value)}
+              disabled={!officeId}
+              className={selectCls}
+            >
+              <option value="">
+                {officeId ? "Select warehouse…" : "Select office first"}
+              </option>
+              {warehouseOptions.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.code} — {w.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="md:col-span-2 -mt-1 text-[11px] text-muted-foreground">
+            Default office + warehouse for this item. Used to group stock and prefill location pickers.
+          </div>
+
           <div className="md:col-span-2">
             <Label className="text-xs uppercase tracking-wider text-muted-foreground">Bin Location</Label>
             <Input
@@ -808,7 +989,7 @@ function ItemCreate({ nextId, onSave }: { nextId: string; onSave: (row: ItemRow)
               placeholder="e.g. A1-R3-S2  (aisle-rack-shelf)"
             />
             <div className="mt-1 text-[11px] text-muted-foreground">
-              Default warehouse bin. Used as the picking location across Inventory, Airline Consumables, and FEFO/FIFO lookups.
+              Bin/rack/shelf within the selected warehouse. Used as the picking location across Inventory, Airline Consumables, and FEFO/FIFO lookups.
             </div>
           </div>
 
@@ -1237,15 +1418,16 @@ type ParsedRow = {
 
 const BULK_TEMPLATE_HEADERS = [
   "code", "name", "itemType", "category", "subCategory", "uom",
-  "reorderLevel", "thresholdPct", "binLocation", "batchTracked", "allocationMethod",
+  "reorderLevel", "thresholdPct", "office", "warehouse", "binLocation",
+  "batchTracked", "allocationMethod",
 ] as const;
 
 const TEMPLATE_CSV =
   BULK_TEMPLATE_HEADERS.join(",") + "\n" +
   [
-    "RM-RICE-PSHM,Premium Basmati Rice,Raw Material,Grains,Rice,Kg,150,20,A1-R2-S1,true,FEFO",
-    "PK-BAG-BRN,Brown Paper Bag,Packaging,Packaging,Boxes & Trays,Pcs,500,15,B2-R1-S3,false,FIFO",
-    "BV-JCE-MNG,Mango Juice 200ml,Finished Good,Beverage,Juice,Pcs,200,25,C1-R4-S2,true,FEFO",
+    "RM-RICE-PSHM,Premium Basmati Rice,Raw Material,Grains,Rice,Kg,150,20,HQ-DAC,WH-DAC-01,A1-R2-S1,true,FEFO",
+    "PK-BAG-BRN,Brown Paper Bag,Packaging,Packaging,Boxes & Trays,Pcs,500,15,HQ-DAC,WH-DAC-01,B2-R1-S3,false,FIFO",
+    "BV-JCE-MNG,Mango Juice 200ml,Finished Good,Beverage,Juice,Pcs,200,25,HQ-DAC,CS-DAC-01,C1-R4-S2,true,FEFO",
   ].join("\n");
 
 function parseCsv(text: string): Array<Record<string, string>> {
@@ -1277,6 +1459,8 @@ function validateRow(
   const uom = (raw.uom ?? "").trim();
   const reorderRaw = (raw.reorderLevel ?? "0").trim();
   const thresholdRaw = (raw.thresholdPct ?? "20").trim();
+  const officeRaw = (raw.office ?? "").trim();
+  const warehouseRaw = (raw.warehouse ?? "").trim();
   const bin = (raw.binLocation ?? "").trim();
   const batchRaw = (raw.batchTracked ?? "true").trim().toLowerCase();
   const allocRaw = (raw.allocationMethod ?? "").trim().toUpperCase();
@@ -1304,6 +1488,35 @@ function validateRow(
   if (isNaN(reorder) || reorder < 0) errors.push("reorderLevel must be ≥ 0");
   const threshold = Number(thresholdRaw);
   if (isNaN(threshold) || threshold < 0) errors.push("thresholdPct must be ≥ 0");
+
+  let officeId: string | undefined;
+  if (officeRaw) {
+    const off = ALL_OFFICES.find(
+      (o) => o.code.toLowerCase() === officeRaw.toLowerCase() ||
+             o.id.toLowerCase()   === officeRaw.toLowerCase(),
+    );
+    if (!off) errors.push(`office "${officeRaw}" not in master list`);
+    else officeId = off.id;
+  }
+
+  let warehouseId: string | undefined;
+  if (warehouseRaw) {
+    const wh = ALL_WAREHOUSES.find(
+      (w) => w.code.toLowerCase() === warehouseRaw.toLowerCase() ||
+             w.id.toLowerCase()   === warehouseRaw.toLowerCase(),
+    );
+    if (!wh) {
+      errors.push(`warehouse "${warehouseRaw}" not in master list`);
+    } else {
+      warehouseId = wh.id;
+      if (officeId && wh.officeId !== officeId) {
+        errors.push(`warehouse "${warehouseRaw}" does not belong to office "${officeRaw}"`);
+      } else if (!officeId) {
+        // Office wasn't supplied — infer it from the warehouse so the row stays consistent.
+        officeId = wh.officeId;
+      }
+    }
+  }
 
   const batchTracked = batchRaw === "true" || batchRaw === "1" || batchRaw === "yes";
 
@@ -1335,6 +1548,8 @@ function validateRow(
       status: "Active",
       reorderLevel: reorder,
       thresholdPct: threshold,
+      officeId,
+      warehouseId,
       binLocation: bin || undefined,
       batchTracked,
       allocationMethod,

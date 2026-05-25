@@ -17,7 +17,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { Plus, Plane, Users, Clock, Flame, Save, Trash2, UtensilsCrossed, ArrowRight, ClipboardCheck, MoreHorizontal, Eye, Pencil, Printer, Calculator, Package, PackageOpen, Wrench, CheckCircle2, AlertCircle, FileText } from "lucide-react";
+import { Plus, Plane, Users, Clock, Flame, Save, Trash2, UtensilsCrossed, ArrowRight, ClipboardCheck, MoreHorizontal, Eye, Pencil, Printer, Calculator, Package, PackageOpen, Wrench, CheckCircle2, AlertCircle, FileText, Zap } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -311,6 +311,44 @@ function ProductionEntryPage() {
     }
   };
 
+  /**
+   * One-click bulk: create a Pending production order for every meal-plan item
+   * that has a non-zero computed qty. Skips zero-qty rows. Uses today's date
+   * and the default office/warehouse; BOM is matched by item name when
+   * available, otherwise falls back to the item name as a free-text BOM ref.
+   */
+  const bulkCreateFromMealPlan = (items: MealPlanPickItem[]) => {
+    const eligible = items.filter((it) => (it.computedQty ?? 0) > 0);
+    if (eligible.length === 0) {
+      toast.warning("No menu items have a computed quantity > 0 for the selected day.");
+      return;
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    const baseStamp = Date.now();
+    eligible.forEach((item, i) => {
+      const qty = item.computedQty ?? 0;
+      const seq = String(baseStamp + i).slice(-6);
+      const bomMatch = billOfMaterials.find((b) => b.name === item.name);
+      const entry: ProductionEntry = {
+        id: `PO-2026-${seq}`,
+        date: today,
+        bom: bomMatch?.name ?? item.name,
+        outputItemName: item.name,
+        outputItemCode: item.code,
+        orderQty: qty,
+        producedQty: 0,
+        status: "Pending",
+        officeId: "OFF-001",
+        warehouseId: "WH-003",
+      };
+      addProductionEntry(entry);
+    });
+    toast.success(
+      `Created ${eligible.length} production order${eligible.length === 1 ? "" : "s"} from the meal plan.`,
+    );
+    setDetailsOpen(false);
+  };
+
   type NumberedEntry = ProductionEntry & { __sl: number };
   const numberedEntries: NumberedEntry[] = entries.map((e, i) => ({ ...e, __sl: i + 1 }));
 
@@ -514,6 +552,7 @@ function ProductionEntryPage() {
         open={detailsOpen}
         onOpenChange={setDetailsOpen}
         onSelectItem={startFromMealPlan}
+        onBulkCreate={bulkCreateFromMealPlan}
         date={selectedForwardedDate}
       />
 
@@ -1577,11 +1616,12 @@ function MealCardView({
 }
 
 function MealPlanningDetailsDialog({
-  open, onOpenChange, onSelectItem, date,
+  open, onOpenChange, onSelectItem, onBulkCreate, date,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSelectItem: (item: MealPlanPickItem) => void;
+  onBulkCreate: (items: MealPlanPickItem[]) => void;
   date: string;
 }) {
   const navigate = useNavigate();
@@ -1615,6 +1655,53 @@ function MealPlanningDetailsDialog({
       ([a], [b]) => DAYS.indexOf(a as (typeof DAYS)[number]) - DAYS.indexOf(b as (typeof DAYS)[number]),
     );
   }, [orderDays]);
+
+  // Flatten every choice + enabled special-meal item across all displayed
+  // meal cards, attaching the computed qty. Items with qty <= 0 are dropped.
+  // Used by the "Create All Orders" bulk action below.
+  const availableItems = useMemo<MealPlanPickItem[]>(() => {
+    const out: MealPlanPickItem[] = [];
+    for (const [, meals] of byDay) {
+      for (const meal of meals) {
+        for (const choice of meal.choices) {
+          for (const it of choice.items) {
+            const { qty, breakdown } = computeMealQty({
+              requirements,
+              day: meal.day,
+              flightTypes: meal.flightType,
+              forType: meal.forType,
+              kind: "Choice",
+              percentage: choice.percentage,
+            });
+            if (qty <= 0) continue;
+            const base = itemByCode.get(`MP-${slugifyItem(it.name)}`);
+            if (base) out.push({ ...base, computedQty: qty, qtyBreakdown: breakdown });
+          }
+        }
+        for (const sp of meal.specialMeals) {
+          if (!sp.enabled) continue;
+          for (const it of sp.items) {
+            const explicitPortions = typeof sp.portions === "number" ? sp.portions : 0;
+            const computed = computeMealQty({
+              requirements,
+              day: meal.day,
+              flightTypes: meal.flightType,
+              forType: meal.forType,
+              kind: "Special",
+            });
+            const qty = explicitPortions > 0 ? explicitPortions : computed.qty;
+            if (qty <= 0) continue;
+            const breakdown = explicitPortions > 0
+              ? `${explicitPortions} portion${explicitPortions === 1 ? "" : "s"} configured for ${sp.type}`
+              : computed.breakdown;
+            const base = itemByCode.get(`MP-${slugifyItem(it.name)}`);
+            if (base) out.push({ ...base, computedQty: qty, qtyBreakdown: breakdown });
+          }
+        }
+      }
+    }
+    return out;
+  }, [byDay, requirements, itemByCode]);
 
   const totalPax = ordersForDate.reduce((s, o) => s + o.pax, 0);
   const totalCrew = ordersForDate.reduce((s, o) => s + o.crew, 0);
@@ -1685,12 +1772,24 @@ function MealPlanningDetailsDialog({
           <TabsContent value="meals" className="flex-1 overflow-hidden flex flex-col mt-0">
             <div className="flex-1 overflow-y-auto">
               <div className="px-6 pt-5 pb-3">
-                <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-foreground flex items-center gap-2">
-                  <UtensilsCrossed className="h-3.5 w-3.5 text-primary shrink-0" />
-                  <span>
-                    Click <span className="font-semibold">Select</span> beside any meal item to start a new
-                    production entry for that item. Materials will auto-load on the entry page.
-                  </span>
+                <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-foreground flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <UtensilsCrossed className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span>
+                      Click <span className="font-semibold">Select</span> beside any meal item to start a single
+                      production entry, or use <span className="font-semibold">Create All Orders</span> to
+                      raise one Pending order per available menu in a single click.
+                    </span>
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={availableItems.length === 0}
+                    onClick={() => onBulkCreate(availableItems)}
+                    className="shrink-0"
+                  >
+                    <Zap className="h-3.5 w-3.5 mr-1.5" />
+                    Create All Orders ({availableItems.length})
+                  </Button>
                 </div>
               </div>
               <div className="px-6 pb-4">
