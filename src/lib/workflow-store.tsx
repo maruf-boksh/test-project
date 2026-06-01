@@ -3,6 +3,8 @@ import { demandRequests as seedDemands, requisitions as seedReqs, purchaseOrders
 
 // ── Status enums ───────────────────────────────────────────────────────────────
 export type WfDemandStatus =
+  | "Pending Approval"
+  | "Rejected"
   | "Pending Store Review"
   | "Partially Available"
   | "Partially Issued"
@@ -41,6 +43,16 @@ export type WfDemandRequest = {
   grnRef?: string;          // set when a GRN fulfils this demand
   officeId?: string;
   warehouseId?: string;
+  /** When true, approving this demand auto-creates one Transfer Note (in-stock
+   *  items) and one Purchase Requisition (shortfalls). Used by the bulk
+   *  meal-plan flow that defers fulfillment until the demand is signed off. */
+  autoFulfill?: boolean;
+  /** Optional approval audit trail set by `updateDemandStatus` callers. */
+  approvedBy?: string;
+  approvedAt?: string;
+  rejectedBy?: string;
+  rejectedAt?: string;
+  rejectionReason?: string;
 };
 
 export type WfRequisition = {
@@ -174,6 +186,13 @@ export type WfMrpRun = {
   materials: WfMrpMaterial[];
   requisitionIds: string[];  // generated PRs (workflow store wfRequisitions)
   transferIds: string[];     // generated transfer notes (workflow store transferNotes)
+  /** Demand request that gates the PR/TN creation. When set, the run was
+   *  raised by the bulk meal-plan flow and is awaiting approval — the
+   *  requisitionIds/transferIds arrays stay empty until that demand is
+   *  approved on /approval-management, which patches them in via
+   *  `updateMrpRun`. When undefined, the run came from the synchronous
+   *  on-demand MRP dialog that creates PR/TN inline. */
+  demandRef?: string;
 };
 
 // A Production Entry RECORD is the actual production-floor log against a
@@ -204,6 +223,7 @@ type WorkflowCtx = {
   wfRequisitions: WfRequisition[];
   addRequisition: (req: WfRequisition) => void;
   updateRequisitionStatus: (id: string, status: WfReqStatus) => void;
+  updateRequisition: (id: string, patch: Partial<WfRequisition>) => void;
 
   wfPurchaseOrders: WfPurchaseOrder[];
   addPurchaseOrder: (po: WfPurchaseOrder) => void;
@@ -238,11 +258,12 @@ type WorkflowCtx = {
   // ── MRP run history ───────────────────────────────────────────────────────
   mrpRuns: WfMrpRun[];
   addMrpRun: (run: WfMrpRun) => void;
+  updateMrpRun: (id: string, patch: Partial<WfMrpRun>) => void;
 };
 
 const WorkflowContext = createContext<WorkflowCtx>({
   demands: [], addDemands: () => {}, updateDemandStatus: () => {},
-  wfRequisitions: [], addRequisition: () => {}, updateRequisitionStatus: () => {},
+  wfRequisitions: [], addRequisition: () => {}, updateRequisitionStatus: () => {}, updateRequisition: () => {},
   wfPurchaseOrders: [], addPurchaseOrder: () => {}, updatePOStatus: () => {},
   grns: [], addGRN: () => {},
   transferNotes: [], addTransferNote: () => {}, acknowledgeTransfer: () => {},
@@ -250,7 +271,7 @@ const WorkflowContext = createContext<WorkflowCtx>({
   prdStatuses: {}, prdProgress: {}, setPRDStatus: () => {},
   productionEntries: [], addProductionEntry: () => {}, updateProductionEntryStatus: () => {},
   productionEntryRecords: [], addProductionEntryRecord: () => {},
-  mrpRuns: [], addMrpRun: () => {},
+  mrpRuns: [], addMrpRun: () => {}, updateMrpRun: () => {},
 });
 
 // ── Provider ───────────────────────────────────────────────────────────────────
@@ -404,6 +425,8 @@ export function WorkflowProvider({ children }: { children: ReactNode }) {
       addRequisition: (req) => setWfRequisitions(prev => [req, ...prev]),
       updateRequisitionStatus: (id, status) =>
         setWfRequisitions(prev => prev.map(r => r.id === id ? { ...r, status } : r)),
+      updateRequisition: (id, patch) =>
+        setWfRequisitions(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r)),
 
       wfPurchaseOrders,
       addPurchaseOrder: (po) => setWfPOs(prev => [po, ...prev]),
@@ -428,6 +451,8 @@ export function WorkflowProvider({ children }: { children: ReactNode }) {
 
       mrpRuns,
       addMrpRun: (run) => setMrpRuns((prev) => [run, ...prev]),
+      updateMrpRun: (id, patch) =>
+        setMrpRuns((prev) => prev.map((r) => r.id === id ? { ...r, ...patch } : r)),
 
       productionEntryRecords,
       addProductionEntryRecord: (record) => {

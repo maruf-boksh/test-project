@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/table";
 import {
   Calculator, FileText, Package, PackageOpen, Wrench, History, CheckCircle2,
-  AlertCircle, Search, CalendarRange,
+  AlertCircle, Search, CalendarRange, ShieldCheck, XCircle, ArrowUpRight, Send,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWorkflow, type WfMrpRun, type WfMrpMaterial } from "@/lib/workflow-store";
@@ -73,7 +73,7 @@ export default function MrpPage() {
     <>
       <PageHeader
         title="Material Requirement Planning"
-        subtitle="History of MRP runs — each row links to the auto-generated Purchase Requisitions and Internal Transfers"
+        subtitle="History of MRP runs — each row links to the auto-generated Purchase Requisitions and Item Issues"
         actions={
           <Button
             onClick={() => navigate("/production-entry")}
@@ -89,7 +89,7 @@ export default function MrpPage() {
         <KpiCard label="Total Runs" value={totalRuns} icon={Calculator} tone="navy" />
         <KpiCard label="Total Plan Value" value={`৳ ${totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} icon={History} tone="success" />
         <KpiCard label="PRs Generated" value={totalPRs} icon={FileText} tone="warning" />
-        <KpiCard label="Transfers Generated" value={totalTransfers} icon={PackageOpen} tone="navy" />
+        <KpiCard label="Issues Generated" value={totalTransfers} icon={PackageOpen} tone="navy" />
       </div>
 
       <Card className="mb-4">
@@ -150,7 +150,7 @@ export default function MrpPage() {
                 <TableHead className="text-xs uppercase tracking-wider text-right">Materials</TableHead>
                 <TableHead className="text-xs uppercase tracking-wider text-right">Shortfall</TableHead>
                 <TableHead className="text-xs uppercase tracking-wider">PRs</TableHead>
-                <TableHead className="text-xs uppercase tracking-wider">Transfers</TableHead>
+                <TableHead className="text-xs uppercase tracking-wider">Issues</TableHead>
                 <TableHead className="text-xs uppercase tracking-wider text-right">Plan Value</TableHead>
                 <TableHead className="text-xs uppercase tracking-wider">Actions</TableHead>
               </TableRow>
@@ -227,14 +227,28 @@ export default function MrpPage() {
         </div>
       )}
 
-      <MrpRunDetailDialog run={selected} onClose={() => setSelected(null)} />
+      <MrpRunDetailDialog
+        run={selected}
+        linkedDemand={selected?.demandRef ? demands.find((d) => d.id === selected.demandRef) ?? null : null}
+        onClose={() => setSelected(null)}
+      />
     </>
   );
 }
 
 function MrpRunDetailDialog({
-  run, onClose,
-}: { run: WfMrpRun | null; onClose: () => void }) {
+  run, linkedDemand, onClose,
+}: { run: WfMrpRun | null; linkedDemand: WfDemandRequest | null; onClose: () => void }) {
+  // Derive PR/Item-Issue preview counts from the materials snapshot. When the
+  // run is awaiting demand approval the actual ids are empty, but the user
+  // still wants to see how many shortfalls will become PR lines and how many
+  // in-stock items will become Item Issue lines once approval happens.
+  const shortfallCount = run?.materials.filter((m) => m.shortfall > 0).length ?? 0;
+  const inStockCount   = run?.materials.filter((m) => m.shortfall < m.reqQty).length ?? 0;
+
+  const awaiting = !!linkedDemand && linkedDemand.status === "Pending Approval";
+  const rejected = !!linkedDemand && linkedDemand.status === "Rejected";
+
   return (
     <Dialog open={!!run} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-5xl max-h-[92vh] overflow-hidden flex flex-col p-0 gap-0">
@@ -285,6 +299,38 @@ function MrpRunDetailDialog({
               </div>
             </div>
 
+            {/* Linked demand banner — only for runs raised by the bulk
+                meal-plan flow. Surfaces the demand status front-and-centre so
+                the user understands why the PR/TN cards below may be empty. */}
+            {linkedDemand && (
+              <div
+                className={cn(
+                  "px-6 py-3 border-b border-border flex flex-wrap items-center justify-between gap-3 text-xs",
+                  awaiting && "bg-warning/10",
+                  rejected && "bg-destructive/10",
+                  !awaiting && !rejected && "bg-success/10",
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  {awaiting ? <ShieldCheck className="h-4 w-4 text-warning" />
+                  : rejected ? <XCircle className="h-4 w-4 text-destructive" />
+                  : <CheckCircle2 className="h-4 w-4 text-success" />}
+                  <span className="font-medium">
+                    {awaiting && <>Awaiting approval on Demand Request <strong className="font-mono">{linkedDemand.id}</strong> — PR and Item Issue will be created when this demand is approved.</>}
+                    {rejected && <>Demand Request <strong className="font-mono">{linkedDemand.id}</strong> was rejected — no procurement was triggered from this MRP run.</>}
+                    {!awaiting && !rejected && <>Demand Request <strong className="font-mono">{linkedDemand.id}</strong> approved — PR and Item Issue created below.</>}
+                  </span>
+                </div>
+                {(awaiting || rejected) && (
+                  <Button asChild size="sm" variant="outline" className="h-7 text-[11px]">
+                    <Link to="/approval-management">
+                      Go to Approval Management <ArrowUpRight className="h-3 w-3 ml-1" />
+                    </Link>
+                  </Button>
+                )}
+              </div>
+            )}
+
             {/* Generated artifacts */}
             <div className="px-6 py-4 border-b border-border grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="rounded-md border border-success/30 bg-success/5 px-4 py-3">
@@ -295,50 +341,78 @@ function MrpRunDetailDialog({
                   </span>
                 </div>
                 {run.requisitionIds.length === 0 ? (
-                  <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3 w-3" /> No shortfall — nothing to procure.
-                  </p>
+                  awaiting ? (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <ShieldCheck className="h-3 w-3 text-warning" />
+                      {shortfallCount > 0
+                        ? <>Pending — <strong className="text-foreground">{shortfallCount} shortfall material{shortfallCount === 1 ? "" : "s"}</strong> will become one PR on approval.</>
+                        : <>No shortfall — no PR will be needed when this is approved.</>}
+                    </p>
+                  ) : rejected ? (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <XCircle className="h-3 w-3 text-destructive" /> Demand rejected — PR was never raised.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <CheckCircle2 className="h-3 w-3" /> No shortfall — nothing to procure.
+                    </p>
+                  )
                 ) : (
                   <div className="flex flex-wrap gap-1.5">
                     {run.requisitionIds.map((id) => (
-                      <Badge
-                        key={id}
-                        variant="outline"
-                        className="font-mono text-[10px] border-success/40 bg-card"
-                      >
-                        {id}
-                      </Badge>
+                      <Link key={id} to="/purchase-requisition">
+                        <Badge
+                          variant="outline"
+                          className="font-mono text-[10px] border-success/40 bg-card hover:bg-success/10 cursor-pointer"
+                        >
+                          {id}
+                        </Badge>
+                      </Link>
                     ))}
                     <p className="w-full text-[10px] text-muted-foreground mt-1">
-                      View in <strong>Purchase Requisition</strong> or <strong>Procurement</strong>.
+                      View in <strong>Purchase Requisition</strong>.
                     </p>
                   </div>
                 )}
               </div>
               <div className="rounded-md border border-navy/30 bg-navy/5 px-4 py-3">
                 <div className="flex items-center gap-2 mb-2">
-                  <PackageOpen className="h-4 w-4 text-navy" />
+                  <Send className="h-4 w-4 text-navy" />
                   <span className="text-sm font-semibold uppercase tracking-wider text-navy">
-                    Internal Transfers ({run.transferIds.length})
+                    Item Issues ({run.transferIds.length})
                   </span>
                 </div>
                 {run.transferIds.length === 0 ? (
-                  <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                    <AlertCircle className="h-3 w-3" /> No on-hand stock to allocate.
-                  </p>
+                  awaiting ? (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <ShieldCheck className="h-3 w-3 text-warning" />
+                      {inStockCount > 0
+                        ? <>Pending — <strong className="text-foreground">{inStockCount} material{inStockCount === 1 ? "" : "s"}</strong> with on-hand stock will become one Item Issue on approval.</>
+                        : <>No on-hand stock — no Item Issue will be raised when this is approved.</>}
+                    </p>
+                  ) : rejected ? (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <XCircle className="h-3 w-3 text-destructive" /> Demand rejected — no items were issued.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <AlertCircle className="h-3 w-3" /> No on-hand stock to allocate.
+                    </p>
+                  )
                 ) : (
                   <div className="flex flex-wrap gap-1.5">
                     {run.transferIds.map((id) => (
-                      <Badge
-                        key={id}
-                        variant="outline"
-                        className="font-mono text-[10px] border-navy/40 bg-card"
-                      >
-                        {id}
-                      </Badge>
+                      <Link key={id} to="/item-issue" search={{ demand: undefined }}>
+                        <Badge
+                          variant="outline"
+                          className="font-mono text-[10px] border-navy/40 bg-card hover:bg-navy/10 cursor-pointer"
+                        >
+                          {id}
+                        </Badge>
+                      </Link>
                     ))}
                     <p className="w-full text-[10px] text-muted-foreground mt-1">
-                      View in <strong>Transfer</strong> or <strong>Item Issue</strong>.
+                      View in <strong>Item Issue</strong>.
                     </p>
                   </div>
                 )}
