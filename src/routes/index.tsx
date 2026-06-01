@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Card, Button, Tag, Input, Popover, Tabs, DatePicker } from "antd";
 import {
   RocketOutlined,
@@ -20,9 +20,10 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { useRole } from "@/lib/roles";
 import {
   flights, productionOrders, purchaseOrders, dispatch, qcChecks,
-  seedFlightOrders, inventory, inventoryValue,
+  inventory, inventoryValue,
 } from "@/lib/sample-data";
 import { useWorkflow } from "@/lib/workflow-store";
+import { useFlightOrders, type FlightOrder } from "@/lib/flight-orders-store";
 import { flagArrival } from "@/lib/arrival-flash";
 import { cn } from "@/lib/utils";
 import {
@@ -79,13 +80,16 @@ type ActivityEntry = {
 
 function useDashboardKpis(period: Period, range?: DateRange) {
   const { wfRequisitions, wfPurchaseOrders, productionEntries, productionEntryRecords, transferNotes } = useWorkflow();
+  // Read the live flight-orders snapshot so the dashboard reacts to any
+  // orders added/edited via the Order Management page.
+  const flightOrders = useFlightOrders();
 
-  const allDates = Array.from(new Set(seedFlightOrders.map((o) => o.date))).sort();
+  const allDates = Array.from(new Set(flightOrders.map((o) => o.date))).sort();
   const today = allDates[allDates.length - 1] ?? "";
   const yesterday = allDates[allDates.length - 2] ?? "";
-  const todayOrders = seedFlightOrders.filter((o) => o.date === today);
+  const todayOrders = flightOrders.filter((o) => o.date === today);
   const flightsToday = todayOrders.length;
-  const flightsYesterday = seedFlightOrders.filter((o) => o.date === yesterday).length;
+  const flightsYesterday = flightOrders.filter((o) => o.date === yesterday).length;
   const flightsDelta = flightsToday - flightsYesterday;
   const flightsTodayIds = todayOrders.map((o) => o.id);
 
@@ -105,7 +109,7 @@ function useDashboardKpis(period: Period, range?: DateRange) {
     return t.toISOString().slice(0, 10);
   })();
   const windowOrders = windowStart
-    ? seedFlightOrders.filter((o) => o.date >= windowStart && o.date <= today)
+    ? flightOrders.filter((o) => o.date >= windowStart && o.date <= today)
     : [];
   const flightsWindow = windowOrders.length;
   const flightsWindowIds = windowOrders.map((o) => o.id);
@@ -114,7 +118,7 @@ function useDashboardKpis(period: Period, range?: DateRange) {
     : 0;
 
   const customOrders = range
-    ? seedFlightOrders.filter((o) =>
+    ? flightOrders.filter((o) =>
         (!range.from || o.date >= range.from) &&
         (!range.to || o.date <= range.to),
       )
@@ -136,7 +140,7 @@ function useDashboardKpis(period: Period, range?: DateRange) {
   const delayedFlights = flights.filter((f) => f.status === "Delayed");
   const delayed = delayedFlights.length;
   const delayedFlightCodes = new Set(delayedFlights.map((f) => f.flight));
-  const delayedRowIds = seedFlightOrders
+  const delayedRowIds = flightOrders
     .filter((o) => delayedFlightCodes.has(o.flight))
     .map((o) => o.id);
 
@@ -218,7 +222,7 @@ function useDashboardKpis(period: Period, range?: DateRange) {
       : period === "year"    ? "Meal Production Trend (Last 365 Days)"
       : "Meal Production Trend (Today)",
     sectionMix: computeSectionMix(),
-    activeFlights: pickActiveFlights(),
+    activeFlights: pickActiveFlights(flightOrders),
     activityFeed: buildActivityFeed({
       wfRequisitions, productionEntryRecords, transferNotes,
     }),
@@ -246,7 +250,7 @@ function buildCustomTrend(range: DateRange, producedTotal: number, targetTotal: 
   });
 }
 
-function pickActiveFlights() {
+function pickActiveFlights(source: FlightOrder[]) {
   const priority: Record<string, number> = {
     Production: 0,
     Approved: 1,
@@ -254,7 +258,7 @@ function pickActiveFlights() {
     Pending: 3,
     Completed: 4,
   };
-  return [...seedFlightOrders]
+  return [...source]
     .sort((a, b) => {
       const pa = priority[a.status] ?? 99;
       const pb = priority[b.status] ?? 99;
@@ -718,7 +722,7 @@ function OrderGroupCard({
       }}
     >
       <Link
-        to="/order-management"
+        to={`/order-management?ord=${encodeURIComponent(orderNo)}`}
         onClick={() => flagArrival({ target: "active-orders", ids: legIds })}
         style={{
           display: "flex",
@@ -764,7 +768,7 @@ function OrderGroupCard({
         {legs.map((l, idx) => (
           <Link
             key={l.id}
-            to="/order-management"
+            to={`/order-management?ord=${encodeURIComponent(orderNo)}`}
             onClick={() => flagArrival({ target: "active-orders", ids: [l.id] })}
             style={{
               display: "flex",
@@ -868,6 +872,25 @@ function CustomRangePicker({
   const [open, setOpen] = useState(false);
   const [draftFrom, setDraftFrom] = useState(range?.from ?? "");
   const [draftTo, setDraftTo] = useState(range?.to ?? "");
+  const pillRef = useRef<HTMLButtonElement>(null);
+
+  // Outside-click to dismiss. We disabled AntD's built-in trigger so we lose
+  // its dismiss-on-outside-click; this re-adds it. We treat any click on the
+  // popover content (`.ant-popover-inner`) as inside, so dropdowns and date
+  // pickers inside the popover don't close it accidentally.
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (pillRef.current?.contains(target)) return;
+      const popover = (target as HTMLElement).closest?.(".ant-popover");
+      if (popover) return;
+      setOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
 
   const handleApply = () => {
     if (!draftFrom || !draftTo) {
@@ -960,16 +983,17 @@ function CustomRangePicker({
         if (o) { setDraftFrom(range?.from ?? ""); setDraftTo(range?.to ?? ""); }
       }}
       content={content}
-      trigger="click"
+      // We control open/close manually via the pill's onClick. Setting
+      // trigger=[] disables AntD's built-in click/hover detection so it can't
+      // race with the manual toggle (which previously caused the popover to
+      // open and immediately close on the same click).
+      trigger={[]}
       placement="bottomRight"
     >
       {renderAsPill ? (
         <button
+          ref={pillRef}
           type="button"
-          // Manual toggle in addition to AntD's `trigger="click"`. AntD relies
-          // on event delegation through its wrapper span, which can miss
-          // clicks on a plain <button> with its own pointer handlers — this
-          // belt-and-braces approach guarantees the popover opens.
           onClick={() => setOpen((v) => !v)}
           className={cn(
             "h-7 px-3 rounded-full text-xs font-medium transition-colors whitespace-nowrap inline-flex items-center gap-1",
