@@ -921,19 +921,19 @@ export const billOfMaterials: BillOfMaterial[] = _billOfMaterialsRaw.map((b) => 
 const bomAt = (i: number) => billOfMaterials[i % billOfMaterials.length].name;
 
 export const seedProductionEntries = [
-  { id: "PO-2026-000031", date: "2026-05-19", bom: bomAt(0), producedQty: 280, status: "In Preparation" },
-  { id: "PO-2026-000030", date: "2026-05-18", bom: bomAt(2), producedQty: 150, status: "Ready for QC"   },
-  { id: "PO-2026-000029", date: "2026-05-17", bom: bomAt(1), producedQty: 320, status: "Approved"       },
-  { id: "PO-2026-000028", date: "2026-05-12", bom: bomAt(0), producedQty: 250, status: "Closed"         },
-  { id: "PO-2026-000025", date: "2026-05-10", bom: bomAt(1), producedQty: 180, status: "Closed"         },
-  { id: "PO-2026-000022", date: "2026-05-08", bom: bomAt(2), producedQty: 220, status: "Closed"         },
-  { id: "PO-2026-000019", date: "2026-05-05", bom: bomAt(3), producedQty: 130, status: "Closed"         },
-  { id: "PO-2026-000016", date: "2026-05-02", bom: bomAt(4), producedQty: 80,  status: "Closed"         },
-  { id: "PO-2026-000013", date: "2026-04-28", bom: bomAt(5), producedQty: 95,  status: "Closed"         },
-  { id: "PO-2026-000010", date: "2026-04-25", bom: bomAt(0), producedQty: 310, status: "Closed"         },
-  { id: "PO-2026-000007", date: "2026-04-22", bom: bomAt(1), producedQty: 160, status: "Closed"         },
-  { id: "PO-2026-000004", date: "2026-04-18", bom: bomAt(2), producedQty: 200, status: "Closed"         },
-  { id: "PO-2026-000001", date: "2026-04-15", bom: bomAt(3), producedQty: 140, status: "Closed"         },
+  { id: "PRO-2026-000031", date: "2026-05-19", bom: bomAt(0), producedQty: 280, status: "In Preparation" },
+  { id: "PRO-2026-000030", date: "2026-05-18", bom: bomAt(2), producedQty: 150, status: "Ready for QC"   },
+  { id: "PRO-2026-000029", date: "2026-05-17", bom: bomAt(1), producedQty: 320, status: "Approved"       },
+  { id: "PRO-2026-000028", date: "2026-05-12", bom: bomAt(0), producedQty: 250, status: "Closed"         },
+  { id: "PRO-2026-000025", date: "2026-05-10", bom: bomAt(1), producedQty: 180, status: "Closed"         },
+  { id: "PRO-2026-000022", date: "2026-05-08", bom: bomAt(2), producedQty: 220, status: "Closed"         },
+  { id: "PRO-2026-000019", date: "2026-05-05", bom: bomAt(3), producedQty: 130, status: "Closed"         },
+  { id: "PRO-2026-000016", date: "2026-05-02", bom: bomAt(4), producedQty: 80,  status: "Closed"         },
+  { id: "PRO-2026-000013", date: "2026-04-28", bom: bomAt(5), producedQty: 95,  status: "Closed"         },
+  { id: "PRO-2026-000010", date: "2026-04-25", bom: bomAt(0), producedQty: 310, status: "Closed"         },
+  { id: "PRO-2026-000007", date: "2026-04-22", bom: bomAt(1), producedQty: 160, status: "Closed"         },
+  { id: "PRO-2026-000004", date: "2026-04-18", bom: bomAt(2), producedQty: 200, status: "Closed"         },
+  { id: "PRO-2026-000001", date: "2026-04-15", bom: bomAt(3), producedQty: 140, status: "Closed"         },
 ];
 
 export type ProductionEntryRow = (typeof seedProductionEntries)[number];
@@ -967,7 +967,12 @@ export function nextFlightStatus(s: FlightOrderStatus): FlightOrderStatus | null
 
 // ── Crew-meal slot helpers ──────────────────────────────────────────────────
 
-export type MealSlot = "Breakfast" | "Heavy Snacks" | "Lunch" | "Dinner";
+// `MealSlot` is a string because slots are user-configurable from the
+// Configuration → Meal Slots page (see `src/lib/meal-slot-settings.ts`).
+// Consumers should fetch the current slot list via `useMealSlots()` rather
+// than the legacy `MEAL_SLOTS` constant below — kept only for any pure (non-
+// React) caller that just needs a sensible default.
+export type MealSlot = string;
 
 export const MEAL_SLOTS: { name: MealSlot; range: string; from: number; to: number }[] = [
   { name: "Breakfast",    range: "06:00 - 11:00", from: 6,  to: 11 },
@@ -976,6 +981,11 @@ export const MEAL_SLOTS: { name: MealSlot; range: string; from: number; to: numb
   { name: "Dinner",       range: "19:00 - 00:00", from: 19, to: 24 },
 ];
 
+/**
+ * Legacy resolver — uses the seeded defaults. Components that need to react
+ * to user-edited slot windows should call `resolveMealSlot` from
+ * `meal-slot-settings.ts` instead.
+ */
 export function getMealSlot(etd: string): MealSlot {
   const m = etd.match(/^(\d{1,2}):/);
   const h = m ? Number(m[1]) : 0;
@@ -1103,6 +1113,48 @@ const ROSTER_FO_007: SpecialMealEntry[] = [
   { id: "SM-210", pnr: "09DOHA", passengerName: "RUMANA AKTER",            seat: "26D", mealCode: "AVML" },
 ];
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Flight-order generator templates and helpers (declared above seedFlightOrders
+// because `const` bindings can't be referenced from the spread-call below before
+// they're initialised, even though the function declaration itself is hoisted).
+// ─────────────────────────────────────────────────────────────────────────────
+
+const INTL_TEMPLATES: { sector: string; etd: string; flightCode: string; airline: string; pax: number }[] = [
+  { sector: "DAC → DXB", etd: "10:30", flightCode: "BG-401",  airline: "Air Astra",  pax: 186 },
+  { sector: "DXB → DAC", etd: "23:45", flightCode: "BG-402",  airline: "Air Astra",  pax: 174 },
+  { sector: "DAC → LHR", etd: "14:45", flightCode: "BG-522",  airline: "Air Astra",  pax: 214 },
+  { sector: "DAC → KUL", etd: "16:20", flightCode: "VQ-901",  airline: "US-Bangla",  pax: 162 },
+  { sector: "KUL → SIN", etd: "20:40", flightCode: "VQ-902",  airline: "US-Bangla",  pax: 158 },
+  { sector: "SIN → DAC", etd: "23:55", flightCode: "VQ-903",  airline: "US-Bangla",  pax: 144 },
+  { sector: "DAC → DOH", etd: "18:10", flightCode: "BS-203",  airline: "US-Bangla",  pax: 168 },
+  { sector: "DAC → BKK", etd: "20:00", flightCode: "BS-307",  airline: "US-Bangla",  pax: 282 },
+  { sector: "DAC → DXB", etd: "02:15", flightCode: "BG-403",  airline: "Air Astra",  pax: 192 },
+  { sector: "DAC → JED", etd: "05:30", flightCode: "BG-651",  airline: "Air Astra",  pax: 220 },
+  { sector: "DAC → KUL", etd: "03:45", flightCode: "VQ-905",  airline: "US-Bangla",  pax: 168 },
+];
+
+const DOMESTIC_TEMPLATES: { sector: string; etd: string; flightCode: string; airline: string; pax: number }[] = [
+  { sector: "DAC → CGP", etd: "06:30", flightCode: "BS-141",  airline: "US-Bangla",  pax: 68 },
+  { sector: "CGP → DAC", etd: "08:30", flightCode: "BS-142",  airline: "US-Bangla",  pax: 64 },
+  { sector: "DAC → CXB", etd: "07:15", flightCode: "BS-105",  airline: "US-Bangla",  pax: 72 },
+  { sector: "DAC → ZYL", etd: "09:45", flightCode: "BS-151",  airline: "US-Bangla",  pax: 65 },
+  { sector: "DAC → JSR", etd: "11:30", flightCode: "BS-195",  airline: "US-Bangla",  pax: 60 },
+  { sector: "DAC → CXB", etd: "13:20", flightCode: "BS-165",  airline: "US-Bangla",  pax: 72 },
+  { sector: "DAC → CGP", etd: "15:40", flightCode: "BS-147",  airline: "US-Bangla",  pax: 68 },
+  { sector: "DAC → ZYL", etd: "17:20", flightCode: "BS-149",  airline: "US-Bangla",  pax: 64 },
+  { sector: "DAC → CXB", etd: "19:30", flightCode: "BS-115",  airline: "US-Bangla",  pax: 72 },
+  { sector: "DAC → JSR", etd: "21:00", flightCode: "BS-159",  airline: "US-Bangla",  pax: 60 },
+  { sector: "DAC → CGP", etd: "22:30", flightCode: "BS-143",  airline: "US-Bangla",  pax: 65 },
+  { sector: "CXB → DAC", etd: "09:45", flightCode: "BS-106",  airline: "US-Bangla",  pax: 70 },
+  { sector: "ZYL → DAC", etd: "11:00", flightCode: "BS-152",  airline: "US-Bangla",  pax: 62 },
+  { sector: "JSR → DAC", etd: "13:00", flightCode: "BS-196",  airline: "US-Bangla",  pax: 58 },
+  { sector: "CXB → DAC", etd: "15:00", flightCode: "BS-166",  airline: "US-Bangla",  pax: 70 },
+  { sector: "CGP → DAC", etd: "17:00", flightCode: "BS-148",  airline: "US-Bangla",  pax: 68 },
+  { sector: "ZYL → DAC", etd: "18:45", flightCode: "BS-150",  airline: "US-Bangla",  pax: 62 },
+  { sector: "CXB → DAC", etd: "21:00", flightCode: "BS-116",  airline: "US-Bangla",  pax: 70 },
+  { sector: "JSR → DAC", etd: "23:00", flightCode: "BS-160",  airline: "US-Bangla",  pax: 58 },
+];
+
 export const seedFlightOrders: FlightOrderRow[] = [
   // ORD-3411 — completed rotation
   { id: "FO-001", orderNo: "ORD-3411", flight: "BG-401", airline: "Air Astra", sector: "DAC → DXB", date: "2026-05-20", etd: "10:30", pax: 186, crew: 14, specialMeals: 12, status: "Completed",  direction: "Outbound", specialMealRoster: ROSTER_FO_001 },
@@ -1137,7 +1189,80 @@ export const seedFlightOrders: FlightOrderRow[] = [
   // ── Domestic (Dinner 19:00-24:00)
   { id: "FO-017", orderNo: "ORD-3423", flight: "BS-115", airline: "US-Bangla", sector: "DAC → CXB", date: "2026-05-20", etd: "19:30", pax: 72,  crew: 4,  specialMeals: 2, status: "Pending",    direction: "Outbound" },
   { id: "FO-018", orderNo: "ORD-3424", flight: "BS-159", airline: "US-Bangla", sector: "DAC → JSR", date: "2026-05-20", etd: "21:00", pax: 60,  crew: 4,  specialMeals: 1, status: "Pending",    direction: "Outbound" },
+
+  // ── Procedurally-generated future demand ─────────────────────────────────
+  // One ORD per future date for the next 90 days, each containing 30-40
+  // flights. Deterministic so reloads produce identical data.
+  ...generateFutureFlightOrders(),
 ];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Flight-order generator
+// ─────────────────────────────────────────────────────────────────────────────
+// Builds one "ORD-NNNN" per day for 90 days starting 2026-06-01 (the system
+// "today" for this demo), each with 30-40 flight legs. Status is "Approved"
+// for the first 7 days (already in-pipeline) and "Pending" thereafter.
+// LCG-seeded by day index so the same set of rows is generated on every page
+// load — no data churn between reloads.
+// (INTL_TEMPLATES and DOMESTIC_TEMPLATES are declared above seedFlightOrders.)
+
+function makeLcg(seed: number) {
+  let state = seed >>> 0;
+  return () => {
+    state = (state * 1103515245 + 12345) & 0x7fffffff;
+    return state / 0x7fffffff;
+  };
+}
+
+function addDaysToDate(base: Date, days: number): Date {
+  const d = new Date(base);
+  d.setDate(base.getDate() + days);
+  return d;
+}
+
+function generateFutureFlightOrders(): FlightOrderRow[] {
+  const out: FlightOrderRow[] = [];
+  const startDate = new Date(2026, 5, 1); // 2026-06-01 (month is 0-indexed)
+  const DAYS = 90;
+  const APPROVED_HORIZON_DAYS = 7;
+  let foCounter = 19; // continue after FO-018; padded to 4 digits below
+
+  for (let d = 0; d < DAYS; d++) {
+    const dt = addDaysToDate(startDate, d);
+    const dateStr = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+    const orderNo = `ORD-${3425 + d}`;
+    const rand = makeLcg(d * 31 + 7);
+    const flightCount = 30 + Math.floor(rand() * 11); // 30-40 inclusive
+    const status: FlightOrderStatus = d < APPROVED_HORIZON_DAYS ? "Approved" : "Pending";
+
+    for (let i = 0; i < flightCount; i++) {
+      const isIntl = rand() < 0.35;
+      const pool = isIntl ? INTL_TEMPLATES : DOMESTIC_TEMPLATES;
+      const tmpl = pool[Math.floor(rand() * pool.length)];
+      const paxJitter = Math.floor((rand() - 0.5) * 30);
+      const pax = Math.max(40, tmpl.pax + paxJitter);
+      const crew = isIntl ? 12 + Math.floor(rand() * 7) : 4;
+      const specialMeals = 1 + Math.floor(rand() * (isIntl ? 25 : 4));
+      const direction: FlightDirection = tmpl.sector.startsWith("DAC") ? "Outbound" : "Return";
+      const foId = `FO-${String(foCounter++).padStart(4, "0")}`;
+      out.push({
+        id: foId,
+        orderNo,
+        flight: tmpl.flightCode,
+        airline: tmpl.airline,
+        sector: tmpl.sector,
+        date: dateStr,
+        etd: tmpl.etd,
+        pax,
+        crew,
+        specialMeals,
+        status,
+        direction,
+      });
+    }
+  }
+  return out;
+}
 
 // ── Master Item Profile ──────────────────────────────────────────────────────
 // Single source of truth for items used by all modules (BOM, PR, Transfer,
