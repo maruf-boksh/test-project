@@ -19,11 +19,6 @@ import { useRole } from "@/lib/roles";
 
 const CURRENT_USER = "R. Hossain";
 
-export const Route = createFileRoute("/cooking-temp")({
-  head: () => ({ meta: [{ title: "Cooking Temp & Sensory Test" }] }),
-  component: CookingTemp,
-});
-
 const FOOD_ITEMS = [
   "Chicken Biryani",
   "Veg Pulao",
