@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -7,7 +6,7 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, ShoppingCart, FileText, Truck, X } from "lucide-react";
-import { vendors } from "@/lib/sample-data";
+import { vendors, activeItems } from "@/lib/sample-data";
 import { KpiCard } from "@/components/common/KpiCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,15 +16,13 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { useWorkflow, type WfPurchaseOrder, type WfRequisition } from "@/lib/workflow-store";
-
-export const Route = createFileRoute("/procurement")({
-  head: () => ({ meta: [{ title: "Purchase Orders" }] }),
-  component: ProcurementPage,
-});
+import { LocationPicker, LocationFilter, LocationCell } from "@/components/common/LocationPicker";
+import { useArrivalFlash } from "@/lib/arrival-flash";
 
 type POLineRow = { id: string; name: string; qty: number; uom: string; unitPrice: number };
 
-function ProcurementPage() {
+export default function ProcurementPage() {
+  useArrivalFlash();
   const wf = useWorkflow();
   const { wfPurchaseOrders, wfRequisitions, addPurchaseOrder } = wf;
 
@@ -36,12 +33,20 @@ function ProcurementPage() {
   const [poDeliveryDate, setPoDeliveryDate] = useState("");
   const [poNotes, setPoNotes] = useState("");
   const [poLines, setPoLines] = useState<POLineRow[]>([]);
+  const [poOfficeId, setPoOfficeId] = useState("OFF-001");
+  const [poWarehouseId, setPoWarehouseId] = useState("WH-001");
+
+  // List filter state
+  const [filterOffice, setFilterOffice] = useState("");
+  const [filterWarehouse, setFilterWarehouse] = useState("");
 
   const openPODialog = (req: WfRequisition) => {
     setSelectedReq(req);
     setPoVendor(vendors[0]?.name ?? "");
     setPoDeliveryDate("");
     setPoNotes("");
+    setPoOfficeId(req.officeId ?? "OFF-001");
+    setPoWarehouseId(req.warehouseId ?? "WH-001");
     // Pre-populate lines from demand items if available
     setPoLines(
       (req.demandItems ?? []).map((item, i) => ({
@@ -52,6 +57,20 @@ function ProcurementPage() {
         unitPrice: 0,
       }))
     );
+    setPoDialogOpen(true);
+  };
+
+  // Open the same dialog without a backing requisition — for ad-hoc POs.
+  const openBlankPODialog = () => {
+    setSelectedReq(null);
+    setPoVendor(vendors[0]?.name ?? "");
+    setPoDeliveryDate("");
+    setPoNotes("");
+    setPoOfficeId("OFF-001");
+    setPoWarehouseId("WH-001");
+    setPoLines([
+      { id: `line-${Date.now()}`, name: "", qty: 1, uom: "Kg", unitPrice: 0 },
+    ]);
     setPoDialogOpen(true);
   };
 
@@ -71,27 +90,40 @@ function ProcurementPage() {
     setPoLines(prev => prev.filter(l => l.id !== id));
   };
 
+  // Pick an item from the Item Profile; prefills name + UoM + cost-price seed.
+  const pickItem = (id: string, itemName: string) => {
+    const it = activeItems.find(i => i.name === itemName);
+    setPoLines(prev => prev.map(l => l.id === id
+      ? { ...l, name: itemName, uom: it?.uom ?? l.uom, unitPrice: l.unitPrice || (it?.costPrice ?? 0) }
+      : l));
+  };
+
   const totalAmount = useMemo(
     () => poLines.reduce((sum, l) => sum + l.qty * l.unitPrice, 0),
     [poLines]
   );
 
   const savePO = (submitForApproval: boolean) => {
-    if (!selectedReq) return;
     if (!poVendor) { toast.error("Please select a vendor."); return; }
+    if (!poOfficeId) { toast.error("Office is required."); return; }
+    if (!poWarehouseId) { toast.error("Warehouse is required."); return; }
+    const validLines = poLines.filter(l => l.name.trim() && l.qty > 0);
+    if (validLines.length === 0) { toast.error("Add at least one item line with quantity."); return; }
 
     const poId = `PO-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
     const newPO: WfPurchaseOrder = {
       id: poId,
       vendor: poVendor,
-      items: poLines.length,
+      items: validLines.length,
       amount: totalAmount,
       date: new Date().toISOString().slice(0, 10),
       status: submitForApproval ? "Pending Approval" : "Draft",
-      requisitionRef: selectedReq.id,
+      requisitionRef: selectedReq?.id ?? "—",
       deliveryDate: poDeliveryDate,
       notes: poNotes,
-      lineItems: poLines.map(l => ({
+      officeId: poOfficeId,
+      warehouseId: poWarehouseId,
+      lineItems: validLines.map(l => ({
         itemId: l.id,
         name: l.name,
         qty: l.qty,
@@ -121,6 +153,10 @@ function ProcurementPage() {
     { key: "id", header: "PO #" },
     { key: "vendor", header: "Vendor" },
     { key: "requisitionRef", header: "Req Ref" },
+    {
+      key: "officeId" as keyof WfPurchaseOrder, header: "Office / Warehouse",
+      render: (r) => <LocationCell officeId={r.officeId} warehouseId={r.warehouseId} />,
+    },
     { key: "items", header: "Items" },
     { key: "amount", header: "Amount (৳)", render: (r) => r.amount > 0 ? r.amount.toLocaleString() : "—" },
     { key: "date", header: "Date" },
@@ -130,11 +166,26 @@ function ProcurementPage() {
   const reqCols: Column<WfRequisition>[] = [
     { key: "id", header: "Req #" },
     { key: "reference", header: "Reference" },
+    {
+      key: "officeId" as keyof WfRequisition, header: "Office / Warehouse",
+      render: (r) => <LocationCell officeId={r.officeId} warehouseId={r.warehouseId} />,
+    },
     { key: "requestedBy", header: "Requested By" },
     { key: "source", header: "Source" },
     { key: "date", header: "Date" },
     { key: "status", header: "Status", render: (r) => <StatusBadge status={r.status} /> },
   ];
+
+  const filteredReqs = wfRequisitions.filter((r) => {
+    if (filterOffice && r.officeId !== filterOffice) return false;
+    if (filterWarehouse && r.warehouseId !== filterWarehouse) return false;
+    return true;
+  });
+  const filteredPOs = wfPurchaseOrders.filter((p) => {
+    if (filterOffice && p.officeId !== filterOffice) return false;
+    if (filterWarehouse && p.warehouseId !== filterWarehouse) return false;
+    return true;
+  });
 
   return (
     <>
@@ -146,6 +197,9 @@ function ProcurementPage() {
             <Button variant="outline" onClick={() => toast.success("Export started.")}>
               <FileText className="h-4 w-4 mr-1" /> Export
             </Button>
+            <Button onClick={openBlankPODialog}>
+              <Plus className="h-4 w-4 mr-1" /> New PO
+            </Button>
           </>
         }
       />
@@ -156,6 +210,14 @@ function ProcurementPage() {
         <KpiCard label="Active Vendors" value={vendors.length} icon={Truck} tone="success" />
       </div>
 
+      <div className="mb-4">
+        <LocationFilter
+          officeId={filterOffice}
+          warehouseId={filterWarehouse}
+          onChange={(n) => { setFilterOffice(n.officeId); setFilterWarehouse(n.warehouseId); }}
+        />
+      </div>
+
       {/* Requisitions from Store */}
       <Card className="mb-6">
         <CardHeader>
@@ -164,9 +226,10 @@ function ProcurementPage() {
         <CardContent>
           <DataTable
             title="requisitions"
-            data={wfRequisitions}
+            data={filteredReqs}
             columns={reqCols}
             searchKeys={["id", "reference", "requestedBy", "status"]}
+            selectable={false}
             actions={(r) => (
               <Button
                 size="sm"
@@ -185,19 +248,24 @@ function ProcurementPage() {
       <div className="mb-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
         Purchase Orders
       </div>
-      <DataTable
-        title="purchase-orders"
-        data={wfPurchaseOrders}
-        columns={poCols}
-        searchKeys={["id", "vendor", "status", "requisitionRef"]}
-        actions={(r) => <RowActions row={r} actions={["view", "edit", "approve", "reject", "print", "delete"]} />}
-      />
+      <div data-arrival-id="po-list">
+        <DataTable
+          title="purchase-orders"
+          data={filteredPOs}
+          columns={poCols}
+          searchKeys={["id", "vendor", "status", "requisitionRef"]}
+          selectable={false}
+          actions={(r) => <RowActions row={r} actions={["view", "edit", "print", "delete"]} />}
+        />
+      </div>
 
       {/* PO Creation Dialog */}
       <Dialog open={poDialogOpen} onOpenChange={setPoDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Create Purchase Order — Req: {selectedReq?.id}</DialogTitle>
+            <DialogTitle>
+              {selectedReq ? `Create Purchase Order — Req: ${selectedReq.id}` : "Create Purchase Order — Direct"}
+            </DialogTitle>
           </DialogHeader>
 
           <div className="grid grid-cols-2 gap-4">
@@ -207,7 +275,11 @@ function ProcurementPage() {
             </div>
             <div>
               <Label>Requisition Ref</Label>
-              <Input disabled value={selectedReq?.id ?? ""} className="mt-1 bg-muted/50" />
+              <Input
+                disabled
+                value={selectedReq?.id ?? "— Direct PO —"}
+                className="mt-1 bg-muted/50 text-muted-foreground"
+              />
             </div>
             <div>
               <Label>Vendor *</Label>
@@ -223,6 +295,11 @@ function ProcurementPage() {
               <Label>Delivery Date</Label>
               <Input type="date" value={poDeliveryDate} onChange={(e) => setPoDeliveryDate(e.target.value)} className="mt-1" />
             </div>
+            <LocationPicker
+              officeId={poOfficeId}
+              warehouseId={poWarehouseId}
+              onChange={(n) => { setPoOfficeId(n.officeId); setPoWarehouseId(n.warehouseId); }}
+            />
             <div className="col-span-2">
               <Label>Notes</Label>
               <Textarea value={poNotes} onChange={(e) => setPoNotes(e.target.value)} rows={2} className="mt-1" />
@@ -258,7 +335,21 @@ function ProcurementPage() {
                     </tr>
                   ) : poLines.map(line => (
                     <tr key={line.id} className="border-t border-border/50">
-                      <td className="p-2">{line.name || <span className="text-muted-foreground text-xs">unnamed</span>}</td>
+                      <td className="p-2">
+                        <select
+                          value={line.name}
+                          onChange={(e) => pickItem(line.id, e.target.value)}
+                          className="w-full h-7 rounded-md border border-input bg-background px-2 text-xs"
+                        >
+                          <option value="">Select item…</option>
+                          {activeItems.slice(0, 100).map((it) => (
+                            <option key={it.id} value={it.name}>{it.name}</option>
+                          ))}
+                          {line.name && !activeItems.some(i => i.name === line.name) && (
+                            <option value={line.name}>{line.name}</option>
+                          )}
+                        </select>
+                      </td>
                       <td className="p-2">
                         <Input
                           type="number"

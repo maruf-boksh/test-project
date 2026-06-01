@@ -1,8 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
-import { ClipboardCheck, Plus, Pencil, Trash2, Lock } from "lucide-react";
+import { ClipboardCheck, Plus, Pencil, Trash2, Lock, Smartphone, ChevronRight, X as XIcon, Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -13,11 +12,6 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useRole } from "@/lib/roles";
-
-export const Route = createFileRoute("/hygiene-monitoring")({
-  head: () => ({ meta: [{ title: "Daily Hygiene Monitoring" }] }),
-  component: HygieneMonitoring,
-});
 
 // ── Dataset (unchanged) ────────────────────────────────────────────────────────
 const CHECKLIST_ITEMS = [
@@ -124,11 +118,13 @@ function cellContent(v: CellValue, missed: boolean) {
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
-function HygieneMonitoring() {
+export default function HygieneMonitoring() {
   const { role } = useRole();
   const todayStr = new Date().toISOString().split("T")[0];
 
   const [selectedDate, setSelectedDate] = useState(todayStr);
+  const [endDate, setEndDate] = useState(todayStr);
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [allSlots, setAllSlots] = useState<string[]>([...TIME_SLOTS]);
   const [editRows, setEditRows] = useState<ChecklistRow[]>(() => makeRows([...CHECKLIST_ITEMS], [...TIME_SLOTS]));
   const [savedSlots, setSavedSlots] = useState<Record<string, SlotSave>>({});
@@ -156,6 +152,19 @@ function HygieneMonitoring() {
   const [authName, setAuthName] = useState("");
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null);
   const [remarkErrors, setRemarkErrors] = useState<Set<number>>(new Set());
+
+  // ── Mobile App View state ─────────────────────────────────────────────────
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [mMobileTab, setMMobileTab] = useState<"checklist" | "log">("checklist");
+  const [mScreen, setMScreen] = useState<1 | 2>(1);
+  const [mSlot, setMSlot] = useState("");
+  const [mLogEntryId, setMLogEntryId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (mobileOpen) { document.body.style.overflow = "hidden"; }
+    else { document.body.style.overflow = ""; }
+    return () => { document.body.style.overflow = ""; };
+  }, [mobileOpen]);
 
   // ── Computed ─────────────────────────────────────────────────────────────
   const missedSlots = useMemo<Set<string>>(() => {
@@ -195,8 +204,13 @@ function HygieneMonitoring() {
     [logs, selectedDate, currentLogId]
   );
 
+  const rangedLogs = useMemo(
+    () => logs.filter((l) => l.date >= selectedDate && l.date <= endDate).sort((a, b) => a.date.localeCompare(b.date)),
+    [logs, selectedDate, endDate]
+  );
+
   // ── Handlers ─────────────────────────────────────────────────────────────
-  const toggleCell = (rowIdx: number, slot: string) => {
+  const handleCellClick = (rowIdx: number, slot: string) => {
     if (savedSlots[slot] || missedSlots.has(slot) || isSubmitted) return;
     setEditRows((prev) =>
       prev.map((row, i) =>
@@ -359,6 +373,45 @@ function HygieneMonitoring() {
     toast.success(`Authorized by ${authName}.`);
   };
 
+  // ── Mobile helpers ────────────────────────────────────────────────────────
+  const mobileConfirmSlot = () => {
+    const slot = mSlot;
+    const errors = new Set<number>();
+    editRows.forEach((row, i) => {
+      if (row.values[slot] === "✗" && !row.remarks.trim()) errors.add(i);
+    });
+    if (errors.size > 0) {
+      setRemarkErrors(errors);
+      toast.error("Remark required for all failed items.");
+      return;
+    }
+    const now = new Date();
+    const savedAt = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
+    setSavedSlots(prev => ({ ...prev, [slot]: { savedAt, savedBy: role } }));
+    setMScreen(1);
+    toast.success(`✅ ${slot} slot saved`);
+  };
+
+  const mobileSubmit = () => {
+    const now = new Date();
+    const submittedAt = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
+    const logId = `LOG-${Date.now()}`;
+    const logEntry: LogEntry = {
+      id: logId,
+      date: selectedDate,
+      submittedBy: role,
+      submittedAt,
+      failCount: failureSummary.count,
+      failItems: failureSummary.items,
+      rows: editRows.map(r => ({ ...r, values: { ...r.values } })),
+      slots: [...allSlots],
+    };
+    setLogs(prev => [logEntry, ...prev]);
+    setCurrentLogId(logId);
+    setIsSubmitted(true);
+    toast.success("Checklist submitted successfully.");
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
@@ -366,7 +419,10 @@ function HygieneMonitoring() {
         title="Daily Food Safety & Hygiene Monitoring"
         subtitle="USBA-FSH-DFSHM-01 — Record checklist status for each time slot per day"
         actions={
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2 flex-wrap items-center">
+            <Button onClick={() => { setMMobileTab("checklist"); setMScreen(1); setMobileOpen(true); }}>
+              <Smartphone className="h-4 w-4 mr-1.5" /> Mobile App View
+            </Button>
             {!isSubmitted && (
               <Button
                 size="sm"
@@ -395,18 +451,25 @@ function HygieneMonitoring() {
 
       {/* Instruction + Legend */}
       <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm">
-        <p className="text-muted-foreground mb-2 text-[13px]">
-          Checklist must be completed at each scheduled time slot by the QC Executive.
-          Mark each item as Pass or Fail. Save Draft after completing each time slot.
-        </p>
+        <div className="mb-2 space-y-1">
+          <p className="text-[13px] font-medium text-blue-800">
+            How to fill this checklist:
+          </p>
+          <p className="text-[12.5px] text-blue-700">
+            <span className="font-semibold">Step 1 —</span> At each scheduled time, mark every item as Pass (✓) or Fail (✗), then click <span className="font-semibold">Save Draft</span> to lock that time slot.
+          </p>
+          <p className="text-[12.5px] text-blue-700">
+            <span className="font-semibold">Step 2 —</span> After the last time slot of the day is saved, click <span className="font-semibold">Confirm & Submit</span> to record the final checklist for the day.
+          </p>
+        </div>
         <div className="flex items-center gap-5 text-xs flex-wrap">
           <span className="flex items-center gap-1.5">
             <span className="inline-flex w-6 h-6 items-center justify-center rounded bg-green-100 text-green-700 font-bold text-base">✓</span>
-            Pass
+            <span><span className="font-semibold">1st click</span> — Pass</span>
           </span>
           <span className="flex items-center gap-1.5">
             <span className="inline-flex w-6 h-6 items-center justify-center rounded bg-red-100 text-red-700 font-bold text-base">✗</span>
-            Fail
+            <span><span className="font-semibold">2nd click</span> — Fail</span>
           </span>
           <span className="flex items-center gap-1.5">
             <span className="inline-flex w-6 h-6 items-center justify-center rounded bg-muted text-muted-foreground">—</span>
@@ -421,14 +484,27 @@ function HygieneMonitoring() {
         </div>
       </div>
 
-      {/* Date picker */}
-      <div className="mb-4 flex items-end gap-3 flex-wrap">
+      {/* Date range picker */}
+      <div className="mb-4 flex items-end gap-4 flex-wrap">
         <div>
-          <Label className="text-xs mb-1 block">Select Date</Label>
+          <Label className="text-xs mb-1 block">From</Label>
           <Input
             type="date"
             value={selectedDate}
-            onChange={(e) => handleDateChange(e.target.value)}
+            onChange={(e) => {
+              handleDateChange(e.target.value);
+              if (e.target.value > endDate) setEndDate(e.target.value);
+            }}
+            className="w-44"
+          />
+        </div>
+        <div>
+          <Label className="text-xs mb-1 block">To</Label>
+          <Input
+            type="date"
+            value={endDate}
+            min={selectedDate}
+            onChange={(e) => setEndDate(e.target.value)}
             className="w-44"
           />
         </div>
@@ -481,9 +557,9 @@ function HygieneMonitoring() {
                         <button
                           type="button"
                           disabled={locked || missed || isSubmitted}
-                          onClick={() => toggleCell(i, t)}
+                          onClick={() => handleCellClick(i, t)}
                           className={`w-8 h-8 rounded flex items-center justify-center mx-auto transition-colors ${cellCls(v, locked || isSubmitted, missed)}`}
-                          title={locked ? "Slot saved — locked" : missed ? "Slot missed" : "Click to toggle"}
+                          title={locked ? "Slot saved — locked" : missed ? "Slot missed" : "Click: Pass → Fail → Reset"}
                         >
                           {cellContent(v, missed)}
                         </button>
@@ -544,87 +620,56 @@ function HygieneMonitoring() {
         </div>
       </div>
 
-      {/* Log Entry */}
-      {currentDateLog && (
-        <div className="mb-4 rounded-xl border border-border bg-card p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="font-semibold text-sm">📋 Checklist Log — {currentDateLog.date}</span>
-            <Button
-              size="sm" variant="outline"
-              onClick={() => { setSelectedLog(currentDateLog); setViewLogOpen(true); }}
-            >
-              View Full Record
-            </Button>
+      {/* Logs List — date range */}
+      {rangedLogs.length > 0 && (
+        <div className="mb-4 space-y-2">
+          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
+            Submitted Reports ({rangedLogs.length})
           </div>
-          <div className="text-xs text-muted-foreground">
-            Submitted by:{" "}
-            <span className="font-medium text-foreground">{currentDateLog.submittedBy}</span>
-            {" "}— {currentDateLog.submittedAt}
-          </div>
-          <div className="text-xs mt-1">
-            Status:{" "}
-            {currentDateLog.failCount === 0 ? (
-              <span className="text-green-600 font-medium">All items passed ✅</span>
-            ) : (
-              <span className="text-red-600 font-medium">
-                {currentDateLog.failCount} failure{currentDateLog.failCount !== 1 ? "s" : ""} recorded
-                {currentDateLog.failItems.length > 0 && (
-                  <span className="text-muted-foreground font-normal">
-                    {" "}(Items: {currentDateLog.failItems.slice(0, 2).join(", ")}
-                    {currentDateLog.failItems.length > 2 ? ` +${currentDateLog.failItems.length - 2} more` : ""})
+          {rangedLogs.map((log) => (
+            <div key={log.id} className="rounded-xl border border-border bg-card p-4">
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-semibold text-sm">📋 {log.date}</span>
+                <Button
+                  size="sm" variant="outline"
+                  onClick={() => { setSelectedLog(log); setViewLogOpen(true); }}
+                >
+                  View Full Record
+                </Button>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Submitted by:{" "}
+                <span className="font-medium text-foreground">{log.submittedBy}</span>
+                {" "}— {log.submittedAt}
+              </div>
+              <div className="text-xs mt-1">
+                Status:{" "}
+                {log.failCount === 0 ? (
+                  <span className="text-green-600 font-medium">All items passed ✅</span>
+                ) : (
+                  <span className="text-red-600 font-medium">
+                    {log.failCount} failure{log.failCount !== 1 ? "s" : ""} recorded
+                    {log.failItems.length > 0 && (
+                      <span className="text-muted-foreground font-normal">
+                        {" "}(Items: {log.failItems.slice(0, 2).join(", ")}
+                        {log.failItems.length > 2 ? ` +${log.failItems.length - 2} more` : ""})
+                      </span>
+                    )}
                   </span>
                 )}
-              </span>
-            )}
-          </div>
-          {currentDateLog.authorizedBy && (
-            <div className="text-xs text-muted-foreground mt-1">
-              Authorized by:{" "}
-              <span className="font-medium text-foreground">{currentDateLog.authorizedBy}</span>
-              {" "}— {currentDateLog.authorizedAt}
+              </div>
+              {log.authorizedBy && (
+                <div className="text-xs text-muted-foreground mt-1">
+                  Authorized by:{" "}
+                  <span className="font-medium text-foreground">{log.authorizedBy}</span>
+                  {" "}— {log.authorizedAt}
+                </div>
+              )}
             </div>
-          )}
+          ))}
         </div>
       )}
 
-      {/* Authorization Panel */}
-      {authPanelVisible && (
-        <div className="mb-6 rounded-xl border border-border bg-card p-5">
-          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-            Authorized By
-          </div>
-          <div className="grid grid-cols-2 gap-4 max-w-sm">
-            <div className="col-span-2">
-              <Label className="text-xs">Name</Label>
-              <Select value={authName} onValueChange={setAuthName}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Select authorized person" />
-                </SelectTrigger>
-                <SelectContent>
-                  {AUTHORIZED_PERSONNEL.map((p) => (
-                    <SelectItem key={p} value={p}>{p}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Date</Label>
-              <Input value={selectedDate} disabled className="mt-1 bg-muted text-xs h-9" />
-            </div>
-            <div>
-              <Label className="text-xs">Time</Label>
-              <Input
-                value={new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: true })}
-                disabled
-                className="mt-1 bg-muted text-xs h-9"
-              />
-            </div>
-          </div>
-          <Button className="mt-4" onClick={handleAuthorize}>
-            ✅ Authorize & Close
-          </Button>
-        </div>
-      )}
 
       {/* ── Modals ─────────────────────────────────────────────────────────── */}
 
@@ -772,6 +817,7 @@ function HygieneMonitoring() {
             <DialogTitle>Full Record — {selectedLog?.date}</DialogTitle>
           </DialogHeader>
           {selectedLog && (
+            <>
             <div className="overflow-x-auto">
               <div className="text-xs text-muted-foreground mb-3">
                 Submitted by {selectedLog.submittedBy} at {selectedLog.submittedAt}
@@ -813,12 +859,308 @@ function HygieneMonitoring() {
                 </tbody>
               </table>
             </div>
+            <div className="mt-6 rounded-lg border border-border bg-muted/30 px-4 py-3 text-xs space-y-1">
+              <div className="font-semibold text-muted-foreground uppercase tracking-wide mb-2 text-[10px]">Verified By</div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground w-24">Name:</span>
+                <span className="font-medium text-foreground">{selectedLog.submittedBy}</span>
+                <span className="text-muted-foreground ml-1">— Executive (Food Safety &amp; Hygiene)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground w-24">Date:</span>
+                <span className="font-medium text-foreground">{selectedLog.date}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground w-24">Timestamp:</span>
+                <span className="font-medium text-foreground">{selectedLog.submittedAt}</span>
+              </div>
+            </div>
+            </>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setViewLogOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Mobile App View Overlay ────────────────────────────────────────── */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div
+            className="relative flex flex-col rounded-[2.5rem] shadow-2xl overflow-hidden border-4 border-slate-700"
+            style={{ width: 375, height: 720, maxHeight: "95vh", background: "#f8fafc" }}
+          >
+            {/* Status bar */}
+            <div className="bg-slate-800 px-5 pt-3 pb-2 flex items-center justify-between shrink-0">
+              <span className="text-white text-xs font-medium">Hygiene Monitor</span>
+              <button onClick={() => setMobileOpen(false)} className="text-slate-400 hover:text-white transition-colors">
+                <XIcon className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* App header */}
+            <div className="bg-emerald-700 px-4 py-3 shrink-0">
+              <p className="text-white font-bold text-sm">Daily Hygiene Monitoring</p>
+              <p className="text-emerald-200 text-[10px] mt-0.5">USBA-FSH-DFSHM-01 · {selectedDate}</p>
+            </div>
+
+            {/* Scrollable content */}
+            <div className="flex-1 overflow-y-auto bg-slate-50">
+
+              {/* CHECKLIST TAB */}
+              {mMobileTab === "checklist" && (
+                <>
+                  {/* Screen 1 — Slots Dashboard */}
+                  {mScreen === 1 && (
+                    <div className="p-4 space-y-2.5">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">Time Slots</p>
+                        {isSubmitted && (
+                          <span className="text-[10px] bg-green-500 text-white px-2 py-0.5 rounded-full font-semibold">Submitted ✓</span>
+                        )}
+                      </div>
+
+                      {isSubmitted && (
+                        <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2.5 text-[12px] text-green-700 font-medium">
+                          ✅ Today's checklist submitted successfully.
+                        </div>
+                      )}
+
+                      {allSlots.map(slot => {
+                        const saved = savedSlots[slot];
+                        const missed = missedSlots.has(slot);
+                        const isActive = !saved && !missed && !isSubmitted;
+                        return (
+                          <button
+                            key={slot}
+                            disabled={!isActive}
+                            onClick={() => { setMSlot(slot); setMScreen(2); }}
+                            className={`w-full text-left px-3 py-2.5 rounded-xl border-2 transition-all ${
+                              saved
+                                ? "border-green-300 bg-green-50"
+                                : missed
+                                ? "border-amber-200 bg-amber-50"
+                                : isActive
+                                ? "border-slate-200 bg-white hover:border-emerald-300"
+                                : "border-slate-100 bg-slate-50 opacity-50"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-sm text-slate-800">{slot}</span>
+                              {saved ? (
+                                <span className="text-[10px] bg-green-500 text-white px-2 py-0.5 rounded-full">✓ {saved.savedAt}</span>
+                              ) : missed ? (
+                                <span className="text-[10px] bg-amber-400 text-white px-2 py-0.5 rounded-full">🔒 Missed</span>
+                              ) : isActive ? (
+                                <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">Tap to record →</span>
+                              ) : null}
+                            </div>
+                            {saved && (
+                              <p className="text-[10px] text-slate-400 mt-0.5">
+                                {editRows.filter(r => r.values[slot] === "✗").length} fail · {editRows.filter(r => r.values[slot] === "✓").length} pass
+                              </p>
+                            )}
+                          </button>
+                        );
+                      })}
+
+                      {allSlotsFinalized && !isSubmitted && (
+                        <button
+                          onClick={mobileSubmit}
+                          className="w-full py-3 rounded-xl bg-emerald-600 text-white font-bold text-sm mt-1 hover:bg-emerald-700 transition-colors"
+                        >
+                          Submit Day's Checklist ✓
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Screen 2 — Record slot */}
+                  {mScreen === 2 && (
+                    <div className="p-4 space-y-2">
+                      <div className="flex items-center gap-2 mb-2">
+                        <button
+                          onClick={() => setMScreen(1)}
+                          className="h-7 w-7 flex items-center justify-center rounded-full bg-slate-200 hover:bg-slate-300 transition-colors"
+                        >
+                          <ChevronRight className="h-4 w-4 rotate-180 text-slate-600" />
+                        </button>
+                        <div>
+                          <p className="font-bold text-slate-800 text-sm">Record — {mSlot}</p>
+                          <p className="text-[10px] text-slate-400">Tap cell to toggle Pass / Fail</p>
+                        </div>
+                      </div>
+
+                      {editRows.map((row, i) => {
+                        const v = (row.values[mSlot] ?? "—") as "—" | "✓" | "✗";
+                        return (
+                          <div key={row.id} className="rounded-xl border border-slate-200 bg-white p-3">
+                            <div className="flex items-start gap-2">
+                              <button
+                                onClick={() => handleCellClick(i, mSlot)}
+                                className={`shrink-0 mt-0.5 w-9 h-9 rounded-lg flex items-center justify-center font-bold text-base transition-colors border ${
+                                  v === "✓"
+                                    ? "bg-green-100 text-green-700 border-green-300"
+                                    : v === "✗"
+                                    ? "bg-red-100 text-red-700 border-red-300"
+                                    : "bg-slate-100 text-slate-400 border-slate-200"
+                                }`}
+                              >
+                                {v}
+                              </button>
+                              <p className="text-[12px] text-slate-700 leading-snug flex-1 pt-1.5">{row.item}</p>
+                            </div>
+                            {v === "✗" && (
+                              <input
+                                type="text"
+                                value={row.remarks}
+                                onChange={(e) => updateRemarks(i, e.target.value)}
+                                placeholder="Remark required *"
+                                className={`mt-2 w-full border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-red-400 ${
+                                  remarkErrors.has(i)
+                                    ? "border-red-400 bg-red-50 placeholder:text-red-400"
+                                    : "border-red-300 bg-red-50"
+                                }`}
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      <button
+                        onClick={mobileConfirmSlot}
+                        className="w-full py-3 rounded-xl bg-emerald-600 text-white font-bold text-sm mt-1 hover:bg-emerald-700 transition-colors"
+                      >
+                        Save Slot — {mSlot}
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* LOG TAB */}
+              {mMobileTab === "log" && (
+                <div className="p-4 space-y-3">
+                  {mLogEntryId ? (() => {
+                    const log = logs.find(l => l.id === mLogEntryId);
+                    if (!log) return null;
+                    return (
+                      <>
+                        <div className="flex items-center gap-2 mb-1">
+                          <button
+                            onClick={() => setMLogEntryId(null)}
+                            className="h-7 w-7 flex items-center justify-center rounded-full bg-slate-200 hover:bg-slate-300 transition-colors"
+                          >
+                            <ChevronRight className="h-4 w-4 rotate-180 text-slate-600" />
+                          </button>
+                          <p className="font-bold text-slate-800 text-sm">Log Details</p>
+                        </div>
+
+                        <div className="bg-white rounded-xl border border-slate-200 p-3 space-y-1.5 text-[12px]">
+                          {[
+                            ["Date", log.date],
+                            ["Submitted by", log.submittedBy],
+                            ["Submitted at", log.submittedAt],
+                            ...(log.authorizedBy ? [["Authorized by", log.authorizedBy]] : []),
+                          ].map(([label, value]) => (
+                            <div key={label} className="flex items-center justify-between">
+                              <span className="text-slate-500">{label}</span>
+                              <span className="font-semibold text-slate-800 text-right max-w-[60%]">{value}</span>
+                            </div>
+                          ))}
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-500">Result</span>
+                            {log.failCount === 0 ? (
+                              <span className="text-[10px] bg-green-500 text-white px-2 py-0.5 rounded-full font-semibold">All Pass ✓</span>
+                            ) : (
+                              <span className="text-[10px] bg-red-500 text-white px-2 py-0.5 rounded-full font-semibold">{log.failCount} Fail</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {log.failItems.length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-bold text-red-600 uppercase tracking-wider mb-1.5">Failed Items</p>
+                            {log.failItems.map(item => (
+                              <div key={item} className="text-[12px] text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-1.5">
+                                ✗ {item}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Checklist Summary</p>
+                          {log.rows.map((row, i) => {
+                            const hasAnyFail = log.slots.some(s => row.values[s] === "✗");
+                            return (
+                              <div key={row.id} className={`rounded-lg border px-3 py-2 mb-1.5 text-[11px] ${hasAnyFail ? "border-red-200 bg-red-50" : "border-green-100 bg-green-50"}`}>
+                                <p className={`font-medium ${hasAnyFail ? "text-red-700" : "text-green-700"}`}>{i + 1}. {row.item}</p>
+                                {row.remarks && <p className="text-slate-500 mt-0.5 italic">"{row.remarks}"</p>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
+                    );
+                  })() : (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <p className="font-bold text-slate-800 text-sm">Submitted Logs</p>
+                        <span className="text-[10px] text-slate-400">{logs.length} total</span>
+                      </div>
+                      {logs.length === 0 ? (
+                        <div className="text-center py-10 text-[12px] text-slate-400">No logs submitted yet.</div>
+                      ) : (
+                        logs.map(log => (
+                          <button
+                            key={log.id}
+                            onClick={() => setMLogEntryId(log.id)}
+                            className="w-full text-left px-3 py-2.5 rounded-xl border border-slate-200 bg-white hover:border-emerald-300 transition-all"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-sm text-slate-800">📋 {log.date}</span>
+                              {log.failCount === 0 ? (
+                                <span className="text-[10px] bg-green-500 text-white px-2 py-0.5 rounded-full">All Pass</span>
+                              ) : (
+                                <span className="text-[10px] bg-red-500 text-white px-2 py-0.5 rounded-full">{log.failCount} Fail</span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-0.5">
+                              {log.submittedBy} · {log.submittedAt}
+                              {log.authorizedBy ? ` · Auth: ${log.authorizedBy.split("—")[0].trim()}` : " · Pending auth"}
+                            </p>
+                          </button>
+                        ))
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Bottom nav */}
+            <div className="bg-white border-t border-slate-200 flex shrink-0">
+              <button
+                onClick={() => { setMMobileTab("checklist"); setMScreen(1); }}
+                className={`flex-1 py-2.5 flex flex-col items-center gap-0.5 text-[10px] font-semibold transition-colors ${
+                  mMobileTab === "checklist" ? "text-emerald-600" : "text-slate-400"
+                }`}
+              >
+                <ClipboardCheck className="h-4 w-4" /> Checklist
+              </button>
+              <button
+                onClick={() => setMMobileTab("log")}
+                className={`flex-1 py-2.5 flex flex-col items-center gap-0.5 text-[10px] font-semibold transition-colors ${
+                  mMobileTab === "log" ? "text-emerald-600" : "text-slate-400"
+                }`}
+              >
+                <Clock className="h-4 w-4" /> Log
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -1,51 +1,77 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
+/**
+ * Status color semantics (design spec):
+ *   Green   — approved, completed, operational, ready, ok
+ *   Amber   — pending, draft, in-progress, delayed warning
+ *   Teal    — scheduled, dispatched, active, ordered (info/active state)
+ *   Red     — rejected, failed, critical, destructive
+ *   Gray    — closed, departed, muted / terminal states
+ */
 const MAP: Record<string, string> = {
-  ok: "bg-success text-success-foreground",
-  approved: "bg-success text-success-foreground",
-  delivered: "bg-success text-success-foreground",
-  pass: "bg-success text-success-foreground",
-  closed: "bg-muted text-muted-foreground",
-  imported: "bg-success text-success-foreground",
-  exited: "bg-muted text-muted-foreground",
-  operational: "bg-success text-success-foreground",
-  scheduled: "bg-navy text-navy-foreground",
-  boarding: "bg-navy text-navy-foreground",
-  ordered: "bg-navy text-navy-foreground",
-  cooking: "bg-warning text-warning-foreground",
-  baking: "bg-warning text-warning-foreground",
-  "in preparation": "bg-warning text-warning-foreground",
-  preparing: "bg-warning text-warning-foreground",
-  cooling: "bg-warning text-warning-foreground",
-  "ready for qc": "bg-warning text-warning-foreground",
-  ready: "bg-success text-success-foreground",
-  pending: "bg-muted text-foreground border border-border",
-  draft: "bg-muted text-foreground border border-border",
-  "pending approval": "bg-warning text-warning-foreground",
-  partial: "bg-warning text-warning-foreground",
-  "service due": "bg-warning text-warning-foreground",
-  maintenance: "bg-warning text-warning-foreground",
-  inside: "bg-navy text-navy-foreground",
-  loaded: "bg-success text-success-foreground",
-  "en route": "bg-navy text-navy-foreground",
-  "sent to packaging": "bg-success text-success-foreground",
-  "pending store review": "bg-muted text-foreground border border-border",
-  "partially available": "bg-warning text-warning-foreground",
-  "escalated to supply chain": "bg-warning text-warning-foreground",
-  fulfilled: "bg-success text-success-foreground",
-  "pending acknowledgment": "bg-warning text-warning-foreground",
-  "issued to vendor": "bg-navy text-navy-foreground",
-  acknowledged: "bg-success text-success-foreground",
-  low: "bg-warning text-warning-foreground",
-  critical: "bg-destructive text-destructive-foreground",
-  delayed: "bg-destructive text-destructive-foreground",
-  fail: "bg-destructive text-destructive-foreground",
-  failed: "bg-destructive text-destructive-foreground",
-  departed: "bg-muted text-muted-foreground",
+  /* ── Green: completed / ok ── */
+  ok:                    "bg-[#ECFDF5] text-[#059669] border border-[#A7F3D0]",
+  approved:              "bg-[#ECFDF5] text-[#059669] border border-[#A7F3D0]",
+  delivered:             "bg-[#ECFDF5] text-[#059669] border border-[#A7F3D0]",
+  pass:                  "bg-[#ECFDF5] text-[#059669] border border-[#A7F3D0]",
+  imported:              "bg-[#ECFDF5] text-[#059669] border border-[#A7F3D0]",
+  operational:           "bg-[#ECFDF5] text-[#059669] border border-[#A7F3D0]",
+  ready:                 "bg-[#ECFDF5] text-[#059669] border border-[#A7F3D0]",
+  completed:             "bg-[#ECFDF5] text-[#059669] border border-[#A7F3D0]",
+  fulfilled:             "bg-[#ECFDF5] text-[#059669] border border-[#A7F3D0]",
+  acknowledged:          "bg-[#ECFDF5] text-[#059669] border border-[#A7F3D0]",
+  issued:                "bg-[#ECFDF5] text-[#059669] border border-[#A7F3D0]",
+  loaded:                "bg-[#ECFDF5] text-[#059669] border border-[#A7F3D0]",
+  "sent to packaging":   "bg-[#ECFDF5] text-[#059669] border border-[#A7F3D0]",
+
+  /* ── Teal: active / scheduled / in-transit ── */
+  scheduled:             "bg-[#f0fdfa] text-[#0f766e] border border-[#99f6e4]",
+  boarding:              "bg-[#f0fdfa] text-[#0f766e] border border-[#99f6e4]",
+  ordered:               "bg-[#f0fdfa] text-[#0f766e] border border-[#99f6e4]",
+  dispatched:            "bg-[#f0fdfa] text-[#0f766e] border border-[#99f6e4]",
+  inside:                "bg-[#f0fdfa] text-[#0f766e] border border-[#99f6e4]",
+  "en route":            "bg-[#f0fdfa] text-[#0f766e] border border-[#99f6e4]",
+  "issued to vendor":    "bg-[#f0fdfa] text-[#0f766e] border border-[#99f6e4]",
+
+  /* ── Amber: pending / in-progress / warning ── */
+  pending:               "bg-[#FFFBEB] text-[#B45309] border border-[#FDE68A]",
+  draft:                 "bg-[#FFFBEB] text-[#B45309] border border-[#FDE68A]",
+  "pending approval":    "bg-[#FFFBEB] text-[#B45309] border border-[#FDE68A]",
+  production:            "bg-[#FFFBEB] text-[#B45309] border border-[#FDE68A]",
+  cooking:               "bg-[#FFFBEB] text-[#B45309] border border-[#FDE68A]",
+  baking:                "bg-[#FFFBEB] text-[#B45309] border border-[#FDE68A]",
+  "in preparation":      "bg-[#FFFBEB] text-[#B45309] border border-[#FDE68A]",
+  preparing:             "bg-[#FFFBEB] text-[#B45309] border border-[#FDE68A]",
+  cooling:               "bg-[#FFFBEB] text-[#B45309] border border-[#FDE68A]",
+  "ready for qc":        "bg-[#FFFBEB] text-[#B45309] border border-[#FDE68A]",
+  partial:               "bg-[#FFFBEB] text-[#B45309] border border-[#FDE68A]",
+  "partially issued":    "bg-[#FFFBEB] text-[#B45309] border border-[#FDE68A]",
+  "service due":         "bg-[#FFFBEB] text-[#B45309] border border-[#FDE68A]",
+  maintenance:           "bg-[#FFFBEB] text-[#B45309] border border-[#FDE68A]",
+  "partially available": "bg-[#FFFBEB] text-[#B45309] border border-[#FDE68A]",
+  "escalated to supply chain": "bg-[#FFFBEB] text-[#B45309] border border-[#FDE68A]",
+  "pending acknowledgment":    "bg-[#FFFBEB] text-[#B45309] border border-[#FDE68A]",
+  "pending store review":      "bg-[#FFFBEB] text-[#B45309] border border-[#FDE68A]",
+  low:                   "bg-[#FFFBEB] text-[#B45309] border border-[#FDE68A]",
+
+  /* ── Red: destructive / failed ── */
+  critical:  "bg-[#FEF2F2] text-[#DC2626] border border-[#FECACA]",
+  delayed:   "bg-[#FEF2F2] text-[#DC2626] border border-[#FECACA]",
+  fail:      "bg-[#FEF2F2] text-[#DC2626] border border-[#FECACA]",
+  failed:    "bg-[#FEF2F2] text-[#DC2626] border border-[#FECACA]",
+
+  /* ── Gray: terminal / muted ── */
+  closed:    "bg-[#F8FAFC] text-[#64748b] border border-[#E2E8F0]",
+  departed:  "bg-[#F8FAFC] text-[#64748b] border border-[#E2E8F0]",
+  exited:    "bg-[#F8FAFC] text-[#64748b] border border-[#E2E8F0]",
 };
 
 export function StatusBadge({ status }: { status: string }) {
-  const cls = MAP[status.toLowerCase()] ?? "bg-muted text-foreground";
-  return <Badge className={cn("font-medium", cls)}>{status}</Badge>;
+  const cls = MAP[status.toLowerCase()] ?? "bg-[#F8FAFC] text-[#64748b] border border-[#E2E8F0]";
+  return (
+    <Badge className={cn("font-medium rounded-full px-2.5 py-0.5 text-[11px]", cls)}>
+      {status}
+    </Badge>
+  );
 }

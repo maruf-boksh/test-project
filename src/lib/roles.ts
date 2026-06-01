@@ -3,9 +3,7 @@ import { createContext, useContext } from "react";
 export const ROLES = [
   "GM/Admin",
   "Meal Planner",
-  "Flight Kitchen",
-  "Bakery Production",
-  "Amenities",
+  "Production",
   "Packaging & Dispatch",
   "Store & Inventory",
   "Procurement & Supply Chain",
@@ -26,10 +24,8 @@ export const useRole = () => useContext(RoleContext);
 /** Which sidebar group keys each role can see. "*" = all. */
 export const ROLE_PERMS: Record<Role, string[] | "*"> = {
   "GM/Admin": "*",
-  "Meal Planner": ["dashboard", "upload", "meal-planning", "production"],
-  "Flight Kitchen": ["dashboard", "production-kitchen", "qc"],
-  "Bakery Production": ["dashboard", "production-bakery", "qc"],
-  "Amenities": ["dashboard", "production-amenities"],
+  "Meal Planner": ["dashboard", "order-management", "meal-planning", "production"],
+  "Production": ["dashboard", "production-kitchen", "production-bakery", "production-amenities", "qc"],
   "Packaging & Dispatch": ["dashboard", "production-dispatch"],
   "Store & Inventory": ["dashboard", "inventory", "supply-receive"],
   "Procurement & Supply Chain": ["dashboard", "supply", "inventory-bom"],

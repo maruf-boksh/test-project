@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
 import { RowActions } from "@/components/common/RowActions";
@@ -8,14 +7,9 @@ import { Wrench, Plus } from "lucide-react";
 import { assets } from "@/lib/sample-data";
 import { KpiCard } from "@/components/common/KpiCard";
 
-export const Route = createFileRoute("/maintenance")({
-  head: () => ({ meta: [{ title: "Maintenance & Assets" }] }),
-  component: Maintenance,
-});
-
 type A = (typeof assets)[number];
 
-function Maintenance() {
+export default function Maintenance() {
   const cols: Column<A>[] = [
     { key: "id", header: "Asset #" },
     { key: "name", header: "Name" },
@@ -44,6 +38,7 @@ function Maintenance() {
         columns={cols}
         searchKeys={["id", "name", "type", "location", "status"]}
         actions={(r) => <RowActions row={r} actions={["view", "edit", "assign", "track", "delete"]} />}
+        selectable={false}
       />
     </>
   );

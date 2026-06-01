@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -13,11 +12,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { amenitiesMedicine, amenitiesTissue, amenitiesCutlery } from "@/lib/sample-data";
 import { toast } from "sonner";
-
-export const Route = createFileRoute("/amenities")({
-  head: () => ({ meta: [{ title: "Amenities" }] }),
-  component: Amenities,
-});
 
 const PAX_96H = 1248;
 const DEFAULT_ISSUED_BY = "Meal Planner";
@@ -164,7 +158,7 @@ function CategorySection({
   );
 }
 
-function Amenities() {
+export default function Amenities() {
   // ── New Issue Wizard ──
   const [newIssueOpen, setNewIssueOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState(0);
@@ -309,7 +303,9 @@ function Amenities() {
               <div className="text-xs font-semibold text-blue-600 uppercase tracking-wide">96-Hour Prior Flight Passengers</div>
               <div className="text-3xl font-bold text-blue-800 mt-0.5">{PAX_96H.toLocaleString()}</div>
             </div>
-            <Boxes className="h-8 w-8 text-blue-300" />
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-blue-500">
+              <Boxes className="h-8 w-8 text-white" />
+            </div>
           </div>
           <div>
             <Label className="text-sm font-semibold">Flight Type</Label>
