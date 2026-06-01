@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -18,11 +17,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useArrivalFlash } from "@/lib/arrival-flash";
-
-export const Route = createFileRoute("/dispatch")({
-  head: () => ({ meta: [{ title: "Packaging & Dispatch" }] }),
-  component: Dispatch,
-});
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -288,7 +282,7 @@ const INITIAL_RECORDS: DispatchRecord[] = [
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-function Dispatch() {
+export default function Dispatch() {
   useArrivalFlash();
   // ── Dispatch records state ──────────────────────────────────────────────────
   const [records, setRecords] = useState<DispatchRecord[]>(INITIAL_RECORDS);

@@ -13,7 +13,9 @@ import {
   readableForeground,
 } from "@/lib/theme-settings"
 import App from "./App.tsx"
-import "./styles.css"
+import "./index.css"
+import "@/styles/globals.css"
+import "@/styles/sidebar.css"
 
 /**
  * Bridges the existing useTheme hook to Ant Design's ConfigProvider so a
@@ -113,7 +115,7 @@ function AntThemeBridge({ children }: { children: React.ReactNode }) {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <ThemeProvider>
+    <ThemeProvider defaultTheme="light">
       <AntThemeBridge>
         <TooltipProvider>
           <App />

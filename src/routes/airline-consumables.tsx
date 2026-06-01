@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { KpiCard } from "@/components/common/KpiCard";
@@ -19,11 +18,6 @@ import {
 } from "@/lib/sample-data";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/airline-consumables")({
-  head: () => ({ meta: [{ title: "Consumables Inventory" }] }),
-  component: ConsumableInventoryPage,
-});
-
 const CATEGORIES: ConsumableCategory[] = [
   "Napkin", "Cup", "Cutlery", "Tissue", "Amenity Kit", "Plastic Tray", "Packaging",
 ];
@@ -38,7 +32,7 @@ function computeStatus(stock: number, reorder: number): "OK" | "Low" | "Critical
   return "OK";
 }
 
-function ConsumableInventoryPage() {
+export default function ConsumableInventoryPage() {
   const [view, setView] = useState<"list" | "create">("list");
   const [items, setItems] = useState<ConsumableItem[]>(consumableItems);
 

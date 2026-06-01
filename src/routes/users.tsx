@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -18,10 +17,6 @@ import { ROLES, type Role } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/users")({
-  head: () => ({ meta: [{ title: "User Management" }] }),
-  component: UserManagementPage,
-});
 
 type UserRow = {
   id: string;
@@ -64,7 +59,7 @@ function initials(name: string) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-function UserManagementPage() {
+export default function UserManagementPage() {
   const [rows, setRows] = useState<UserRow[]>(SEED);
   const [view, setView] = useState<"list" | "create">("list");
 

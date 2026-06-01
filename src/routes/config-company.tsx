@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState, type ComponentType, type ReactNode } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -8,11 +7,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Save, Building2, Mail, Phone, MapPin, Globe } from "lucide-react";
 import { toast } from "sonner";
-
-export const Route = createFileRoute("/config-company")({
-  head: () => ({ meta: [{ title: "Configuration · Company Profile" }] }),
-  component: ConfigCompanyPage,
-});
 
 const DEFAULT_COMPANY = {
   legalName: "US-Bangla Airlines Ltd.",
@@ -30,7 +24,7 @@ const DEFAULT_COMPANY = {
   logoText: "USB Catering",
 };
 
-function ConfigCompanyPage() {
+export default function ConfigCompanyPage() {
   const [c, setC] = useState(DEFAULT_COMPANY);
 
   const set = <K extends keyof typeof DEFAULT_COMPANY>(k: K, v: (typeof DEFAULT_COMPANY)[K]) =>

@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -20,14 +19,9 @@ import { useWorkflow, type WfPurchaseOrder, type WfRequisition } from "@/lib/wor
 import { LocationPicker, LocationFilter, LocationCell } from "@/components/common/LocationPicker";
 import { useArrivalFlash } from "@/lib/arrival-flash";
 
-export const Route = createFileRoute("/procurement")({
-  head: () => ({ meta: [{ title: "Purchase Orders" }] }),
-  component: ProcurementPage,
-});
-
 type POLineRow = { id: string; name: string; qty: number; uom: string; unitPrice: number };
 
-function ProcurementPage() {
+export default function ProcurementPage() {
   useArrivalFlash();
   const wf = useWorkflow();
   const { wfPurchaseOrders, wfRequisitions, addPurchaseOrder } = wf;

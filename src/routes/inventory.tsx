@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "react-router-dom";
 import { useState, useSyncExternalStore } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -23,11 +23,6 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { useArrivalFlash } from "@/lib/arrival-flash";
-
-export const Route = createFileRoute("/inventory")({
-  head: () => ({ meta: [{ title: "Stock Overview" }] }),
-  component: Inventory,
-});
 
 type BaseItem = (typeof inventory)[number];
 type Item = BaseItem & {
@@ -83,7 +78,7 @@ const emptyForm: FormState = {
 
 const SELECT_CLS = "w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm";
 
-function Inventory() {
+export default function Inventory() {
   useArrivalFlash();
   // Re-render when any item's FIFO/FEFO method is toggled.
   useSyncExternalStore(subscribeAllocationMethod, getAllocationVersion, getAllocationVersion);
@@ -134,7 +129,7 @@ function Inventory() {
     } catch {
       /* sessionStorage unavailable — fall through to navigation */
     }
-    navigate({ to: "/purchase-requisition" });
+    navigate("/purchase-requisition");
     toast.success(`Pre-filling Purchase Requisition for ${item.name}.`);
   };
   const [filterOffice, setFilterOffice] = useState("");

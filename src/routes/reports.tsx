@@ -1,14 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileText, FileSpreadsheet, FileType, Download } from "lucide-react";
 import { toast } from "sonner";
-
-export const Route = createFileRoute("/reports")({
-  head: () => ({ meta: [{ title: "Reports" }] }),
-  component: Reports,
-});
 
 const REPORTS = [
   { name: "Daily Meal Supply Report", desc: "Per-flight meal supply summary for the day" },
@@ -21,7 +15,7 @@ const REPORTS = [
   { name: "Financial Summary", desc: "Cost per meal, budget vs actual, P&L" },
 ];
 
-function Reports() {
+export default function Reports() {
   return (
     <>
       <PageHeader title="Reports & Analytics" subtitle="Generate and export operational reports" />

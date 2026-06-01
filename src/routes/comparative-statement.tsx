@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { KpiCard } from "@/components/common/KpiCard";
@@ -17,11 +16,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-
-export const Route = createFileRoute("/comparative-statement")({
-  head: () => ({ meta: [{ title: "Comparative Statement" }] }),
-  component: ComparativeStatementPage,
-});
 
 type CsStatus = "Draft" | "Pending Approval" | "Approved" | "Rejected";
 
@@ -116,7 +110,7 @@ const SEED_CS: ComparativeStatement[] = [
   },
 ];
 
-function ComparativeStatementPage() {
+export default function ComparativeStatementPage() {
   const [view, setView] = useState<"list" | "create">("list");
   const [rows, setRows] = useState<ComparativeStatement[]>(SEED_CS);
 

@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { KpiCard } from "@/components/common/KpiCard";
@@ -17,11 +16,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { activeItems, vendors } from "@/lib/sample-data";
-
-export const Route = createFileRoute("/purchase-return")({
-  head: () => ({ meta: [{ title: "Purchase Return" }] }),
-  component: PurchaseReturnPage,
-});
 
 type ReturnStatus = "Draft" | "Submitted" | "Approved" | "Completed" | "Rejected";
 
@@ -104,7 +98,7 @@ const SEED_RETURNS: PurchaseReturn[] = [
 const selectCls =
   "w-full mt-1 h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
-function PurchaseReturnPage() {
+export default function PurchaseReturnPage() {
   const [view, setView] = useState<"list" | "create">("list");
   const [rows, setRows] = useState<PurchaseReturn[]>(SEED_RETURNS);
 

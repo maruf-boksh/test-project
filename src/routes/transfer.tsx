@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -24,10 +23,6 @@ import { LocationPicker, LocationFilter, LocationCell } from "@/components/commo
 import { useWorkflow, type WfTransferNote } from "@/lib/workflow-store";
 import { useArrivalFlash } from "@/lib/arrival-flash";
 
-export const Route = createFileRoute("/transfer")({
-  head: () => ({ meta: [{ title: "Transfer" }] }),
-  component: TransferPage,
-});
 
 type TransferStatus = "Pending" | "In Transit" | "Completed" | "Rejected";
 type TransferKind = "Outbound" | "Return";
@@ -169,7 +164,7 @@ function wfTransferNoteToTransfer(wf: WfTransferNote): Transfer {
   };
 }
 
-function TransferPage() {
+export default function TransferPage() {
   useArrivalFlash();
   const { transferNotes } = useWorkflow();
   const [rows, setRows] = useState<Transfer[]>(SEED);

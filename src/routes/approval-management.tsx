@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { KpiCard } from "@/components/common/KpiCard";
@@ -22,14 +21,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { useWorkflow, type WfDemandRequest, type WfDemandStatus } from "@/lib/workflow-store";
-import { useRole } from "@/lib/roles";
-import { inventory, warehouses } from "@/lib/sample-data";
-
-export const Route = createFileRoute("/approval-management")({
-  head: () => ({ meta: [{ title: "Approval Management" }] }),
-  component: ApprovalManagementPage,
-});
 
 type Category =
   | "Demand Request"
@@ -108,15 +99,7 @@ function categoryIcon(cat: Category) {
   return CATEGORIES.find((c) => c.key === cat)?.icon ?? FileText;
 }
 
-function ApprovalManagementPage() {
-  const { role } = useRole();
-  const wf = useWorkflow();
-  const {
-    demands, updateDemandStatus,
-    addTransferNote, addRequisition,
-    mrpRuns, updateMrpRun,
-  } = wf;
-
+export default function ApprovalManagementPage() {
   const [items, setItems] = useState<ApprovalItem[]>(SEED);
   const [activeTab, setActiveTab] = useState<Category | "all">("all");
   const [search, setSearch] = useState("");

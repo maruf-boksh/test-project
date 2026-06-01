@@ -1,4 +1,5 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute } from '@tanstack/react-router'
+import { useNavigate } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { KpiCard } from "@/components/common/KpiCard";
@@ -18,14 +19,7 @@ import {
   AlertCircle, Search, CalendarRange, ShieldCheck, XCircle, ArrowUpRight, Send,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  useWorkflow, type WfMrpRun, type WfMrpMaterial, type WfDemandRequest,
-} from "@/lib/workflow-store";
-
-export const Route = createFileRoute("/mrp")({
-  head: () => ({ meta: [{ title: "Material Requirement Planning" }] }),
-  component: MrpPage,
-});
+import { useWorkflow, type WfMrpRun, type WfMrpMaterial } from "@/lib/workflow-store";
 
 function downloadCsv(run: WfMrpRun) {
   const header = [
@@ -52,8 +46,8 @@ function downloadCsv(run: WfMrpRun) {
   URL.revokeObjectURL(url);
 }
 
-function MrpPage() {
-  const { mrpRuns, demands } = useWorkflow();
+export default function MrpPage() {
+  const { mrpRuns } = useWorkflow();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [from, setFrom] = useState("");
@@ -83,7 +77,7 @@ function MrpPage() {
         subtitle="History of MRP runs — each row links to the auto-generated Purchase Requisitions and Item Issues"
         actions={
           <Button
-            onClick={() => navigate({ to: "/production-entry", hash: "mrp" })}
+            onClick={() => navigate("/production-entry")}
             className="gap-1.5"
           >
             <Calculator className="h-4 w-4" />

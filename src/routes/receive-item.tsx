@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -15,11 +14,6 @@ import {
 import { toast } from "sonner";
 import { useWorkflow, type WfGRN, type WfGRNLine } from "@/lib/workflow-store";
 import { LocationPicker, LocationFilter, LocationCell } from "@/components/common/LocationPicker";
-
-export const Route = createFileRoute("/receive-item")({
-  head: () => ({ meta: [{ title: "Receive Item — Inbound GRN" }] }),
-  component: ReceiveItem,
-});
 
 type SeedGRN = (typeof receiveItems)[number];
 
@@ -76,7 +70,7 @@ function wfGRNToRows(grn: WfGRN): GRNRow[] {
   }));
 }
 
-function ReceiveItem() {
+export default function ReceiveItem() {
   const wf = useWorkflow();
   const { wfPurchaseOrders, wfRequisitions, demands, addGRN, updateDemandStatus, applyStockDeltas, grns } = wf;
 
