@@ -909,7 +909,343 @@ const _billOfMaterialsRaw: BillOfMaterial[] = [
       { material: "RM-2702 - Additives (Litre)", type: "Raw Material", excludeScrap: "No", altQty: 0, quantity: 0.05, uom: "Litre", wastagePct: 0, totalQty: 0.05, avgRate: 626, total: 31.30 },
     ],
   },
+  ...buildMealPlanBoms(),
 ];
+
+// ── Meal-plan BOMs ──────────────────────────────────────────────────────────
+// Helper-generated recipes for every meal-plan item that appears in
+// `meal-planning-data.ts`. Without these, "Create All Orders" from the
+// Production Order page would create empty production orders with no
+// materials computed and no Demand Request raised. Each recipe lists
+// realistic raw + packaging components in catering-realistic quantities so
+// MRP, demand requests, and FEFO allocation flows can all light up.
+
+type MealBomSpec = {
+  name: string;
+  category: string;
+  section: string;
+  unitCost: number;
+  yieldPortions: number;
+  materials: Array<{
+    code: string;
+    name: string;
+    qty: number;
+    uom: string;
+    rate: number;
+    type?: "Raw Material" | "Packaging" | "Other";
+  }>;
+};
+
+function buildMealPlanBoms(): BillOfMaterial[] {
+  // Shared packaging stub — every catered meal item gets a meal-box tray so
+  // the Demand Request includes packaging shortfalls as well as raw inputs.
+  const PKG = {
+    code: "PKG-2710", name: "Meal Box (Foil/Paper)",
+    qty: 1, uom: "PCS", rate: 12, type: "Packaging" as const,
+  };
+
+  const specs: MealBomSpec[] = [
+    // ── Rice / grain main courses ──
+    { name: "Plain Polao", category: "Hot Kitchen", section: "Main Course", unitCost: 38, yieldPortions: 1, materials: [
+      { code: "RM-2701-RICE",  name: "Polao Rice",     qty: 0.18, uom: "KG", rate: 95 },
+      { code: "RM-2710-GHEE",  name: "Ghee",           qty: 0.01, uom: "KG", rate: 1100 },
+      PKG,
+    ]},
+    { name: "Saffron Rice", category: "Hot Kitchen", section: "Main Course", unitCost: 42, yieldPortions: 1, materials: [
+      { code: "RM-2701-RICE",  name: "Polao Rice",     qty: 0.17, uom: "KG", rate: 95 },
+      { code: "RM-2720-SAFF",  name: "Saffron",        qty: 0.0002, uom: "KG", rate: 12000 },
+      PKG,
+    ]},
+    { name: "Jeera Polao", category: "Hot Kitchen", section: "Main Course", unitCost: 39, yieldPortions: 1, materials: [
+      { code: "RM-2701-RICE",  name: "Polao Rice",     qty: 0.18, uom: "KG", rate: 95 },
+      { code: "RM-2721-JEERA", name: "Cumin Seed",     qty: 0.003, uom: "KG", rate: 800 },
+      PKG,
+    ]},
+    { name: "Steamed Rice", category: "Hot Kitchen", section: "Main Course", unitCost: 26, yieldPortions: 1, materials: [
+      { code: "RM-2702-PRICE", name: "Plain Rice",     qty: 0.18, uom: "KG", rate: 75 },
+      PKG,
+    ]},
+    { name: "Boiled Rice", category: "Hot Kitchen", section: "Main Course", unitCost: 24, yieldPortions: 1, materials: [
+      { code: "RM-2702-PRICE", name: "Plain Rice",     qty: 0.18, uom: "KG", rate: 70 },
+      PKG,
+    ]},
+    { name: "Plain Rice", category: "Hot Kitchen", section: "Main Course", unitCost: 24, yieldPortions: 1, materials: [
+      { code: "RM-2702-PRICE", name: "Plain Rice",     qty: 0.18, uom: "KG", rate: 70 },
+      PKG,
+    ]},
+    { name: "Vegetable Biryani", category: "Hot Kitchen", section: "Main Course", unitCost: 64, yieldPortions: 1, materials: [
+      { code: "RM-2701-RICE",  name: "Polao Rice",     qty: 0.20, uom: "KG", rate: 95 },
+      { code: "RM-2730-MIXV",  name: "Mixed Vegetables", qty: 0.10, uom: "KG", rate: 65 },
+      { code: "RM-2731-SPICE", name: "Biryani Spice Mix", qty: 0.008, uom: "KG", rate: 380 },
+      PKG,
+    ]},
+    { name: "Chicken Khichuri", category: "Hot Kitchen", section: "Main Course", unitCost: 72, yieldPortions: 1, materials: [
+      { code: "RM-2702-PRICE", name: "Plain Rice",     qty: 0.15, uom: "KG", rate: 70 },
+      { code: "RM-2740-MOOG",  name: "Moog Dal",       qty: 0.05, uom: "KG", rate: 140 },
+      { code: "RM-2750-CHKN",  name: "Chicken",        qty: 0.08, uom: "KG", rate: 280 },
+      PKG,
+    ]},
+
+    // ── Bread / wraps ──
+    { name: "Roti", category: "Hot Kitchen", section: "Bread", unitCost: 14, yieldPortions: 1, materials: [
+      { code: "RM-2760-FLOUR", name: "Wheat Flour",    qty: 0.06, uom: "KG", rate: 65 },
+      { code: "RM-2761-OIL",   name: "Cooking Oil",    qty: 0.003, uom: "Litre", rate: 180 },
+      PKG,
+    ]},
+    { name: "Garlic Naan", category: "Hot Kitchen", section: "Bread", unitCost: 22, yieldPortions: 1, materials: [
+      { code: "RM-2762-NAAN",  name: "Naan Flour",     qty: 0.07, uom: "KG", rate: 90 },
+      { code: "RM-2763-GARLC", name: "Garlic Paste",   qty: 0.005, uom: "KG", rate: 180 },
+      PKG,
+    ]},
+    { name: "Kulcha", category: "Hot Kitchen", section: "Bread", unitCost: 20, yieldPortions: 1, materials: [
+      { code: "RM-2762-NAAN",  name: "Naan Flour",     qty: 0.07, uom: "KG", rate: 90 },
+      { code: "RM-2764-DAIRY", name: "Yoghurt",        qty: 0.02, uom: "KG", rate: 110 },
+      PKG,
+    ]},
+    { name: "Paratha", category: "Hot Kitchen", section: "Bread", unitCost: 18, yieldPortions: 1, materials: [
+      { code: "RM-2760-FLOUR", name: "Wheat Flour",    qty: 0.07, uom: "KG", rate: 65 },
+      { code: "RM-2761-OIL",   name: "Cooking Oil",    qty: 0.008, uom: "Litre", rate: 180 },
+      PKG,
+    ]},
+    { name: "Roll Sandwich with Chicken & Cheese", category: "Cold Kitchen", section: "Sandwich", unitCost: 95, yieldPortions: 1, materials: [
+      { code: "RM-2770-WRAP",  name: "Wrap Bread",     qty: 1, uom: "PCS", rate: 24 },
+      { code: "RM-2750-CHKN",  name: "Chicken",        qty: 0.07, uom: "KG", rate: 280 },
+      { code: "RM-2771-CHEES", name: "Cheese Slice",   qty: 1, uom: "PCS", rate: 18 },
+      PKG,
+    ]},
+    { name: "Vegetable Sandwich", category: "Cold Kitchen", section: "Sandwich", unitCost: 52, yieldPortions: 1, materials: [
+      { code: "RM-2772-BREAD", name: "Sandwich Bread", qty: 2, uom: "PCS", rate: 8 },
+      { code: "RM-2773-VEGFL", name: "Veg Filling",    qty: 0.08, uom: "KG", rate: 220 },
+      { code: "RM-2774-BUTTR", name: "Butter",         qty: 0.005, uom: "KG", rate: 950 },
+      PKG,
+    ]},
+    { name: "Veg Frankie", category: "Cold Kitchen", section: "Sandwich", unitCost: 48, yieldPortions: 1, materials: [
+      { code: "RM-2770-WRAP",  name: "Wrap Bread",     qty: 1, uom: "PCS", rate: 24 },
+      { code: "RM-2773-VEGFL", name: "Veg Filling",    qty: 0.06, uom: "KG", rate: 220 },
+      PKG,
+    ]},
+
+    // ── Meat dishes ──
+    { name: "Beef Rezala", category: "Hot Kitchen", section: "Main Course", unitCost: 165, yieldPortions: 1, materials: [
+      { code: "RM-2780-BEEF",  name: "Beef",           qty: 0.10, uom: "KG", rate: 680 },
+      { code: "RM-2731-SPICE", name: "Biryani Spice Mix", qty: 0.005, uom: "KG", rate: 380 },
+      { code: "RM-2764-DAIRY", name: "Yoghurt",        qty: 0.02, uom: "KG", rate: 110 },
+      PKG,
+    ]},
+    { name: "Mutton Rezala", category: "Hot Kitchen", section: "Main Course", unitCost: 215, yieldPortions: 1, materials: [
+      { code: "RM-2781-MUTTN", name: "Mutton",         qty: 0.11, uom: "KG", rate: 820 },
+      { code: "RM-2731-SPICE", name: "Biryani Spice Mix", qty: 0.005, uom: "KG", rate: 380 },
+      { code: "RM-2764-DAIRY", name: "Yoghurt",        qty: 0.02, uom: "KG", rate: 110 },
+      PKG,
+    ]},
+    { name: "Chicken Masala", category: "Hot Kitchen", section: "Main Course", unitCost: 95, yieldPortions: 1, materials: [
+      { code: "RM-2750-CHKN",  name: "Chicken",        qty: 0.10, uom: "KG", rate: 280 },
+      { code: "RM-2790-MASLA", name: "Masala Mix",     qty: 0.008, uom: "KG", rate: 350 },
+      PKG,
+    ]},
+    { name: "Chicken Dopiaza", category: "Hot Kitchen", section: "Main Course", unitCost: 92, yieldPortions: 1, materials: [
+      { code: "RM-2750-CHKN",  name: "Chicken",        qty: 0.10, uom: "KG", rate: 280 },
+      { code: "RM-2791-ONION", name: "Onion",          qty: 0.06, uom: "KG", rate: 80 },
+      PKG,
+    ]},
+    { name: "Chicken Korma", category: "Hot Kitchen", section: "Main Course", unitCost: 105, yieldPortions: 1, materials: [
+      { code: "RM-2750-CHKN",  name: "Chicken",        qty: 0.10, uom: "KG", rate: 280 },
+      { code: "RM-2792-CASHW", name: "Cashew Paste",   qty: 0.01, uom: "KG", rate: 1400 },
+      { code: "RM-2764-DAIRY", name: "Yoghurt",        qty: 0.02, uom: "KG", rate: 110 },
+      PKG,
+    ]},
+    { name: "Tandoori Chicken", category: "Hot Kitchen", section: "Main Course", unitCost: 110, yieldPortions: 1, materials: [
+      { code: "RM-2750-CHKN",  name: "Chicken",        qty: 0.10, uom: "KG", rate: 280 },
+      { code: "RM-2793-TANDR", name: "Tandoori Marinade", qty: 0.02, uom: "KG", rate: 480 },
+      PKG,
+    ]},
+    { name: "Korean Fried Chicken", category: "Hot Kitchen", section: "Main Course", unitCost: 135, yieldPortions: 1, materials: [
+      { code: "RM-2750-CHKN",  name: "Chicken",        qty: 0.10, uom: "KG", rate: 280 },
+      { code: "RM-2794-KSAUC", name: "Korean Glaze",   qty: 0.025, uom: "KG", rate: 720 },
+      { code: "RM-2795-PFLR",  name: "Coating Flour",  qty: 0.02, uom: "KG", rate: 110 },
+      PKG,
+    ]},
+    { name: "Fish Curry", category: "Hot Kitchen", section: "Main Course", unitCost: 120, yieldPortions: 1, materials: [
+      { code: "RM-2796-FISH",  name: "Fish Fillet",    qty: 0.10, uom: "KG", rate: 720 },
+      { code: "RM-2790-MASLA", name: "Masala Mix",     qty: 0.008, uom: "KG", rate: 350 },
+      PKG,
+    ]},
+
+    // ── Veg / dal ──
+    { name: "Mug Dal", category: "Hot Kitchen", section: "Dal", unitCost: 32, yieldPortions: 1, materials: [
+      { code: "RM-2740-MOOG",  name: "Moog Dal",       qty: 0.06, uom: "KG", rate: 140 },
+      { code: "RM-2761-OIL",   name: "Cooking Oil",    qty: 0.005, uom: "Litre", rate: 180 },
+      PKG,
+    ]},
+    { name: "Mug Dal Vuna", category: "Hot Kitchen", section: "Dal", unitCost: 36, yieldPortions: 1, materials: [
+      { code: "RM-2740-MOOG",  name: "Moog Dal",       qty: 0.06, uom: "KG", rate: 140 },
+      { code: "RM-2791-ONION", name: "Onion",          qty: 0.03, uom: "KG", rate: 80 },
+      { code: "RM-2710-GHEE",  name: "Ghee",           qty: 0.005, uom: "KG", rate: 1100 },
+      PKG,
+    ]},
+    { name: "Dal Butter Fry", category: "Hot Kitchen", section: "Dal", unitCost: 38, yieldPortions: 1, materials: [
+      { code: "RM-2741-DAL",   name: "Yellow Dal",     qty: 0.06, uom: "KG", rate: 130 },
+      { code: "RM-2774-BUTTR", name: "Butter",         qty: 0.01, uom: "KG", rate: 950 },
+      PKG,
+    ]},
+    { name: "Dal Tadka", category: "Hot Kitchen", section: "Dal", unitCost: 30, yieldPortions: 1, materials: [
+      { code: "RM-2741-DAL",   name: "Yellow Dal",     qty: 0.06, uom: "KG", rate: 130 },
+      { code: "RM-2721-JEERA", name: "Cumin Seed",     qty: 0.002, uom: "KG", rate: 800 },
+      PKG,
+    ]},
+    { name: "Chana Dal", category: "Hot Kitchen", section: "Dal", unitCost: 34, yieldPortions: 1, materials: [
+      { code: "RM-2742-CHANA", name: "Chana Dal",      qty: 0.06, uom: "KG", rate: 160 },
+      { code: "RM-2761-OIL",   name: "Cooking Oil",    qty: 0.005, uom: "Litre", rate: 180 },
+      PKG,
+    ]},
+    { name: "Mixed Veg", category: "Hot Kitchen", section: "Vegetable", unitCost: 28, yieldPortions: 1, materials: [
+      { code: "RM-2730-MIXV",  name: "Mixed Vegetables", qty: 0.08, uom: "KG", rate: 65 },
+      { code: "RM-2761-OIL",   name: "Cooking Oil",    qty: 0.005, uom: "Litre", rate: 180 },
+      PKG,
+    ]},
+    { name: "Mixed Veg Curry", category: "Hot Kitchen", section: "Vegetable", unitCost: 32, yieldPortions: 1, materials: [
+      { code: "RM-2730-MIXV",  name: "Mixed Vegetables", qty: 0.08, uom: "KG", rate: 65 },
+      { code: "RM-2790-MASLA", name: "Masala Mix",     qty: 0.005, uom: "KG", rate: 350 },
+      PKG,
+    ]},
+    { name: "Sauteed Veg", category: "Hot Kitchen", section: "Vegetable", unitCost: 26, yieldPortions: 1, materials: [
+      { code: "RM-2730-MIXV",  name: "Mixed Vegetables", qty: 0.08, uom: "KG", rate: 65 },
+      { code: "RM-2774-BUTTR", name: "Butter",         qty: 0.005, uom: "KG", rate: 950 },
+      PKG,
+    ]},
+    { name: "Sauteed Vegetables", category: "Hot Kitchen", section: "Vegetable", unitCost: 26, yieldPortions: 1, materials: [
+      { code: "RM-2730-MIXV",  name: "Mixed Vegetables", qty: 0.08, uom: "KG", rate: 65 },
+      { code: "RM-2774-BUTTR", name: "Butter",         qty: 0.005, uom: "KG", rate: 950 },
+      PKG,
+    ]},
+    { name: "Buttered Veg", category: "Hot Kitchen", section: "Vegetable", unitCost: 24, yieldPortions: 1, materials: [
+      { code: "RM-2730-MIXV",  name: "Mixed Vegetables", qty: 0.06, uom: "KG", rate: 65 },
+      { code: "RM-2774-BUTTR", name: "Butter",         qty: 0.008, uom: "KG", rate: 950 },
+      PKG,
+    ]},
+    { name: "Paneer Tikka Masala", category: "Hot Kitchen", section: "Main Course", unitCost: 88, yieldPortions: 1, materials: [
+      { code: "RM-2800-PANER", name: "Paneer",         qty: 0.08, uom: "KG", rate: 540 },
+      { code: "RM-2790-MASLA", name: "Masala Mix",     qty: 0.008, uom: "KG", rate: 350 },
+      { code: "RM-2764-DAIRY", name: "Yoghurt",        qty: 0.02, uom: "KG", rate: 110 },
+      PKG,
+    ]},
+    { name: "Channa Masala", category: "Hot Kitchen", section: "Vegetable", unitCost: 42, yieldPortions: 1, materials: [
+      { code: "RM-2742-CHANA", name: "Chana Dal",      qty: 0.06, uom: "KG", rate: 160 },
+      { code: "RM-2790-MASLA", name: "Masala Mix",     qty: 0.006, uom: "KG", rate: 350 },
+      PKG,
+    ]},
+    { name: "Raita", category: "Cold Kitchen", section: "Side", unitCost: 18, yieldPortions: 1, materials: [
+      { code: "RM-2764-DAIRY", name: "Yoghurt",        qty: 0.05, uom: "KG", rate: 110 },
+      { code: "RM-2810-CUCMB", name: "Cucumber",       qty: 0.02, uom: "KG", rate: 55 },
+      PKG,
+    ]},
+
+    // ── Egg ──
+    { name: "Fried Egg", category: "Cold Kitchen", section: "Breakfast", unitCost: 22, yieldPortions: 1, materials: [
+      { code: "RM-2820-EGG",   name: "Egg",            qty: 1, uom: "PCS", rate: 12 },
+      { code: "RM-2761-OIL",   name: "Cooking Oil",    qty: 0.005, uom: "Litre", rate: 180 },
+      PKG,
+    ]},
+    { name: "Scrambled Egg", category: "Cold Kitchen", section: "Breakfast", unitCost: 28, yieldPortions: 1, materials: [
+      { code: "RM-2820-EGG",   name: "Egg",            qty: 2, uom: "PCS", rate: 12 },
+      { code: "RM-2774-BUTTR", name: "Butter",         qty: 0.003, uom: "KG", rate: 950 },
+      PKG,
+    ]},
+    { name: "Boiled Egg", category: "Cold Kitchen", section: "Breakfast", unitCost: 14, yieldPortions: 1, materials: [
+      { code: "RM-2820-EGG",   name: "Egg",            qty: 1, uom: "PCS", rate: 12 },
+      PKG,
+    ]},
+
+    // ── Sides ──
+    { name: "Potato Wedges", category: "Hot Kitchen", section: "Side", unitCost: 22, yieldPortions: 1, materials: [
+      { code: "RM-2830-POTAT", name: "Potato",         qty: 0.08, uom: "KG", rate: 45 },
+      { code: "RM-2761-OIL",   name: "Cooking Oil",    qty: 0.01, uom: "Litre", rate: 180 },
+      PKG,
+    ]},
+    { name: "Fruit Salad", category: "Cold Kitchen", section: "Side", unitCost: 38, yieldPortions: 1, materials: [
+      { code: "RM-2840-FRUIT", name: "Mixed Fruit",    qty: 0.08, uom: "KG", rate: 280 },
+      PKG,
+    ]},
+
+    // ── Desserts ──
+    { name: "Vanilla Pastry", category: "Bakery", section: "Dessert", unitCost: 48, yieldPortions: 1, materials: [
+      { code: "RM-2850-CAKE",  name: "Vanilla Sponge", qty: 0.05, uom: "KG", rate: 480 },
+      { code: "RM-2851-CREAM", name: "Cream",          qty: 0.02, uom: "KG", rate: 320 },
+      PKG,
+    ]},
+    { name: "Mango Mousse", category: "Bakery", section: "Dessert", unitCost: 52, yieldPortions: 1, materials: [
+      { code: "RM-2860-MANGO", name: "Mango Pulp",     qty: 0.05, uom: "KG", rate: 420 },
+      { code: "RM-2851-CREAM", name: "Cream",          qty: 0.03, uom: "KG", rate: 320 },
+      PKG,
+    ]},
+    { name: "Yoghurt", category: "Cold Kitchen", section: "Dessert", unitCost: 22, yieldPortions: 1, materials: [
+      { code: "RM-2764-DAIRY", name: "Yoghurt",        qty: 0.08, uom: "KG", rate: 110 },
+      PKG,
+    ]},
+    { name: "Yoghurt & Semolina", category: "Cold Kitchen", section: "Dessert", unitCost: 34, yieldPortions: 1, materials: [
+      { code: "RM-2764-DAIRY", name: "Yoghurt",        qty: 0.06, uom: "KG", rate: 110 },
+      { code: "RM-2870-SEMOL", name: "Semolina",       qty: 0.03, uom: "KG", rate: 95 },
+      PKG,
+    ]},
+    { name: "Firni & Semolina", category: "Cold Kitchen", section: "Dessert", unitCost: 38, yieldPortions: 1, materials: [
+      { code: "RM-2880-MILK",  name: "Milk",           qty: 0.05, uom: "Litre", rate: 95 },
+      { code: "RM-2870-SEMOL", name: "Semolina",       qty: 0.025, uom: "KG", rate: 95 },
+      { code: "RM-2890-SUGAR", name: "Sugar",          qty: 0.015, uom: "KG", rate: 130 },
+      PKG,
+    ]},
+    { name: "Firni & Vanilla Pastry", category: "Bakery", section: "Dessert", unitCost: 56, yieldPortions: 1, materials: [
+      { code: "RM-2880-MILK",  name: "Milk",           qty: 0.04, uom: "Litre", rate: 95 },
+      { code: "RM-2850-CAKE",  name: "Vanilla Sponge", qty: 0.03, uom: "KG", rate: 480 },
+      { code: "RM-2890-SUGAR", name: "Sugar",          qty: 0.015, uom: "KG", rate: 130 },
+      PKG,
+    ]},
+    { name: "Gulab Jamun", category: "Bakery", section: "Dessert", unitCost: 32, yieldPortions: 1, materials: [
+      { code: "RM-2900-KHOYA", name: "Khoya",          qty: 0.03, uom: "KG", rate: 380 },
+      { code: "RM-2890-SUGAR", name: "Sugar",          qty: 0.025, uom: "KG", rate: 130 },
+      PKG,
+    ]},
+
+    // ── Combo / multi-output ──
+    { name: "Plain Polao, Saffron Rice, Chicken Korma, Kitkat Chocolate", category: "Hot Kitchen", section: "Combo", unitCost: 220, yieldPortions: 1, materials: [
+      { code: "RM-2701-RICE",  name: "Polao Rice",     qty: 0.20, uom: "KG", rate: 95 },
+      { code: "RM-2750-CHKN",  name: "Chicken",        qty: 0.10, uom: "KG", rate: 280 },
+      { code: "RM-2792-CASHW", name: "Cashew Paste",   qty: 0.01, uom: "KG", rate: 1400 },
+      { code: "RM-2910-KKAT",  name: "Kitkat Bar",     qty: 1, uom: "PCS", rate: 35 },
+      PKG,
+    ]},
+  ];
+
+  return specs.map((s, idx) => {
+    const seq = String(100 + idx).padStart(3, "0");
+    const id = `BOM-MP-${seq}`;
+    const itemCode = `MP-${s.name.toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+    const bomValue = s.materials.reduce((sum, m) => sum + m.qty * m.rate, 0);
+    return {
+      id, name: s.name, components: s.materials.length, version: "v1.0",
+      yield: `${s.yieldPortions} portion${s.yieldPortions === 1 ? "" : "s"}`,
+      lastUpdated: "2026-06-01", status: "Active", date: "2026-06-01",
+      itemCode, itemName: s.name,
+      category: s.category, section: s.section, uom: "PCS", altUom: "",
+      lotSize: 1, bomValue: Math.round(bomValue * 100) / 100,
+      createdBy: "Chef Auto", bomType: "Single Output",
+      productionItems: [
+        { item: `${itemCode} - ${s.name} (PCS)`, itemType: "Finished/Trading Goods", netWeight: 0, quantity: 1, costPct: 100 },
+      ],
+      inputMaterials: s.materials.map((m) => ({
+        material: `${m.code} - ${m.name} (${m.uom})`,
+        type: m.type ?? "Raw Material",
+        excludeScrap: "No" as const,
+        altQty: 0,
+        quantity: m.qty,
+        uom: m.uom,
+        wastagePct: 0,
+        totalQty: m.qty,
+        avgRate: m.rate,
+        total: Math.round(m.qty * m.rate * 100) / 100,
+      })),
+    };
+  });
+}
 
 // Backfill defaults so existing BOMs report under Head Office Dhaka · Hot Kitchen
 export const billOfMaterials: BillOfMaterial[] = _billOfMaterialsRaw.map((b) => ({
